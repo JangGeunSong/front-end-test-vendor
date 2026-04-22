@@ -1,0 +1,9 @@
+# 일반적인 로그나 임시 파일은 제외
+node_modules/.cache
+test-results/
+playwright-report/
+blob-report/
+playwright/.local-browsers
+
+# 하지만 node_modules 본체는 포함시킨다! (Vendor 방식 핵심)
+!node_modules/

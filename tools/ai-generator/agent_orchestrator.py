@@ -1,10 +1,16 @@
 import subprocess
 import json
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 import google.generativeai as genai  # pip install google-generativeai
 
-load_dotenv()
+BASE_DIR = Path(__file__).resolve().parent
+ROOT_DIR = BASE_DIR.parents[1]
+SCOUT_PATH = BASE_DIR / "scout.js"
+GENERATED_DIR = BASE_DIR / "generated"
+
+load_dotenv(ROOT_DIR / ".env")
 
 # 1. LLM 설정 (API 키는 환경변수나 별도 파일 권장)
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
@@ -19,14 +25,14 @@ def run_scout(url):
     
     # 수정 후 (shell=True 추가)
     result = subprocess.run(
-        ['node', 'scout.js', url], 
+        ['node', str(SCOUT_PATH), url], 
         capture_output=True, 
         text=True,
         # 핵심 변경: 데이터를 UTF-8로 읽고, 깨지는 글자는 대체 문자로 처리하여 중단 방지
         encoding='utf-8', 
-        errors='replace', 
-        shell=True,
-        env=current_env
+        errors='replace',
+        env=current_env,
+        check=False
     )
     
     if result.returncode != 0:
@@ -54,7 +60,8 @@ def analyze_and_generate_code(dom_data):
     1. 'isHoverTarget'이 true인 요소는 반드시 .hover() 후 하위 메뉴를 클릭해라.
     2. 모든 동작은 test.step()으로 묶어라.
     3. 결과 피드백(텍스트, URL 변화 등)을 expect()로 검증해라.
-    4. **출력은 마크다운 코드 블록 없이 순수 Javascript 코드만 반환해라.**
+    4. 등록/수정/삭제처럼 데이터 변경이 있는 동작은 실제 실행하지 말고 TODO 주석으로 남겨라.
+    5. 출력은 마크다운 코드 블록 없이 순수 Javascript 코드만 반환해라.
     """
 
     # LLM 호출
@@ -64,10 +71,9 @@ def analyze_and_generate_code(dom_data):
     return generated_code
 
 def save_test_spec(code, file_name="generated_test.spec.js"):
-    if not os.path.exists('tests'):
-        os.makedirs('tests')
-        
-    file_path = os.path.join('tests', file_name)
+    GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+    
+    file_path = GENERATED_DIR / file_name
     with open(file_path, 'w', encoding='utf-8') as f:
         # 파일 상단에 필수 import 구문이 빠졌을 경우를 대비해 보강
         if "require('@playwright/test')" not in code:

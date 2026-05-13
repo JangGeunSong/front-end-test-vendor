@@ -7,3 +7,8 @@ playwright/.local-browsers
 
 # 하지만 node_modules 본체는 포함시킨다! (Vendor 방식 핵심)
 !node_modules/
+
+.env
+
+# python opensource library
+venv/

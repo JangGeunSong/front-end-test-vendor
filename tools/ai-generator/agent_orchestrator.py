@@ -21,9 +21,8 @@ def run_scout(url):
 
     # 현재 환경 변수 복사 및 UTF-8 설정 주입
     current_env = os.environ.copy()
-    current_env["NODE_OPTIONS"] = "--input-type=commonjs" # 필요 시 설정
     
-    # 수정 후 (shell=True 추가)
+    # scout.js를 실행하여 DOM 구조 데이터를 JSON으로 수집
     result = subprocess.run(
         ['node', str(SCOUT_PATH), url], 
         capture_output=True, 

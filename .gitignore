@@ -12,3 +12,5 @@ playwright/.local-browsers
 
 # python opensource library
 venv/
+
+tools/ai-generator/generated/

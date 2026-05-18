@@ -1,5 +1,7 @@
 # WEB 프론트엔드 테스트 수행을 위한 기초 Vendor 프로젝트
 
+Playwright 기반 WEB 회귀 테스트 자동화 프로젝트이며, tools/ai-generator는 AI-assisted 테스트 코드 초안 생성을 위한 보조 도구입니다.
+
 별도의 `npm install` 없이 곧바로 사용할 수 있는 프로젝트입니다.
 
 ## 1. 목적

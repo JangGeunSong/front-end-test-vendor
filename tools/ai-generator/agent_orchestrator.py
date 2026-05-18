@@ -22,6 +22,8 @@ def run_scout(url):
     # 현재 환경 변수 복사 및 UTF-8 설정 주입
     current_env = os.environ.copy()
     
+    print(SCOUT_PATH)
+    
     # scout.js를 실행하여 DOM 구조 데이터를 JSON으로 수집
     result = subprocess.run(
         ['node', str(SCOUT_PATH), url], 
@@ -50,17 +52,28 @@ def analyze_and_generate_code(dom_data):
     
     prompt = f"""
     너는 전문 QA 엔지니어이자 Playwright 아키텍트다.
-    아래 JSON 데이터를 기반으로 '조회 및 상세 확인' 테스트 코드를 작성해라.
+
+    아래 JSON은 WEB 화면에서 수집한 DOM 후보 목록이다.
+    이 데이터만으로 업무 규칙을 완전히 알 수 없으므로,
+    데이터 변경이 없는 안전한 테스트 초안만 작성하라.
 
     [사이트 구조 데이터]
     {json.dumps(dom_data, indent=2, ensure_ascii=False)}
 
-    [필수 규칙]
-    1. 'isHoverTarget'이 true인 요소는 반드시 .hover() 후 하위 메뉴를 클릭해라.
-    2. 모든 동작은 test.step()으로 묶어라.
-    3. 결과 피드백(텍스트, URL 변화 등)을 expect()로 검증해라.
-    4. 등록/수정/삭제처럼 데이터 변경이 있는 동작은 실제 실행하지 말고 TODO 주석으로 남겨라.
-    5. 출력은 마크다운 코드 블록 없이 순수 Javascript 코드만 반환해라.
+    목표:
+    - 페이지 접근 확인
+    - 메뉴 hover/click 흐름 확인
+    - 조회 화면 진입 확인
+    - 상세 화면 접근 후보가 있으면 TODO로 작성
+    - 등록/수정/삭제는 실행하지 말고 TODO 주석으로 남긴다.
+
+    필수 규칙:
+    1. isHoverTarget이 true인 요소는 click 전에 hover를 수행한다.
+    2. 모든 동작은 test.step()으로 묶는다.
+    3. locator는 getByRole, getByText, getByLabel, getByPlaceholder 순으로 우선 사용한다.
+    4. 각 click 전에는 highlightAndClick 또는 highlightAndHover를 사용한다.
+    5. 결과 검증은 URL 변화, heading, table, form, visible text 중 가능한 것을 사용한다.
+    6. 출력은 순수 JavaScript 코드만 반환한다.
     """
 
     # LLM 호출
@@ -82,12 +95,23 @@ def save_test_spec(code, file_name="generated_test.spec.js"):
     
     print(f"✅ 테스트 파일 생성 완료: {file_path}")
 
+def save_json(data, file_name="scout_result.json"):
+    GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+    
+    file_path = GENERATED_DIR / file_name
+    with open(file_path, "w", encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        
+    print(f"✅ JSON 저장 완료: {file_path}")
+
 # --- 실행 파이프라인 ---
 if __name__ == "__main__":
     target_url = "https://yoursite.domain.url" # 실제 테스트 대상 URL
     
     dom_map = run_scout(target_url)
     print(dom_map)
-    # if dom_map:
+    if dom_map:
+        save_json(dom_map, "scout_result.json")
+        print(f"수집 요소 수: {len(dom_map)}")
     #     code = analyze_and_generate_code(dom_map)
     #     save_test_spec(code, "auto_scout_test.spec.js")

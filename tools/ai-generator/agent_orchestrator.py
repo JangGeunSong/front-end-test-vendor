@@ -104,14 +104,91 @@ def save_json(data, file_name="scout_result.json"):
         
     print(f"✅ JSON 저장 완료: {file_path}")
 
+# 의미있는 페이지 이동 버튼들만 선택하여 처리할 수 있는 형태의 MAP으로 재 구성
+def extract_menu_candidate(dom_data):
+    if isinstance(dom_data, dict):
+        elements = dom_data.get("elements", [])
+    else:
+        elements = dom_data
+
+    menus = []
+    
+    for item in elements:
+        if not item.get("isGnbCandidate"):
+            continue
+        
+        if not item.get("testHint", {}).get("isNavigationCandidate"):
+            continue
+        
+        menus.append({
+            "text": item.get("text", ""),
+            "href": item.get("href", ""),
+            "id": item.get("id", ""),
+            "ngClick": item.get("ngClick", ""),
+            "menuDepth": item.get("menuDepth"),
+            "isVisible": item.get("isVisible"),
+            "requiresHoverBeforeClick": item.get("isGnbCandidate") and not item.get("isVisible"),
+            "parentText": item.get("parentText", ""),
+            "cssPath": item.get("cssPath", ""),
+            "locatorCandidates": item.get("locatorCandidates", [])
+        })
+        
+    return menus
+
+# AI가 테스트 케이스를 더 잘 만들 수 있도록 같은 depth 에 묶인 매뉴들은 parents를 체크해서 tree 구조로 생성하도록 작성
+def build_menu_tree(menu_candidates):
+    tree = []
+    current_depth2 = None
+    
+    for menu in menu_candidates:
+        depth = menu.get("menuDepth")
+        
+        if depth == 2:
+            current_depth2 = {
+                **menu,
+                "children": []
+            }
+            tree.append(current_depth2)
+        
+        elif depth == 3:
+            if current_depth2 is not None:
+                current_depth2["children"].append(menu)
+            else:
+                tree.append({
+                    **menu,
+                    "children": []
+                })
+        
+        else:
+            tree.append({
+                **menu,
+                "children": []
+            })
+    
+    return tree
+
 # --- 실행 파이프라인 ---
 if __name__ == "__main__":
-    target_url = "https://yoursite.domain.url" # 실제 테스트 대상 URL
-    
+    target_url = "https://yoursite.domain.url" # 실제 테스트 대상 URL    
     dom_map = run_scout(target_url)
     print(dom_map)
     if dom_map:
         save_json(dom_map, "scout_result.json")
-        print(f"수집 요소 수: {len(dom_map)}")
+        
+        menu_candidates = extract_menu_candidate(dom_map)
+        menu_tree = build_menu_tree(menu_candidates)
+        
+        save_json(
+            {
+                "url": target_url,
+                "count": len(menu_candidates),
+                "menus": menu_candidates,
+                "menuTree": menu_tree
+            },
+            "menu_map.json"
+        )
+        
+        print(f"수집 요소 수: {len(dom_map) if isinstance(dom_map, list) else dom_map.get('count', 0)}")
+        print(f"메뉴 후보 수: {len(menu_candidates)}")
     #     code = analyze_and_generate_code(dom_map)
     #     save_test_spec(code, "auto_scout_test.spec.js")

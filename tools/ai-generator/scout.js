@@ -23,7 +23,6 @@ async function scoutSite(url) {
   }
 
   // 3. 요소 추출 (Body 및 dynamic content 포함)
-    // 3. 요소 추출 (Body 및 dynamic content 포함)
   const elements = await page.evaluate(() => {
     const selectors = [
       'a',
@@ -37,7 +36,13 @@ async function scoutSite(url) {
       '[role="button"]',
       '[role="link"]',
       '[role="menuitem"]',
-      '.bizMainCont a'
+      '.bizMainCont a',
+      '.menuContainer a',
+      '.menuContainer button',
+      '.menuContent a',
+      '.depth1 a',
+      '.depth2 a',
+      '.depth3 a'
     ].join(', ');
 
     function normalizeText(value) {
@@ -229,6 +234,18 @@ async function scoutSite(url) {
           el.hasAttribute('ng-mouseover') ||
           hasHiddenChildren(el);
 
+        const isGnbCandidate = !!el.closest(
+          '.menuContainer, .menuContent, .depth1, .depth2, .depth3'
+        );
+
+        const menuDepth = el.closest('.depth3')
+          ? 3
+          : el.closest('.depth2')
+            ? 2
+            : el.closest('.depth1')
+              ? 1
+              : null;
+
         return {
           index,
           tagName,
@@ -254,6 +271,8 @@ async function scoutSite(url) {
 
           isVisible,
           isHoverTarget,
+          isGnbCandidate,
+          menuDepth,
 
           parentText: getParentText(el),
           cssPath: getCssPath(el),
@@ -273,13 +292,14 @@ async function scoutSite(url) {
               tagNameLower === 'button' ||
               role === 'button' ||
               el.hasAttribute('ng-click') ||
-              el.hasAttribute('onclick')
+              el.hasAttribute('onclick'),
+            requiresHoverBeforeClick: isGnbCandidate && !isVisible
           }
         };
       })
       .filter(item => {
         return (
-          item.isVisible &&
+          (item.isVisible || item.isGnbCandidate) &&
           (
             item.text.length > 0 ||
             item.id.length > 0 ||

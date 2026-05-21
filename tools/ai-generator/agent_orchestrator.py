@@ -100,18 +100,21 @@ def analyze_and_generate_code(dom_data):
     
     return generated_code
 
-def analyze_and_generate_menu_test(menu_map, max_parent=3, max_children=3):
+def analyze_and_generate_menu_test(menu_map, generate_all=True, max_parent=3, max_children=3):
     print("🤖 LLM이 menuTree 기반 GNB 메뉴 접근 테스트를 생성하고 있습니다...")
 
-    limited_menu_tree = limit_menu_tree(
-        menu_map.get("menuTree", []),
-        max_parent=max_parent,
-        max_children=max_children
-    )
+    if generate_all:
+        target_menu_tree = menu_map.get("menuTree", [])
+    else:
+        target_menu_tree = limit_menu_tree(
+            menu_map.get("menuTree", []),
+            max_parent=max_parent,
+            max_children=max_children
+        )
 
     generation_input = {
         "url": menu_map.get("url"),
-        "menuTree": limited_menu_tree
+        "menuTree": target_menu_tree
     }
 
     prompt = f"""
@@ -294,5 +297,9 @@ if __name__ == "__main__":
         print(f"메뉴 후보 수: {len(menu_candidates)}")
         # code = analyze_and_generate_code(dom_map)
         # code = analyze_and_generate_menu_test(menu_map)
-        code = analyze_and_generate_menu_test(menu_map, max_parent=1, max_children=2)
+        
+        # 디버깅 용으로 최소한만 만들어야 할때
+        # code = analyze_and_generate_menu_test(menu_map, generate_all=False, max_parent=1, max_children=2)
+        # 전체 테스트케이스 생성을 수행할 때
+        code = analyze_and_generate_menu_test(menu_map, generate_all=True)
         save_generated_test_spec(code, "generated_menu_access.spec.js")

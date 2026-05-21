@@ -9,8 +9,26 @@ BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parents[1]
 SCOUT_PATH = BASE_DIR / "scout.js"
 GENERATED_DIR = BASE_DIR / "generated"
+# node 에서 바로 실행할 수 있도록 적용
+TESTS_GENERATED_DIR = ROOT_DIR / "tests" / "generated"
 
 load_dotenv(ROOT_DIR / ".env")
+
+# Depth 1 짜리 네비게이션 바 메뉴 목록
+DEPTH1_INDEX_MAP = {
+    "KT IoT 소개": 0,
+    "사업 분야": 0,
+    "요금제": 0,
+
+    "모듈/모뎀": 1,
+    "단말": 1,
+
+    "개발 지원": 2,
+    "검증 지원": 2,
+    "KT IoT 사업협력센터": 2,
+
+    "공유": 3,
+}
 
 # 1. LLM 설정 (API 키는 환경변수나 별도 파일 권장)
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
@@ -82,6 +100,76 @@ def analyze_and_generate_code(dom_data):
     
     return generated_code
 
+def analyze_and_generate_menu_test(menu_map, max_parent=3, max_children=3):
+    print("🤖 LLM이 menuTree 기반 GNB 메뉴 접근 테스트를 생성하고 있습니다...")
+
+    limited_menu_tree = limit_menu_tree(
+        menu_map.get("menuTree", []),
+        max_parent=max_parent,
+        max_children=max_children
+    )
+
+    generation_input = {
+        "url": menu_map.get("url"),
+        "menuTree": limited_menu_tree
+    }
+
+    prompt = f"""
+    너는 전문 QA 엔지니어이자 Playwright 테스트 아키텍트다.
+
+    아래 JSON은 WEB 사이트의 GNB/nav 메뉴 구조다.
+    menuTree는 depth2 메뉴와 depth3 하위 메뉴 관계를 나타낸다.
+    각 depth2 메뉴에는 depth1Index가 포함되어 있으며, 이는 실제 화면에서 먼저 hover해야 하는 visible depth1 메뉴의 index이다.
+
+    [menuTree JSON]
+    {json.dumps(generation_input, indent=2, ensure_ascii=False)}
+
+    [테스트 목표]
+    Playwright 기반 GNB 메뉴 접근 Smoke Test 초안을 작성한다.
+
+    [중요한 실행 규칙]
+    1. hidden 상태의 depth2/depth3 메뉴를 직접 hover/click 하지 않는다.
+    2. depth2 또는 depth3 메뉴 클릭 전에는 반드시 openDepth1ByIndex(page, depth1Index)를 호출한다.
+    3. 메뉴 클릭은 clickVisibleMenuByText(page, menuName)를 사용한다.
+    4. requiresHoverBeforeClick=true인 메뉴는 반드시 openDepth1ByIndex 호출 후 클릭한다.
+    5. href가 있는 메뉴는 클릭 후 URL 또는 hash 변화를 expect(page).toHaveURL()로 검증한다.
+    6. href가 없고 ngClick만 있는 메뉴는 클릭 후 TODO 주석으로 화면 변화 검증 필요성을 남긴다.
+    7. 모든 동작은 test.step()으로 묶는다.
+    8. 등록/수정/삭제 등 데이터 변경 동작은 생성하지 않는다.
+    9. 출력은 마크다운 코드 블록 없이 순수 JavaScript 코드만 반환한다.
+
+    [사용 가능한 helper]
+    const {{ openDepth1ByIndex, clickVisibleMenuByText }} = require('../../utils/gnb');
+
+    [기본 코드 조건]
+    - CommonJS 형식으로 작성한다.
+    - const {{ test, expect }} = require('@playwright/test'); 를 포함한다.
+    - test.beforeEach에서 page.goto(process.env.BASE_URL || 'https://example.com')를 사용한다.
+    - await page.waitForSelector('header.header.pc'); 를 포함한다.
+
+    [코드 스타일]
+    - 테스트명은 한글로 작성해도 된다.
+    - parent depth2 메뉴 단위로 test를 나눈다.
+    - 각 child depth3 메뉴는 test.step으로 나눈다.
+    """
+
+    response = model.generate_content(prompt)
+    generated_code = response.text.replace("```javascript", "").replace("```", "").strip()
+
+    return generated_code
+
+def limit_menu_tree(menu_tree, max_parent=3, max_children=3):
+    limited = []
+
+    for parent in menu_tree[:max_parent]:
+        copied = {
+            **parent,
+            "children": parent.get("children", [])[:max_children]
+        }
+        limited.append(copied)
+
+    return limited
+
 def save_test_spec(code, file_name="generated_test.spec.js"):
     GENERATED_DIR.mkdir(parents=True, exist_ok=True)
     
@@ -94,6 +182,18 @@ def save_test_spec(code, file_name="generated_test.spec.js"):
         f.write(code)
     
     print(f"✅ 테스트 파일 생성 완료: {file_path}")
+
+def save_generated_test_spec(code, file_name="generated_menu_access.spec.js"):
+    TESTS_GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+
+    file_path = TESTS_GENERATED_DIR / file_name
+    with open(file_path, "w", encoding="utf-8") as f:
+        if "require('@playwright/test')" not in code:
+            header = "const { test, expect } = require('@playwright/test');\n\n"
+            code = header + code
+        f.write(code)
+
+    print(f"✅ 실행용 테스트 파일 생성 완료: {file_path}")
 
 def save_json(data, file_name="scout_result.json"):
     GENERATED_DIR.mkdir(parents=True, exist_ok=True)
@@ -139,32 +239,35 @@ def extract_menu_candidate(dom_data):
 def build_menu_tree(menu_candidates):
     tree = []
     current_depth2 = None
-    
+
     for menu in menu_candidates:
         depth = menu.get("menuDepth")
-        
+
         if depth == 2:
             current_depth2 = {
                 **menu,
+                "depth1Index": DEPTH1_INDEX_MAP.get(menu.get("text")),
                 "children": []
             }
             tree.append(current_depth2)
-        
+
         elif depth == 3:
             if current_depth2 is not None:
                 current_depth2["children"].append(menu)
             else:
                 tree.append({
                     **menu,
+                    "depth1Index": None,
                     "children": []
                 })
-        
+
         else:
             tree.append({
                 **menu,
+                "depth1Index": None,
                 "children": []
             })
-    
+
     return tree
 
 # --- 실행 파이프라인 ---
@@ -178,17 +281,18 @@ if __name__ == "__main__":
         menu_candidates = extract_menu_candidate(dom_map)
         menu_tree = build_menu_tree(menu_candidates)
         
-        save_json(
-            {
-                "url": target_url,
-                "count": len(menu_candidates),
-                "menus": menu_candidates,
-                "menuTree": menu_tree
-            },
-            "menu_map.json"
-        )
+        menu_map = {
+            "url": target_url,
+            "count": len(menu_candidates),
+            "menus": menu_candidates,
+            "menuTree": menu_tree
+        }
+        
+        save_json(menu_map, "menu_map.json")
         
         print(f"수집 요소 수: {len(dom_map) if isinstance(dom_map, list) else dom_map.get('count', 0)}")
         print(f"메뉴 후보 수: {len(menu_candidates)}")
-    #     code = analyze_and_generate_code(dom_map)
-    #     save_test_spec(code, "auto_scout_test.spec.js")
+        # code = analyze_and_generate_code(dom_map)
+        # code = analyze_and_generate_menu_test(menu_map)
+        code = analyze_and_generate_menu_test(menu_map, max_parent=1, max_children=2)
+        save_generated_test_spec(code, "generated_menu_access.spec.js")

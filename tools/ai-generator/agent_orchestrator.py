@@ -12,8 +12,6 @@ GENERATED_DIR = BASE_DIR / "generated"
 # node 에서 바로 실행할 수 있도록 적용
 TESTS_GENERATED_DIR = ROOT_DIR / "tests" / "generated"
 
-load_dotenv(ROOT_DIR / ".env")
-
 # Depth 1 짜리 네비게이션 바 메뉴 목록
 DEPTH1_INDEX_MAP = {
     "KT IoT 소개": 0,
@@ -31,8 +29,21 @@ DEPTH1_INDEX_MAP = {
 }
 
 # 1. LLM 설정 (API 키는 환경변수나 별도 파일 권장)
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-3-flash-preview')
+def configure_llm():
+    load_dotenv(ROOT_DIR / ".env")
+    genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+
+
+def create_gemini_model():
+    return genai.GenerativeModel('gemini-3-flash-preview')
+
+
+def parse_scout_output(stdout):
+    try:
+        return json.loads(stdout)
+    except json.JSONDecodeError:
+        print("❌ JSON 파싱 실패. 출력물을 확인하세요.")
+        return None
 
 def run_scout(url):
     print(f"🔍 '{url}' 사이트 구조 분석 중...")
@@ -58,12 +69,7 @@ def run_scout(url):
         print("❌ Scout 실행 실패:", result.stderr)
         return None
     
-    try:
-        # scout.js에서 console.log로 출력한 데이터만 파싱
-        return json.loads(result.stdout)
-    except json.JSONDecodeError:
-        print("❌ JSON 파싱 실패. 출력물을 확인하세요.")
-        return None
+    return parse_scout_output(result.stdout)
 
 def analyze_and_generate_code(dom_data):
     print("🤖 LLM이 시나리오를 분석하고 코드를 생성하고 있습니다...")
@@ -95,14 +101,11 @@ def analyze_and_generate_code(dom_data):
     """
 
     # LLM 호출
-    response = model.generate_content(prompt)
-    generated_code = response.text.replace('```javascript', '').replace('```', '').strip()
+    generated_code = strip_markdown_code_block(generate_content_with_llm(prompt))
     
     return generated_code
 
-def analyze_and_generate_menu_test(menu_map, generate_all=True, max_parent=3, max_children=3):
-    print("🤖 LLM이 menuTree 기반 GNB 메뉴 접근 테스트를 생성하고 있습니다...")
-
+def build_menu_generation_input(menu_map, generate_all=True, max_parent=3, max_children=3):
     if generate_all:
         target_menu_tree = menu_map.get("menuTree", [])
     else:
@@ -112,12 +115,14 @@ def analyze_and_generate_menu_test(menu_map, generate_all=True, max_parent=3, ma
             max_children=max_children
         )
 
-    generation_input = {
+    return {
         "url": menu_map.get("url"),
         "menuTree": target_menu_tree
     }
 
-    prompt = f"""
+
+def build_menu_test_prompt(generation_input):
+    return f"""
     너는 전문 QA 엔지니어이자 Playwright 테스트 아키텍트다.
 
     아래 JSON은 WEB 사이트의 GNB/nav 메뉴 구조다.
@@ -156,10 +161,31 @@ def analyze_and_generate_menu_test(menu_map, generate_all=True, max_parent=3, ma
     - 각 child depth3 메뉴는 test.step으로 나눈다.
     """
 
+
+def generate_content_with_llm(prompt):
+    model = create_gemini_model()
     response = model.generate_content(prompt)
-    generated_code = response.text.replace("```javascript", "").replace("```", "").strip()
+    return response.text
+
+
+def strip_markdown_code_block(text):
+    return text.replace("```javascript", "").replace("```", "").strip()
+
+
+def analyze_and_generate_menu_test(menu_map, generate_all=True, max_parent=3, max_children=3):
+    print("🤖 LLM이 menuTree 기반 GNB 메뉴 접근 테스트를 생성하고 있습니다...")
+
+    generation_input = build_menu_generation_input(
+        menu_map,
+        generate_all=generate_all,
+        max_parent=max_parent,
+        max_children=max_children
+    )
+    prompt = build_menu_test_prompt(generation_input)
+    generated_code = strip_markdown_code_block(generate_content_with_llm(prompt))
 
     return generated_code
+
 
 def limit_menu_tree(menu_tree, max_parent=3, max_children=3):
     limited = []
@@ -173,30 +199,32 @@ def limit_menu_tree(menu_tree, max_parent=3, max_children=3):
 
     return limited
 
+def ensure_playwright_header(code):
+    if "require('@playwright/test')" not in code:
+        header = "const { test, expect } = require('@playwright/test');\n\n"
+        return header + code
+    return code
+
+
 def save_test_spec(code, file_name="generated_test.spec.js"):
     GENERATED_DIR.mkdir(parents=True, exist_ok=True)
-    
+
     file_path = GENERATED_DIR / file_name
     with open(file_path, 'w', encoding='utf-8') as f:
-        # 파일 상단에 필수 import 구문이 빠졌을 경우를 대비해 보강
-        if "require('@playwright/test')" not in code:
-            header = "const { test, expect } = require('@playwright/test');\n\n"
-            code = header + code
-        f.write(code)
-    
+        f.write(ensure_playwright_header(code))
+
     print(f"✅ 테스트 파일 생성 완료: {file_path}")
+
 
 def save_generated_test_spec(code, file_name="generated_menu_access.spec.js"):
     TESTS_GENERATED_DIR.mkdir(parents=True, exist_ok=True)
 
     file_path = TESTS_GENERATED_DIR / file_name
     with open(file_path, "w", encoding="utf-8") as f:
-        if "require('@playwright/test')" not in code:
-            header = "const { test, expect } = require('@playwright/test');\n\n"
-            code = header + code
-        f.write(code)
+        f.write(ensure_playwright_header(code))
 
     print(f"✅ 실행용 테스트 파일 생성 완료: {file_path}")
+
 
 def save_json(data, file_name="scout_result.json"):
     GENERATED_DIR.mkdir(parents=True, exist_ok=True)
@@ -273,33 +301,48 @@ def build_menu_tree(menu_candidates):
 
     return tree
 
-# --- 실행 파이프라인 ---
-if __name__ == "__main__":
-    target_url = "https://yoursite.domain.url" # 실제 테스트 대상 URL    
+def build_menu_map(target_url, menu_candidates, menu_tree):
+    return {
+        "url": target_url,
+        "count": len(menu_candidates),
+        "menus": menu_candidates,
+        "menuTree": menu_tree
+    }
+
+
+def print_generation_summary(dom_map, menu_candidates):
+    element_count = len(dom_map) if isinstance(dom_map, list) else dom_map.get('count', 0)
+    print(f"수집 요소 수: {element_count}")
+    print(f"메뉴 후보 수: {len(menu_candidates)}")
+
+
+def run_generation_pipeline(target_url):
+    configure_llm()
+
     dom_map = run_scout(target_url)
     print(dom_map)
-    if dom_map:
-        save_json(dom_map, "scout_result.json")
-        
-        menu_candidates = extract_menu_candidate(dom_map)
-        menu_tree = build_menu_tree(menu_candidates)
-        
-        menu_map = {
-            "url": target_url,
-            "count": len(menu_candidates),
-            "menus": menu_candidates,
-            "menuTree": menu_tree
-        }
-        
-        save_json(menu_map, "menu_map.json")
-        
-        print(f"수집 요소 수: {len(dom_map) if isinstance(dom_map, list) else dom_map.get('count', 0)}")
-        print(f"메뉴 후보 수: {len(menu_candidates)}")
-        # code = analyze_and_generate_code(dom_map)
-        # code = analyze_and_generate_menu_test(menu_map)
-        
-        # 디버깅 용으로 최소한만 만들어야 할때
-        # code = analyze_and_generate_menu_test(menu_map, generate_all=False, max_parent=1, max_children=2)
-        # 전체 테스트케이스 생성을 수행할 때
-        code = analyze_and_generate_menu_test(menu_map, generate_all=True)
-        save_generated_test_spec(code, "generated_menu_access.spec.js")
+    if not dom_map:
+        return
+
+    save_json(dom_map, "scout_result.json")
+
+    menu_candidates = extract_menu_candidate(dom_map)
+    menu_tree = build_menu_tree(menu_candidates)
+    menu_map = build_menu_map(target_url, menu_candidates, menu_tree)
+
+    save_json(menu_map, "menu_map.json")
+    print_generation_summary(dom_map, menu_candidates)
+
+    # code = analyze_and_generate_code(dom_map)
+    # code = analyze_and_generate_menu_test(menu_map)
+
+    # 디버깅 용으로 최소한만 만들어야 할때
+    # code = analyze_and_generate_menu_test(menu_map, generate_all=False, max_parent=1, max_children=2)
+    # 전체 테스트케이스 생성을 수행할 때
+    code = analyze_and_generate_menu_test(menu_map, generate_all=True)
+    save_generated_test_spec(code, "generated_menu_access.spec.js")
+
+
+if __name__ == "__main__":
+    target_url = "https://yoursite.domain.url" # 실제 테스트 대상 URL
+    run_generation_pipeline(target_url)

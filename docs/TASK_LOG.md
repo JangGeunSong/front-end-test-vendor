@@ -1,5 +1,45 @@
 # Task Log
 
+## 2026-06-17 - package.json scripts 표준화
+
+### 작업 목적
+
+- Playwright AI 테스트 생성 프로젝트의 주요 실행 명령을 `package.json` scripts로 표준화했다.
+- 외부망에서 LLM API를 사용하는 현재 생성 흐름을 기준으로 `agent_orchestrator.py` 실행, generated/smoke/regression 테스트 실행, visual debug 실행, report 확인 명령을 npm script로 모았다.
+
+### 변경 내용
+
+- `ai:generate` script를 추가해 `python tools/ai-generator/agent_orchestrator.py`를 실행하도록 했다.
+- `test:generated` script를 추가해 `tests/generated` 대상 Playwright 테스트를 실행하도록 했다.
+- `test:generated:visual` script를 추가해 `HIGHLIGHT=true` 상태에서 `tests/generated`를 headed 모드와 `workers=1`로 실행하도록 했다.
+- Windows 환경에서도 `HIGHLIGHT=true` 환경변수를 안정적으로 전달하기 위해 `cross-env` 사용을 반영했다.
+- `test:smoke`, `test:regression` script를 추가해 검증된 테스트 영역을 각각 실행할 수 있게 했다.
+- 기존 `codegen`, `test`, `report` script는 유지했다.
+
+### 확인 명령
+
+```powershell
+npm install
+npm run ai:generate
+npm run test:generated
+npm run test:generated:visual
+npm run test:smoke
+npm run test:regression
+npm run report
+```
+
+### 확인 결과
+
+- `package.json`에 생성, generated 테스트, visual debug, smoke, regression, report 실행 명령이 표준화되어 정리됐다.
+- `test:generated:visual`은 `cross-env HIGHLIGHT=true`와 `--headed --workers=1`을 함께 사용하도록 정리되어 GNB 하이라이트 표시 조건을 명령에 포함했다.
+- `cross-env`는 `devDependencies`에 추가되어 Windows 환경에서도 동일한 npm script 형식으로 실행할 수 있게 했다.
+
+### 다음 작업
+
+- `npm install` 실행 후 갱신되는 `package-lock.json` 변경을 함께 검토한다.
+- 표준화한 script 기준으로 README 또는 운영 문서에 실행 절차를 정리한다.
+- generated 테스트가 충분히 검증되면 필요한 항목을 `tests/smoke` 또는 `tests/regression`으로 승격하는 기준을 문서화한다.
+
 ## 2026-06-15 - Codex 기반 agent_orchestrator 리팩토링 및 테스트 확인
 
 ### 작업 기준

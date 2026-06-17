@@ -1,5 +1,12 @@
 # Prompt Strategy
 
+## GNB depth3 duplicate menu rule
+
+- depth3 child menu names may be duplicated under different depth2 parents.
+- Generated tests must not click a depth3 child menu with `clickVisibleMenuByText(page, childName)` alone.
+- Generated tests should call `clickVisibleSubMenuByText(page, parentDepth2Name, childName, options)` for depth3 child menus.
+- When the menu JSON includes `id`, `ngClick`, or `cssPath`, include those values in the helper options so duplicate labels such as `NB-IoT`, `eMTC`, `LTE-M`, `LTE`, and `5G` can be resolved to the intended parent.
+
 LLM에게 전달하는 정보:
 - 테스트 목적
 - 메뉴 구조

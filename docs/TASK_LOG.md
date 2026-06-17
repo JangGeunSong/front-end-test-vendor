@@ -1,5 +1,46 @@
 # Task Log
 
+## 2026-06-17 - GNB depth3 duplicate menu click fix
+
+### 작업 목적
+
+- GNB 메뉴 접근 테스트에서 같은 depth3 메뉴명이 여러 depth2 부모 아래에 있을 때 항상 먼저 발견된 메뉴가 클릭되는 문제를 수정한다.
+- 예: `모듈/모뎀 > NB-IoT`와 `단말 > NB-IoT`처럼 같은 child text가 반복될 때 의도한 parent 아래의 child 메뉴를 클릭하도록 한다.
+
+### 변경 내용
+
+- `utils/gnb.js`에 `clickVisibleSubMenuByText(page, parentText, childText, options)` helper를 추가했다.
+- 새 helper는 `id`를 우선 사용하고, `cssPath`를 보조로 사용하며, 둘 다 없을 때 `parentText + childText` scoped locator로 fallback한다.
+- 기존 `openDepth1ByIndex(page, depth1Index)` 동작은 유지했다.
+- 기존 `clickVisibleMenuByText(page, text)`는 유지하되 내부 클릭 동작을 공통 helper로 정리했다.
+- `tools/ai-generator/agent_orchestrator.py`의 GNB 테스트 생성 prompt를 수정해 depth3 child 메뉴는 `clickVisibleSubMenuByText`를 사용하도록 했다.
+- prompt 변경에 맞춰 `docs/PROMPT_STRATEGY.md`에 depth3 중복 메뉴 처리 규칙을 기록했다.
+- generated 테스트 파일은 직접 수정하지 않고 `npm run ai:generate`로 재생성했다.
+
+### 확인 명령
+
+```powershell
+python -m py_compile tools/ai-generator/agent_orchestrator.py
+npm run ai:generate
+npm run test:generated
+npm run test:generated:visual
+```
+
+### 확인 결과
+
+- `npm run ai:generate` 실행 후 generated 테스트가 재생성되었다.
+- 재생성된 generated 테스트에서 depth3 child 메뉴가 `clickVisibleSubMenuByText`를 사용하도록 생성되는 것을 확인했다.
+- `npm run test:generated` 또는 `npm run test:generated:visual` 실행을 통해 `모듈/모뎀`과 `단말` 하위의 중복 메뉴가 각각 의도한 parent 아래에서 클릭되는 것을 확인했다.
+- 특이사항은 없었다.
+
+### 완료 처리
+
+- 이번 GNB depth3 duplicate menu click fix 이슈는 완료 처리한다.
+
+### 다음 작업
+
+- 안정화된 generated 테스트는 필요 시 `tests/smoke` 또는 `tests/regression` 승격을 검토한다.
+
 ## 2026-06-17 - package.json scripts 표준화
 
 ### 작업 목적

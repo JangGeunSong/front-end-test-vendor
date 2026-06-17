@@ -53,25 +53,66 @@ async function highlightVisibleMenu(target, page, label = '') {
   await page.waitForTimeout(300);
 }
 
-async function clickVisibleMenuByText(page, text) {
-  const target = page.locator('.menuContainer').getByText(text, { exact: true }).first();
-
+async function clickMenuTarget(page, target, label) {
   await target.waitFor({ state: 'visible', timeout: 5000 });
 
   const box = await target.boundingBox();
   if (!box) {
-    throw new Error(`menu "${text}" has no bounding box`);
+    throw new Error(`menu "${label}" has no bounding box`);
   }
 
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.waitForTimeout(200);
 
-  await highlightVisibleMenu(target, page, text);
+  await highlightVisibleMenu(target, page, label);
 
   await target.click();
 }
 
+function escapeCssAttributeValue(value) {
+  return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+async function clickVisibleMenuByText(page, text) {
+  const target = page.locator('.menuContainer').getByText(text, { exact: true }).first();
+
+  await clickMenuTarget(page, target, text);
+}
+
+async function clickVisibleSubMenuByText(page, parentText, childText, options = {}) {
+  const menuContainer = page.locator('.menuContainer');
+  const label = `${parentText} > ${childText}`;
+
+  if (options.id) {
+    const escapedId = escapeCssAttributeValue(options.id);
+    const target = menuContainer.locator(`[id="${escapedId}"]`).first();
+
+    if (await target.count() > 0) {
+      await clickMenuTarget(page, target, label);
+      return;
+    }
+  }
+
+  if (options.cssPath) {
+    const target = menuContainer.locator(options.cssPath).first();
+
+    if (await target.count() > 0) {
+      await clickMenuTarget(page, target, label);
+      return;
+    }
+  }
+
+  const parent = menuContainer
+    .locator('.depth2 > li')
+    .filter({ has: page.getByText(parentText, { exact: true }) })
+    .first();
+  const target = parent.getByText(childText, { exact: true }).first();
+
+  await clickMenuTarget(page, target, label);
+}
+
 module.exports = {
   openDepth1ByIndex,
-  clickVisibleMenuByText
+  clickVisibleMenuByText,
+  clickVisibleSubMenuByText
 };

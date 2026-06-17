@@ -138,7 +138,10 @@ def build_menu_test_prompt(generation_input):
     [중요한 실행 규칙]
     1. hidden 상태의 depth2/depth3 메뉴를 직접 hover/click 하지 않는다.
     2. depth2 또는 depth3 메뉴 클릭 전에는 반드시 openDepth1ByIndex(page, depth1Index)를 호출한다.
-    3. 메뉴 클릭은 clickVisibleMenuByText(page, menuName)를 사용한다.
+    3. depth2 메뉴 클릭은 clickVisibleMenuByText(page, menuName)를 사용한다.
+    3-1. depth3 child 메뉴 클릭은 반드시 clickVisibleSubMenuByText(page, parentDepth2Name, childName, options)를 사용한다.
+    3-2. depth3 child 메뉴에는 같은 text가 여러 depth2 parent 아래에 있을 수 있으므로 clickVisibleMenuByText(page, childName)를 단독으로 사용하지 않는다.
+    3-3. child JSON에 id, ngClick, cssPath가 있으면 options에 포함한다. 예: {{ id: child.id, ngClick: child.ngClick, cssPath: child.cssPath }}
     4. requiresHoverBeforeClick=true인 메뉴는 반드시 openDepth1ByIndex 호출 후 클릭한다.
     5. href가 있는 메뉴는 클릭 후 URL 또는 hash 변화를 expect(page).toHaveURL()로 검증한다.
     6. href가 없고 ngClick만 있는 메뉴는 클릭 후 TODO 주석으로 화면 변화 검증 필요성을 남긴다.
@@ -147,7 +150,7 @@ def build_menu_test_prompt(generation_input):
     9. 출력은 마크다운 코드 블록 없이 순수 JavaScript 코드만 반환한다.
 
     [사용 가능한 helper]
-    const {{ openDepth1ByIndex, clickVisibleMenuByText }} = require('../../utils/gnb');
+    const {{ openDepth1ByIndex, clickVisibleMenuByText, clickVisibleSubMenuByText }} = require('../../utils/gnb');
 
     [기본 코드 조건]
     - CommonJS 형식으로 작성한다.
@@ -344,5 +347,5 @@ def run_generation_pipeline(target_url):
 
 
 if __name__ == "__main__":
-    target_url = "https://yoursite.domain.url" # 실제 테스트 대상 URL
+    target_url = "https://iotbiz.kt.co.kr" # 실제 테스트 대상 URL
     run_generation_pipeline(target_url)

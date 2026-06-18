@@ -1,5 +1,7 @@
 # Playwright Convention
 
+테스트 레벨, generated 테스트의 한계, smoke/regression 승격 기준은 `docs/TEST_LEVELS.md`를 참고한다.
+
 파일 위치:
 - 자동 생성 테스트: tests/generated
 - 스모크 테스트: tests/smoke

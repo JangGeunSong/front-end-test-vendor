@@ -1,5 +1,7 @@
 # Test Generation Rules
 
+테스트 자동화 단계 정의와 generated 테스트의 smoke/regression 승격 기준은 `docs/TEST_LEVELS.md`를 따른다.
+
 생성 테스트의 목적:
 - 메뉴 접근 가능 여부 확인
 - 주요 버튼/입력 필드 존재 여부 확인

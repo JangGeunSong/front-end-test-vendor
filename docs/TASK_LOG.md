@@ -1,5 +1,47 @@
 # Task Log
 
+## 2026-06-18 - TEST_LEVELS detail refinement
+
+### 작업 목적
+
+- push 전에 `docs/TEST_LEVELS.md`의 Level 1 오류 기준과 Level 2 page identity 데이터 후보를 더 명확히 한다.
+
+### 변경 내용
+
+- Level 1의 obvious navigation errors 기준에 404, 500, blank page, unauthorized/forbidden, expected URL/hash not reached, visible error indicator text를 추가했다.
+- Level 2 `pageProfile` 후보 구조에 `buttons` 필드를 추가했다.
+- Level 2에서는 버튼을 클릭하지 않지만 조회/검색 같은 안정적인 버튼 존재 여부가 페이지 식별 신호가 될 수 있음을 명시했다.
+- `representativeTexts` 선정 기준과 제외/포함 후보를 추가했다.
+
+### 다음 작업
+
+- Level 2 구현 시 `pageProfile.buttons`와 `representativeTexts` 후보 수집 규칙을 `scout.js` 설계에 반영할지 검토한다.
+
+## 2026-06-18 - Test level documentation
+
+### 작업 목적
+
+- 현재 generated 테스트의 위치를 전수 테스트 자동화가 아니라 `Level 1 Navigation Smoke Test MVP`로 명확히 정의한다.
+- 향후 `Level 2 Page Identity Test`, `Level 3 Safe Interaction Test`, `Level 4 Business Scenario Test`로 발전시키기 위한 기준을 문서화한다.
+
+### 변경 내용
+
+- `docs/TEST_LEVELS.md`를 새로 생성했다.
+- Level 1은 GNB hover/click, URL/hash 이동, 오류 없는 페이지 접근 확인 중심의 Navigation Smoke Test MVP로 정의했다.
+- Level 2는 전수 테스트가 아니라 의도한 페이지에 도달했는지 확인하는 페이지 식별 검증 단계로 정의했다.
+- Level 3은 input 테스트 전체가 아니라 데이터 변경 없는 안전 상호작용만 대상으로 정의했다.
+- Level 4는 사람이 정의한 TC와 테스트 데이터, 업무 규칙, 승인된 시나리오가 필요한 Business Scenario Test로 정의했다.
+- 향후 `pageProfile`, `interactionProfile` 후보 구조를 정리했다.
+- 안전 액션과 위험 액션을 구분했다.
+- generated 테스트의 smoke 승격 기준과 regression 승격 기준을 분리해 정리했다.
+- `docs/TEST_GENERATION_RULES.md`와 `docs/PLAYWRIGHT_CONVENTION.md`에 `docs/TEST_LEVELS.md` 참조 문구를 추가했다.
+
+### 다음 작업
+
+- Level 2 Page Identity Test 구현 전에 `scout.js`의 `pageProfile` 수집 후보를 구체화한다.
+- `docs/JSON_SCHEMA.md`에 `pageProfile` 구조를 추가할지 검토한다.
+- Level 2 prompt와 생성 로직을 별도 작업으로 설계한다.
+
 ## 2026-06-17 - GNB depth3 duplicate menu click fix
 
 ### 작업 목적

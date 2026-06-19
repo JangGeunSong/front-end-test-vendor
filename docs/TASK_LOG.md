@@ -1,5 +1,27 @@
 # Task Log
 
+## 2026-06-19 - README execution procedure and Korean structure cleanup
+
+### 작업 목적
+
+- 기존 README 내용과 AI generated 테스트 실행 절차가 자연스럽게 이어지도록 README를 한국어로 재구성한다.
+- 현재 `Level 1 Navigation Smoke Test MVP` 기준의 AI generated 테스트 실행 절차를 README에 정리한다.
+
+### 변경 내용
+
+- README의 기존 목적, 사용 시점, 실행 환경, codegen, test, report 내용을 유지하면서 한국어로 정리했다.
+- README의 Node.js/npm 버전 표기가 현재 검증한 개발 환경 기준임을 알 수 있도록 보완했다.
+- AI generated 테스트 생성, generated 실행, visual debug, smoke/regression 실행 절차를 같은 문서 흐름 안에 통합했다.
+- 사전 준비, `.env`의 `GEMINI_API_KEY`, Playwright browser 설치 확인, 테스트 생성, generated 테스트 실행, visual debug 실행, report 확인 명령을 정리했다.
+- 현재 테스트 수준이 `Level 1 Navigation Smoke Test MVP`임을 명시하고 Level 2/3/4는 향후 확장 단계로 구분했다.
+- generated 테스트는 사람이 검증한 뒤 `docs/TEST_LEVELS.md` 기준에 따라 smoke/regression으로 승격한다고 정리했다.
+- README에 적힌 npm script 명령이 `package.json` scripts와 일치하는지 확인했다.
+
+### 다음 작업
+
+- README 기준 실행 절차가 실제 개발 환경에서 그대로 동작하는지 주기적으로 확인한다.
+- Level 2 Page Identity Test 구현 시 README 또는 별도 운영 문서에 Level 2 실행 절차를 추가할지 검토한다.
+
 ## 2026-06-18 - TEST_LEVELS detail refinement
 
 ### 작업 목적

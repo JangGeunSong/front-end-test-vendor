@@ -1,3 +1,301 @@
+# JSON Schema
+
+## Purpose
+
+This document describes the JSON data used by the Playwright AI test generation pipeline.
+
+The current implementation is `Level 1 Navigation Smoke Test MVP`. Level 1 data is used to generate GNB navigation tests that verify menu hover/click, URL/hash movement, and basic page access.
+
+Level 2 and Level 3 structures in this document are candidate schemas for future work. They are not implemented yet.
+
+## Data Policy
+
+- Do not include real closed-network business data.
+- Use sample HTML, sample JSON, or anonymized data outside the closed network.
+- Do not store personal information or sensitive business values.
+- Do not store full DOM HTML when a smaller structured summary is enough.
+- External AI prompts should use only approved sample, anonymized, or non-sensitive structure data.
+
+## Current Level 1 Data
+
+### scout_result.json
+
+`scout_result.json` is the raw UI discovery result collected by `tools/ai-generator/scout.js`.
+
+It is the source data for Level 1 generated tests.
+
+Typical content:
+
+- page URL or target URL context
+- discovered UI elements
+- GNB candidate menus
+- text
+- href
+- id
+- ngClick
+- cssPath
+- visibility state
+- locator candidates
+- test hints
+
+`scout_result.json` should be treated as discovery output. It can contain real menu names or UI labels, so it must not be sent to external AI APIs unless the data is approved, sampled, or anonymized.
+
+### menu_map.json
+
+`menu_map.json` is a refined menu structure created by `tools/ai-generator/agent_orchestrator.py`.
+
+It is derived from `scout_result.json` and is the main input for the current generated Playwright spec.
+
+Typical top-level fields:
+
+```json
+{
+  "url": "",
+  "count": 0,
+  "menus": [],
+  "menuTree": []
+}
+```
+
+Field meaning:
+
+- `url`: target site URL used for discovery
+- `count`: number of menu candidates
+- `menus`: flat list of menu candidates
+- `menuTree`: parent-child menu structure for test generation
+
+### menuTree
+
+`menuTree` describes depth2 and depth3 menu relationships.
+
+Level 1 generated tests use `menuTree` to:
+
+- open the correct depth1 GNB area
+- click depth2 menus
+- click depth3 child menus
+- avoid duplicate depth3 menu text ambiguity by using parent-child context
+
+Example shape:
+
+```json
+{
+  "text": "단말",
+  "href": "#/showcase/showcaseServiceMain",
+  "id": "5",
+  "ngClick": "serviceTab('emtc')",
+  "menuDepth": 2,
+  "depth1Index": 1,
+  "children": [
+    {
+      "text": "NB-IoT",
+      "href": "",
+      "id": "5_1",
+      "ngClick": "serviceTab('nbiot')",
+      "menuDepth": 3,
+      "cssPath": "a#\\35 _1"
+    }
+  ]
+}
+```
+
+### Menu Candidate Fields
+
+Menu candidates can include:
+
+- `text`: visible menu label
+- `href`: link target or hash route
+- `id`: DOM id candidate for stable selection
+- `ngClick`: Angular click handler or action identifier
+- `menuDepth`: menu depth such as depth2 or depth3
+- `isVisible`: visibility at collection time
+- `requiresHoverBeforeClick`: whether a GNB hover is required before clicking
+- `parentText`: parent or nearby text captured during discovery
+- `cssPath`: CSS selector candidate
+- `locatorCandidates`: Playwright locator candidates
+
+### Level 1 Scope
+
+Current Level 1 tests focus on:
+
+- GNB hover/click
+- depth2 and depth3 menu access
+- URL/hash movement
+- basic page access without obvious navigation errors
+
+Current Level 1 tests do not verify page identity using page internals such as headings, representative text, table structure, form structure, or search results.
+
+## Level 2 pageProfile Candidate
+
+### Purpose
+
+`pageProfile` is a candidate data structure for future Level 2 Page Identity Test generation.
+
+`pageProfile` is not full test automation data.
+
+`pageProfile` is not exhaustive page coverage data.
+
+`pageProfile` is candidate data for checking whether a menu click reached the intended page.
+
+Level 2 should use `pageProfile` only for Page Identity verification. It should not infer complete business correctness from this data.
+
+### Candidate JSON
+
+```json
+{
+  "menuPath": ["Showcase", "단말"],
+  "navigation": {
+    "url": "",
+    "hash": "",
+    "documentTitle": ""
+  },
+  "pageProfile": {
+    "headings": [],
+    "representativeTexts": [],
+    "mainContainers": [],
+    "tables": [],
+    "forms": [],
+    "tabs": [],
+    "buttons": [],
+    "errorIndicators": []
+  }
+}
+```
+
+### Field Descriptions
+
+- `menuPath`: menu path used to collect this page profile
+- `navigation.url`: actual URL after the menu click
+- `navigation.hash`: actual URL hash after the menu click
+- `navigation.documentTitle`: `document.title`
+- `pageProfile.headings`: h1/h2/h3 or `role=heading` candidates
+- `pageProfile.representativeTexts`: stable representative text useful for identifying the page
+- `pageProfile.mainContainers`: selector candidates for main/content areas
+- `pageProfile.tables`: table selector, caption, headers, and row count candidates
+- `pageProfile.forms`: form selector, labels, input/select/textarea candidates
+- `pageProfile.tabs`: tablist and tab text candidates
+- `pageProfile.buttons`: button candidates such as inquiry/search buttons that can help identify the page
+- `pageProfile.errorIndicators`: 404, 500, blank page, unauthorized, forbidden, and visible error text candidates
+
+Level 2 does not click `buttons`. Buttons are collected only as page identity signals when their presence is stable and specific to the destination page.
+
+Again, `pageProfile` is for Level 2 Page Identity verification. It is not a complete page behavior schema and is not a full test automation schema.
+
+## representativeTexts Selection Criteria
+
+`representativeTexts` should include stable text that helps identify the destination page.
+
+Prefer:
+
+- unique page title
+- business area name
+- page-specific guide text
+- stable section title that appears only on the intended page
+
+Exclude:
+
+- GNB text
+- footer text
+- header text
+- common layout text
+- repeated labels
+- text that appears on most pages
+- overly generic text
+
+Do not use the following as standalone page identity signals:
+
+- 로그인
+- 메뉴
+- 고객센터
+- 검색
+- 목록
+- 확인
+- 취소
+
+`representativeTexts` should preferably be used together with stronger signals such as:
+
+- heading
+- URL/hash
+- main container
+- table presence
+- form presence
+- tab presence
+
+`representativeTexts` alone can be weak or ambiguous. Level 2 Page Identity Test generation should combine multiple stable signals when possible.
+
+## Level 3 interactionProfile Candidate
+
+### Purpose
+
+`interactionProfile` is a candidate data structure for future Level 3 Safe Interaction Test generation.
+
+Level 3 is limited to safe interactions that do not change business data.
+
+### Candidate JSON
+
+```json
+{
+  "interactionProfile": {
+    "inputs": [],
+    "selects": [],
+    "checkboxes": [],
+    "radios": [],
+    "buttons": [],
+    "tabs": [],
+    "pagination": [],
+    "safeActions": [],
+    "riskyActions": []
+  }
+}
+```
+
+### Safe Actions
+
+Safe action candidates include:
+
+- search
+- inquiry
+- filter
+- sort
+- tab switch
+- pagination
+- date range selection for search
+- checkbox/radio selection used only as a filter
+- opening read-only detail views
+
+### Risky Actions
+
+Risky actions must not be executed automatically by generated tests.
+
+Examples:
+
+- 저장
+- 삭제
+- 등록
+- 수정
+- 승인
+- 발송
+- 업로드
+- save
+- delete
+- register
+- create
+- update
+- approve
+- send
+- upload
+- submit
+
+### Ambiguous Actions
+
+If an action cannot be classified safely, generated tests should not click it.
+
+Ambiguous actions should be left as TODO comments for human review.
+
+## Legacy/Sample Structure
+
+The previous version of this document contained the following sample structure. It is preserved here as a legacy/sample reference instead of being deleted.
+
+```json
 {
   "page": {
     "url": "https://sample.local/main",
@@ -23,15 +321,25 @@
     }
   ]
 }
+```
 
-필드 설명:
-- page.url: 테스트 대상 URL. 폐쇄망 반출 시 반드시 sample URL로 치환한다.
-- menus[].label: 메뉴 표시명. 외부 반출 시 익명화할 수 있다.
-- selector: Playwright 테스트 생성에 사용되는 locator 후보.
-- elements[].type: button, input, select, table, link 등.
-- visible/enabled: 테스트 가능 여부 판단 기준.
+Legacy field notes:
 
-주의:
-- 실제 운영 데이터 값은 포함하지 않는다.
-- 개인정보성 textContent는 저장하지 않는다.
-- 테스트 생성에 불필요한 DOM 전체 HTML은 저장하지 않는다.
+- `page.url`: test target URL. Closed-network values should be replaced with sample URLs before external use.
+- `menus[].label`: visible menu name. It may require anonymization before external use.
+- `selector`: locator candidate used for Playwright test generation.
+- `elements[].type`: element type such as button, input, select, table, or link.
+- `visible/enabled`: basic testability hints.
+
+Legacy cautions:
+
+- Do not include real production data values.
+- Do not store personal information from `textContent`.
+- Do not store full DOM HTML when a structured summary is enough.
+
+## Future Schema Work
+
+- Align this document with actual `scout.js` output before implementing Level 2.
+- Add `pageProfile` to `docs/JSON_SCHEMA.md` only after confirming the exact collection shape.
+- Review `agent_orchestrator.py` when JSON structure changes.
+- Update prompt strategy when generated tests start using `pageProfile` or `interactionProfile`.

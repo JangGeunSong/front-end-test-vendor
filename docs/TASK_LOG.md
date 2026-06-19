@@ -1,5 +1,26 @@
 # Task Log
 
+## 2026-06-19 - JSON schema documentation for Level 2 preparation
+
+### 작업 목적
+
+- Level 2 Page Identity Test 구현 전 필요한 JSON schema 후보를 문서화한다.
+
+### 변경 내용
+
+- 현재 Level 1에서 사용하는 `scout_result.json`, `menu_map.json`, `menuTree`의 역할을 정리했다.
+- 메뉴 후보의 `id`, `text`, `href`, `ngClick`, `cssPath`, `menuDepth` 등 주요 필드 의미를 정리했다.
+- Level 2 `pageProfile` 후보 구조와 필드 설명을 추가했다.
+- `pageProfile`은 전수 테스트용 데이터가 아니라 Level 2 Page Identity 검증용 후보 데이터임을 명확히 기록했다.
+- `representativeTexts` 선정 기준과 단독 신호보다 heading, URL/hash, main container, table/form 존재 여부와 조합해 판단하는 것을 권장한다고 정리했다.
+- Level 3 `interactionProfile` 후보 구조와 safe/risky/ambiguous action 기준을 간단히 추가했다.
+- 기존 `docs/JSON_SCHEMA.md`의 샘플 JSON과 필드 설명은 삭제하지 않고 Legacy/Sample Structure 섹션으로 보존했다.
+
+### 다음 작업
+
+- Level 2 구현 시 실제 `scout.js` 수집 구조와 `docs/JSON_SCHEMA.md`의 `pageProfile` 후보 구조를 맞춰 검토한다.
+- JSON 구조가 실제로 변경될 때 `agent_orchestrator.py`, prompt 전략, 관련 문서를 함께 검토한다.
+
 ## 2026-06-19 - README execution procedure and Korean structure cleanup
 
 ### 작업 목적

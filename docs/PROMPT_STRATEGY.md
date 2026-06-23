@@ -1,5 +1,31 @@
 # Prompt Strategy
 
+## Level 2 Page Identity prompt rule
+
+- Generated tests keep the existing Level 1 GNB navigation flow.
+- Generated tests must create a `test.step` for every depth2 menu and every depth3 child in `menuTree`.
+- Weak or unstable Page Identity candidates must not cause menu steps to be skipped.
+- Each menu step should at least open the correct depth1 area, click the target menu, and assert URL/hash when available.
+- If URL/hash does not change or the menu is ngClick/tab-like, leave a TODO when stable heading/mainContainer evidence is insufficient.
+- The LLM input includes both `menuTree` and `pageProfiles`.
+- `pageProfiles` are matched to menu cases by `menuPath`.
+- Page Identity assertion priority:
+  1. URL/hash
+  2. heading
+  3. mainContainer
+  4. representativeTexts
+- Level 2 assertions should be conservative. If a candidate is unstable, generated tests should leave a TODO instead of creating a failing assertion.
+- `representativeTexts` are fallback identity signals only when heading/mainContainer signals are insufficient.
+- `representativeTexts` must not be used for operational data, list data, notice titles, FAQ questions, product names, model names, manufacturer-home text, plan numbers, long text, bracketed notice titles, or numeric/model-like strings.
+- Generic texts such as 로그인, 메뉴, 고객센터, 검색, 목록, 확인, 취소 are not valid page identity signals.
+- `buttons` must not be clicked and must not be used as page identity assertions.
+- Button texts such as 상세보기, 확대, 이전, 다음, Previous, Next, 조회, 검색 are excluded from assertions.
+- `table`, `form`, and `tab` presence assertions are allowed only with stable, specific selectors.
+- Generic selectors such as `page.locator('table')`, `page.locator('form')`, and `page.locator('[role="tab"]')` should not be generated.
+- For ngClick tab-like menus where URL/hash does not change, assert only stable heading or mainContainer candidates and avoid strong content/list assertions.
+- `errorIndicators` may be used as error-screen evidence, but generated tests should avoid broad negative regex assertions that can create false positives.
+- Saving, deleting, registering, updating, approving, sending, uploading, or any other data-changing action must not be generated.
+
 ## GNB depth3 duplicate menu rule
 
 - depth3 child menu names may be duplicated under different depth2 parents.

@@ -1,15 +1,7 @@
 // scout.js (사외에서 실행)
 const { chromium } = require('playwright');
 
-async function scoutSite(url) {
-  const browser = await chromium.launch();
-  const page = await browser.newPage();
-
-  // 1. 페이지 이동 (가장 느린 네트워크가 끝날 때까지 1차 대기)
-  await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-
-  // 2. [Smart Wait] Angular/SPA 범용 로딩 대기
-  // 사이트마다 다른 메인 태그를 감안하여 'ng-'로 시작하는 속성이 나타날 때까지 기다립니다.
+async function waitForAppReady(page) {
   try {
     await Promise.race([
       // 전략 A: Angular 전용 속성이 보일 때까지 대기
@@ -21,9 +13,520 @@ async function scoutSite(url) {
   } catch (e) {
     console.warn("⚠️ 자동 로딩 확인 실패. 현재 상태로 스캐닝을 강제 진행합니다.");
   }
+}
+
+async function collectPageProfile(page) {
+  return page.evaluate(() => {
+    function normalizeText(value) {
+      return (value || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function getElementText(el) {
+      return normalizeText(
+        el.innerText ||
+        el.textContent ||
+        el.getAttribute('placeholder') ||
+        el.getAttribute('aria-label') ||
+        el.getAttribute('title') ||
+        el.getAttribute('value') ||
+        ''
+      );
+    }
+
+    function isElementVisible(el) {
+      const rect = el.getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        style.opacity !== '0'
+      );
+    }
+
+    function isInsideCommonLayout(el) {
+      return !!el.closest(
+        'header, footer, nav, aside, .header, .footer, .gnb, .lnb, .menuContainer, .menuContent, .depth1, .depth2, .depth3'
+      );
+    }
+
+    function getCssPath(el) {
+      if (!(el instanceof Element)) {
+        return '';
+      }
+
+      const path = [];
+
+      while (el && el.nodeType === Node.ELEMENT_NODE && el !== document.body) {
+        let selector = el.nodeName.toLowerCase();
+
+        if (el.id) {
+          selector += `#${CSS.escape(el.id)}`;
+          path.unshift(selector);
+          break;
+        }
+
+        const className = normalizeText(
+          typeof el.className === 'string' ? el.className : ''
+        );
+
+        if (className) {
+          const classes = className
+            .split(' ')
+            .filter(Boolean)
+            .slice(0, 3)
+            .map(cls => `.${CSS.escape(cls)}`)
+            .join('');
+
+          selector += classes;
+        }
+
+        const parent = el.parentElement;
+        if (parent) {
+          const siblings = Array.from(parent.children).filter(
+            sibling => sibling.nodeName === el.nodeName
+          );
+
+          if (siblings.length > 1) {
+            const index = siblings.indexOf(el) + 1;
+            selector += `:nth-of-type(${index})`;
+          }
+        }
+
+        path.unshift(selector);
+        el = el.parentElement;
+      }
+
+      return path.join(' > ');
+    }
+
+    function uniqueBy(items, keyFn, limit = 20) {
+      const seen = new Set();
+      const results = [];
+
+      for (const item of items) {
+        const key = keyFn(item);
+        if (!key || seen.has(key)) {
+          continue;
+        }
+
+        seen.add(key);
+        results.push(item);
+
+        if (results.length >= limit) {
+          break;
+        }
+      }
+
+      return results;
+    }
+
+    function summarizeElement(el, textLimit = 120) {
+      return {
+        tagName: el.tagName,
+        text: normalizeText(el.innerText || el.textContent || '').slice(0, textLimit),
+        id: el.id || '',
+        className: typeof el.className === 'string' ? el.className : '',
+        role: el.getAttribute('role') || '',
+        isVisible: isElementVisible(el),
+        cssPath: getCssPath(el)
+      };
+    }
+
+    function collectHeadings() {
+      const headingSelectors = 'h1, h2, h3, [role="heading"]';
+
+      return uniqueBy(
+        Array.from(document.querySelectorAll(headingSelectors))
+          .filter(el => isElementVisible(el) && !isInsideCommonLayout(el))
+          .map(el => ({
+            ...summarizeElement(el),
+            level: el.tagName.match(/^H[1-6]$/)
+              ? Number(el.tagName.slice(1))
+              : Number(el.getAttribute('aria-level') || 0)
+          }))
+          .filter(item => item.text.length > 0),
+        item => `${item.level}:${item.text}:${item.cssPath}`,
+        20
+      );
+    }
+
+    function collectRepresentativeTexts(headings) {
+      const excludedTexts = new Set([
+        '로그인',
+        '메뉴',
+        '고객센터',
+        '검색',
+        '목록',
+        '확인',
+        '취소',
+        'Previous',
+        'Next',
+        'prev',
+        'next'
+      ]);
+
+      const candidateSelectors = [
+        'h1',
+        'h2',
+        'h3',
+        '[role="heading"]',
+        '.title',
+        '.tit',
+        '.subTitle',
+        '.sectionTitle',
+        '.contentTitle',
+        '.pageTitle',
+        '.visualTitle',
+        'main p',
+        '[role="main"] p',
+        '.contents p',
+        '.content p'
+      ].join(', ');
+
+      const headingTexts = headings.map(item => item.text);
+      const textCandidates = Array.from(document.querySelectorAll(candidateSelectors))
+        .filter(el => isElementVisible(el) && !isInsideCommonLayout(el))
+        .map(el => normalizeText(el.innerText || el.textContent || ''))
+        .filter(text => {
+          return (
+            text.length >= 2 &&
+            text.length <= 120 &&
+            !excludedTexts.has(text) &&
+            !/^(검색|확인|취소|목록|메뉴|Previous|Next|prev|next)$/i.test(text)
+          );
+        });
+
+      return uniqueBy(
+        [...headingTexts, ...textCandidates],
+        text => text,
+        20
+      );
+    }
+
+    function collectMainContainers() {
+      const mainSelectors = [
+        'main',
+        '[role="main"]',
+        '#content',
+        '#contents',
+        '#container',
+        '.content',
+        '.contents',
+        '.container',
+        '.main',
+        '.mainContainer',
+        '.subContent',
+        '.bizMainCont'
+      ].join(', ');
+
+      return uniqueBy(
+        Array.from(document.querySelectorAll(mainSelectors))
+          .filter(el => isElementVisible(el) && !isInsideCommonLayout(el))
+          .map(el => ({
+            ...summarizeElement(el, 160),
+            childElementCount: el.querySelectorAll('*').length
+          })),
+        item => item.cssPath || item.id || item.className,
+        10
+      );
+    }
+
+    function collectTables() {
+      return uniqueBy(
+        Array.from(document.querySelectorAll('table'))
+          .filter(el => isElementVisible(el) && !isInsideCommonLayout(el))
+          .map(el => ({
+            ...summarizeElement(el, 80),
+            caption: normalizeText(el.querySelector('caption')?.innerText || ''),
+            headers: Array.from(el.querySelectorAll('th'))
+              .map(th => normalizeText(th.innerText || th.textContent || ''))
+              .filter(Boolean)
+              .slice(0, 12),
+            rowCount: el.querySelectorAll('tbody tr, tr').length
+          })),
+        item => item.cssPath,
+        10
+      );
+    }
+
+    function collectForms() {
+      return uniqueBy(
+        Array.from(document.querySelectorAll('form, fieldset, .searchArea, .searchBox, .formArea'))
+          .filter(el => isElementVisible(el) && !isInsideCommonLayout(el))
+          .map(el => ({
+            ...summarizeElement(el, 100),
+            labels: Array.from(el.querySelectorAll('label'))
+              .map(label => normalizeText(label.innerText || label.textContent || ''))
+              .filter(Boolean)
+              .slice(0, 12),
+            controls: Array.from(el.querySelectorAll('input, select, textarea'))
+              .map(control => ({
+                tagName: control.tagName,
+                type: control.getAttribute('type') || '',
+                name: control.getAttribute('name') || '',
+                placeholder: control.getAttribute('placeholder') || '',
+                ariaLabel: control.getAttribute('aria-label') || ''
+              }))
+              .slice(0, 12)
+          })),
+        item => item.cssPath,
+        10
+      );
+    }
+
+    function collectTabs() {
+      return uniqueBy(
+        Array.from(document.querySelectorAll('[role="tab"], [role="tablist"] [role="tab"], .tabs a, .tab a, .tabMenu a, .tab li'))
+          .filter(el => isElementVisible(el) && !isInsideCommonLayout(el))
+          .map(el => ({
+            ...summarizeElement(el),
+            selected: el.getAttribute('aria-selected') || ''
+          }))
+          .filter(item => item.text.length > 0),
+        item => `${item.text}:${item.cssPath}`,
+        20
+      );
+    }
+
+    function isCarouselButton(el, text) {
+      const className = typeof el.className === 'string' ? el.className : '';
+      const ariaLabel = el.getAttribute('aria-label') || '';
+      const title = el.getAttribute('title') || '';
+      const combined = `${className} ${ariaLabel} ${title} ${text}`;
+
+      return /slick-prev|slick-next|carousel|swiper|bx-prev|bx-next|previous|next/i.test(combined);
+    }
+
+    function collectButtons() {
+      const buttonSelectors = [
+        'button',
+        '[role="button"]',
+        'input[type="button"]',
+        'input[type="submit"]',
+        'a.btn',
+        'a.button'
+      ].join(', ');
+
+      return uniqueBy(
+        Array.from(document.querySelectorAll(buttonSelectors))
+          .filter(el => isElementVisible(el) && !isInsideCommonLayout(el))
+          .map(el => {
+            const text = getElementText(el);
+
+            return {
+              ...summarizeElement(el),
+              text,
+              type: el.getAttribute('type') || '',
+              name: el.getAttribute('name') || '',
+              value: el.getAttribute('value') || ''
+            };
+          })
+          .filter(item => {
+            const el = document.querySelector(item.cssPath);
+            return (
+              (item.text.length > 0 || item.value.length > 0) &&
+              (!el || !isCarouselButton(el, item.text || item.value))
+            );
+          }),
+        item => `${item.text}:${item.value}:${item.cssPath}`,
+        20
+      );
+    }
+
+    function collectErrorIndicators() {
+      const bodyText = normalizeText(document.body?.innerText || document.body?.textContent || '');
+      const indicators = [];
+
+      if (!bodyText) {
+        indicators.push({
+          type: 'blank-page',
+          text: '',
+          cssPath: ''
+        });
+      }
+
+      const patterns = [
+        { type: '404', regex: /\b404\s*(not found|error|page not found)\b|\bnot found\b|페이지를 찾을 수 없습니다|요청하신 페이지를 찾을 수 없습니다/i },
+        { type: '500', regex: /\b500\s*(error|internal server error)\b|\binternal server error\b|서버\s*오류|시스템\s*오류/i },
+        { type: 'unauthorized', regex: /\bunauthorized\b|로그인이 필요(?:합니다)?|로그인 후 이용|인증이 필요(?:합니다)?|인증 후 이용|세션이 만료/i },
+        { type: 'forbidden', regex: /\bforbidden\b|\b403\b|권한이 없습니다|접근 권한이 없습니다|접근이 제한|허용되지 않은 접근/i },
+        { type: 'generic-error', regex: /오류가 발생|에러가 발생|error|exception/i }
+      ];
+
+      for (const pattern of patterns) {
+        const match = bodyText.match(pattern.regex);
+        if (match) {
+          indicators.push({
+            type: pattern.type,
+            text: match[0],
+            cssPath: ''
+          });
+        }
+      }
+
+      const visibleErrorElements = Array.from(document.querySelectorAll(
+        '.error, .exception, .not-found, [class*="error"], [class*="Error"], [role="alert"]'
+      ))
+        .filter(el => isElementVisible(el) && !isInsideCommonLayout(el))
+        .map(el => ({
+          type: 'visible-error-element',
+          text: normalizeText(el.innerText || el.textContent || '').slice(0, 160),
+          cssPath: getCssPath(el)
+        }))
+        .filter(item => item.text.length > 0);
+
+      return uniqueBy(
+        [...indicators, ...visibleErrorElements],
+        item => `${item.type}:${item.text}:${item.cssPath}`,
+        20
+      );
+    }
+
+    const headings = collectHeadings();
+
+    return {
+      headings,
+      representativeTexts: collectRepresentativeTexts(headings),
+      mainContainers: collectMainContainers(),
+      tables: collectTables(),
+      forms: collectForms(),
+      tabs: collectTabs(),
+      buttons: collectButtons(),
+      errorIndicators: collectErrorIndicators()
+    };
+  });
+}
+
+function extractMenuCandidates(elements) {
+  const candidates = [];
+  let currentDepth2 = null;
+
+  for (const item of elements) {
+    if (!item.isGnbCandidate || !item.testHint?.isNavigationCandidate) {
+      continue;
+    }
+
+    const menu = {
+      text: item.text || '',
+      href: item.href || '',
+      id: item.id || '',
+      ngClick: item.ngClick || '',
+      menuDepth: item.menuDepth,
+      isVisible: item.isVisible,
+      parentText: item.parentText || '',
+      cssPath: item.cssPath || '',
+      locatorCandidates: item.locatorCandidates || []
+    };
+
+    if (menu.menuDepth === 2) {
+      currentDepth2 = menu;
+      menu.menuPath = [menu.text].filter(Boolean);
+    } else if (menu.menuDepth === 3 && currentDepth2) {
+      menu.parentMenu = {
+        text: currentDepth2.text,
+        href: currentDepth2.href,
+        id: currentDepth2.id,
+        ngClick: currentDepth2.ngClick,
+        menuDepth: currentDepth2.menuDepth,
+        cssPath: currentDepth2.cssPath
+      };
+      menu.menuPath = [currentDepth2.text, menu.text].filter(Boolean);
+    } else {
+      menu.menuPath = [menu.text].filter(Boolean);
+    }
+
+    candidates.push(menu);
+  }
+
+  return candidates;
+}
+
+function toProfileMenu(menu) {
+  return {
+    text: menu.text || '',
+    href: menu.href || '',
+    id: menu.id || '',
+    ngClick: menu.ngClick || '',
+    menuDepth: menu.menuDepth,
+    parentText: menu.parentMenu?.text || '',
+    cssPath: menu.cssPath || ''
+  };
+}
+
+async function clickMenuCandidate(page, menu) {
+  if (!menu.cssPath) {
+    return false;
+  }
+
+  try {
+    const locator = page.locator(menu.cssPath).first();
+
+    if (await locator.count()) {
+      if (await locator.isVisible().catch(() => false)) {
+        await locator.click({ timeout: 3000 });
+      } else {
+        await page.evaluate((cssPath) => {
+          document.querySelector(cssPath)?.click();
+        }, menu.cssPath);
+      }
+
+      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(300);
+      return true;
+    }
+  } catch (error) {
+    console.warn(`⚠️ 메뉴 클릭 실패: ${menu.text} (${error.message})`);
+  }
+
+  return false;
+}
+
+async function collectMenuPageProfiles(page, menus) {
+  const pageProfiles = [];
+
+  for (const menu of menus) {
+    if (!menu.text || !menu.cssPath) {
+      continue;
+    }
+
+    const clicked = await clickMenuCandidate(page, menu);
+    if (!clicked) {
+      continue;
+    }
+
+    pageProfiles.push({
+      menuPath: menu.menuPath || [menu.text],
+      menu: toProfileMenu(menu),
+      navigation: {
+        url: page.url(),
+        hash: await page.evaluate(() => window.location.hash || ''),
+        documentTitle: await page.title()
+      },
+      pageProfile: await collectPageProfile(page)
+    });
+  }
+
+  return pageProfiles;
+}
+
+async function scoutSite(url) {
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+
+  // 1. 페이지 이동 (가장 느린 네트워크가 끝날 때까지 1차 대기)
+  await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+
+  // 2. [Smart Wait] Angular/SPA 범용 로딩 대기
+  // 사이트마다 다른 메인 태그를 감안하여 'ng-'로 시작하는 속성이 나타날 때까지 기다립니다.
+  await waitForAppReady(page);
 
   // 3. 요소 추출 (Body 및 dynamic content 포함)
-  const elements = await page.evaluate(() => {
+  const scoutResult = await page.evaluate(() => {
     const selectors = [
       'a',
       'button',
@@ -202,7 +705,7 @@ async function scoutSite(url) {
       return candidates;
     }
 
-    return Array.from(document.querySelectorAll(selectors))
+    const elements = Array.from(document.querySelectorAll(selectors))
       .map((el, index) => {
         const text = getElementText(el);
         const tagName = el.tagName;
@@ -310,10 +813,19 @@ async function scoutSite(url) {
           )
         );
       });
+
+    return {
+      url: window.location.href,
+      count: elements.length,
+      elements
+    };
   });
 
+  const menus = extractMenuCandidates(scoutResult.elements);
+  scoutResult.pageProfiles = await collectMenuPageProfiles(page, menus);
+
   await browser.close();
-  return JSON.stringify(elements);
+  return JSON.stringify(scoutResult);
 }
 
 // [추가] 실제로 실행하고 결과를 콘솔에 찍어주는 로직

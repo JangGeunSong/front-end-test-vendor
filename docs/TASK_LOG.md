@@ -1,5 +1,24 @@
 # Task Log
 
+## 2026-06-23 - Level 2 Page Identity design documentation
+
+### 작업 목적
+
+- Level 2 Page Identity Test 구현 전에 `scout.js` pageProfile 수집 확장, `agent_orchestrator.py` prompt 확장, generated spec page identity assertion 추가 작업의 기준이 되는 설계 문서를 작성한다.
+
+### 변경 내용
+
+- `docs/LEVEL2_PAGE_IDENTITY_DESIGN.md`를 새로 생성했다.
+- 현재 Level 1 Navigation Smoke Test MVP pipeline과 향후 Level 2 pipeline을 구현 관점에서 정리했다.
+- `scout_result.json`의 `pageProfiles` 확장 후보와 `pageProfile` 수집 대상을 정의했다.
+- `representativeTexts` 선정/제외 기준과 generated spec에서 생성할 page identity assertion 후보를 정리했다.
+- Level 2 safety rule, 구현 순서, 구현 후 확인 명령을 문서화했다.
+
+### 다음 작업
+
+- 설계 문서 기준으로 `scout.js` pageProfile 수집 확장 범위를 검토한다.
+- JSON 구조 변경 시 `docs/JSON_SCHEMA.md`, `agent_orchestrator.py`, prompt 전략을 함께 검토한다.
+
 ## 2026-06-19 - JSON schema documentation for Level 2 preparation
 
 ### 작업 목적

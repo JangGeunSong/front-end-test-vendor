@@ -22,9 +22,27 @@
 - Button texts such as 상세보기, 확대, 이전, 다음, Previous, Next, 조회, 검색 are excluded from assertions.
 - `table`, `form`, and `tab` presence assertions are allowed only with stable, specific selectors.
 - Generic selectors such as `page.locator('table')`, `page.locator('form')`, and `page.locator('[role="tab"]')` should not be generated.
+- Except for heading assertions using `getByRole('heading')`, generated specs must use the exact `cssPath` collected in `pageProfiles`.
+- Generated specs must not shorten, invent, or generalize pageProfile selectors.
+- For example, if scout collected `div#developGuide01-01 > div.listContent > div.content:nth-of-type(2)`, generated specs must not replace it with `div#developGuide01-01`.
+- If a collected `cssPath` looks too long or unstable, leave a TODO instead of generating an assertion.
+- Guide pages whose heading is only the parent menu label should use collected `mainContainers[1]` or content `cssPath` for visible assertion and Page Identity highlight.
 - For ngClick tab-like menus where URL/hash does not change, assert only stable heading or mainContainer candidates and avoid strong content/list assertions.
 - `errorIndicators` may be used as error-screen evidence, but generated tests should avoid broad negative regex assertions that can create false positives.
 - Saving, deleting, registering, updating, approving, sending, uploading, or any other data-changing action must not be generated.
+
+## Level 2 Visual Debug Highlight Rule
+
+- Generated specs should import `highlightPageIdentity` from `../../utils/highlight` when Page Identity assertions are generated.
+- `highlightPageIdentity(page, locator, label)` must be called after a stable heading or mainContainer assertion.
+- The helper only acts when `HIGHLIGHT=true`, so normal test runs are unaffected.
+- Prefer highlighting the heading locator.
+- Highlight the main container when no stable heading is available, or when the heading is only the parent depth2 label and does not identify the depth3 ngClick/tab page.
+- Showcase depth3 ngClick/tab menus such as 모듈/모뎀 and 단말 children should still show PAGE IDENTITY even when URL/hash is unchanged.
+- If a mainContainer visible assertion is generated, the same locator should be passed to `highlightPageIdentity`.
+- A stable tab locator may be highlighted only when it is not a product/model/list/button target.
+- The label should include the full menuPath, for example `단말 > NB-IoT: content area`.
+- Buttons, tables, notice titles, FAQ questions, product names, model names, and 상세보기 buttons must not be used as Page Identity highlight targets.
 
 ## GNB depth3 duplicate menu rule
 
@@ -32,6 +50,7 @@
 - Generated tests must not click a depth3 child menu with `clickVisibleMenuByText(page, childName)` alone.
 - Generated tests should call `clickVisibleSubMenuByText(page, parentDepth2Name, childName, options)` for depth3 child menus.
 - When the menu JSON includes `id`, `ngClick`, or `cssPath`, include those values in the helper options so duplicate labels such as `NB-IoT`, `eMTC`, `LTE-M`, `LTE`, and `5G` can be resolved to the intended parent.
+- If a depth3 child has `cssPath` in `menu_map`, generated specs must include it in `clickVisibleSubMenuByText` options.
 
 LLM에게 전달하는 정보:
 - 테스트 목적

@@ -1,5 +1,99 @@
 # Task Log
 
+## 2026-06-24 - Preserve pageProfile cssPath in generated assertions
+
+### 작업 목적
+
+- 개발 지원, 검증 지원 generated 테스트 실패 원인이 scout_result에 없는 selector를 generated spec이 임의 축약해 사용한 것이라서, Page Identity assertion selector 사용 규칙을 보완한다.
+
+### 변경 내용
+
+- `agent_orchestrator.py` prompt에 selector 사용 규칙을 추가했다.
+- heading assertion은 `getByRole('heading')` 사용을 허용하되, mainContainer/table/tab/content assertion과 highlight locator는 `pageProfiles`에 수집된 `cssPath`를 그대로 사용하도록 명시했다.
+- `div#developGuide01-01 > div.listContent > div.content:nth-of-type(2)` 같은 수집 selector를 `div#developGuide01-01`처럼 parent selector로 임의 축약하지 않도록 했다.
+- 수집된 `cssPath`가 너무 길거나 불안정해 보이면 assertion 대신 TODO를 남기도록 했다.
+- 개발 가이드/검증 가이드처럼 heading이 부모 메뉴명만 있는 경우에는 수집된 `mainContainers[1]` 또는 content `cssPath`를 그대로 사용해 visible assertion과 `highlightPageIdentity`를 생성하도록 했다.
+- depth3 메뉴 클릭 시 `menu_map`의 `cssPath`가 있으면 `clickVisibleSubMenuByText` options에 반드시 포함하도록 규칙을 강화했다.
+- `docs/PROMPT_STRATEGY.md`에 cssPath 보존과 depth3 click options 규칙을 반영했다.
+
+### 확인 결과
+
+- 이번 작업에서는 실행 검증을 수행하지 않았다.
+
+### 다음 작업
+
+- `npm run ai:generate` 후 개발 지원/검증 지원 generated selector가 scout_result의 `cssPath` 그대로 생성되는지 확인한다.
+- depth3 클릭 helper options에 `cssPath`가 빠지지 않는지 확인한다.
+
+## 2026-06-24 - Page identity highlight closes GNB hover overlay
+
+### 작업 목적
+
+- visual debug에서 GNB hover overlay가 페이지 본문을 가려 Page Identity highlight를 보기 어려운 문제를 개선한다.
+
+### 변경 내용
+
+- `highlightPageIdentity` 내부에서 highlight 전에 마우스를 viewport 하단 본문 영역으로 이동하도록 했다.
+- 이 동작은 `HIGHLIGHT=true`일 때만 실행되므로 일반 테스트 실행에는 영향이 없다.
+- 다음 메뉴 이동은 각 step의 `openDepth1ByIndex`가 다시 처리하므로 hover 상태를 유지하지 않는다.
+
+### 확인 결과
+
+- 이번 작업에서는 실행 검증을 수행하지 않았다.
+
+### 다음 작업
+
+- `npm run test:generated:visual` 실행 시 GNB hover overlay가 닫힌 뒤 PAGE IDENTITY highlight가 본문에서 보이는지 확인한다.
+
+## 2026-06-24 - Level 2 showcase tab identity highlight tuning
+
+### 작업 목적
+
+- showcase 계열 depth3 `ngClick` tab 메뉴에서 mainContainer visible assertion은 생성되지만 `highlightPageIdentity`가 호출되지 않아 visual debug에서 PAGE IDENTITY가 보이지 않는 문제를 보완한다.
+
+### 변경 내용
+
+- `agent_orchestrator.py` prompt에 heading이 없거나 heading이 부모 depth2 메뉴명과 동일한 경우 mainContainer 또는 안정적인 tab locator를 Page Identity highlight 대상으로 사용하도록 명시했다.
+- showcase 모듈/모뎀, 단말 depth3 메뉴처럼 URL/hash가 동일한 `ngClick` tab 메뉴에서도 PAGE IDENTITY highlight를 반드시 생성하도록 했다.
+- mainContainer visible assertion을 생성한 경우 같은 locator로 `highlightPageIdentity`를 반드시 호출하도록 규칙을 강화했다.
+- label에는 `단말 > NB-IoT: content area`처럼 menuPath 전체를 포함하도록 예시를 추가했다.
+- 제품명/모델명/상세보기 버튼/공지/FAQ/list 콘텐츠는 assertion과 highlight 대상으로 쓰지 않는 규칙을 유지했다.
+- `docs/PROMPT_STRATEGY.md`에 showcase tab identity highlight fallback 규칙을 반영했다.
+
+### 확인 결과
+
+- 이번 작업에서는 실행 검증을 수행하지 않았다.
+
+### 다음 작업
+
+- `npm run ai:generate` 후 showcase depth3 반복 구간에서 mainContainer assertion 직후 `highlightPageIdentity`가 생성되는지 확인한다.
+- `npm run test:generated:visual`로 `모듈/모뎀`, `단말` 하위 depth3 메뉴에서 PAGE IDENTITY 라벨이 보이는지 확인한다.
+
+## 2026-06-24 - Level 2 visual debug identity highlight
+
+### 작업 목적
+
+- generated 테스트가 GNB navigation과 Page Identity assertion까지 통과한 뒤, visual debug 실행 시 사람이 실제로 어떤 Page Identity 신호를 검증했는지 화면에서 확인할 수 있도록 한다.
+
+### 변경 내용
+
+- `utils/highlight.js`에 `highlightPageIdentity(page, locator, label)` helper를 추가했다.
+- helper는 `HIGHLIGHT=true`일 때만 동작하며 일반 테스트 실행에는 영향을 주지 않는다.
+- Page Identity 대상은 메뉴 클릭 하이라이트와 구분되도록 파란 outline, box shadow, `PAGE IDENTITY` 라벨로 강조한다.
+- helper 실패가 테스트 실패로 이어지지 않도록 하이라이트 실패 시 경고만 남기게 했다.
+- `agent_orchestrator.py` prompt에 heading assertion 직후 `highlightPageIdentity`를 호출하도록 규칙을 추가했다.
+- heading이 없고 안정적인 mainContainer assertion을 생성한 경우에만 main container를 보조 highlight 대상으로 사용하도록 했다.
+- `docs/PROMPT_STRATEGY.md`에 Level 2 visual debug highlight 규칙을 추가했다.
+
+### 확인 결과
+
+- 이번 작업에서는 요청에 따라 실행 검증을 수행하지 않았다.
+
+### 다음 작업
+
+- `npm run ai:generate` 후 generated spec이 `highlightPageIdentity`를 import하고 heading/mainContainer assertion 직후 호출하는지 확인한다.
+- `npm run test:generated:visual` 실행 시 메뉴 클릭 highlight와 Page Identity highlight가 구분되어 보이는지 확인한다.
+
 ## 2026-06-23 - menuTree step coverage prompt tuning
 
 ### 작업 목적

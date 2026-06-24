@@ -241,7 +241,9 @@ def build_menu_test_prompt(generation_input):
     3. depth2 메뉴 클릭은 clickVisibleMenuByText(page, menuName)를 사용한다.
     3-1. depth3 child 메뉴 클릭은 반드시 clickVisibleSubMenuByText(page, parentDepth2Name, childName, options)를 사용한다.
     3-2. depth3 child 메뉴에는 같은 text가 여러 depth2 parent 아래에 있을 수 있으므로 clickVisibleMenuByText(page, childName)를 단독으로 사용하지 않는다.
-    3-3. child JSON에 id, ngClick, cssPath가 있으면 options에 포함한다. 예: {{ id: child.id, ngClick: child.ngClick, cssPath: child.cssPath }}
+    3-3. child JSON에 id, ngClick, cssPath가 있으면 options에 반드시 포함한다. cssPath가 있으면 절대 생략하지 않는다.
+         예: clickVisibleSubMenuByText(page, '개발 지원', '개발 가이드', {{ cssPath: 'li#supportDevMain > a' }})
+         예: {{ id: child.id, ngClick: child.ngClick, cssPath: child.cssPath }}
     4. requiresHoverBeforeClick=true인 메뉴는 반드시 openDepth1ByIndex 호출 후 클릭한다.
     5. href가 있는 메뉴는 클릭 후 URL 또는 hash 변화를 expect(page).toHaveURL()로 검증한다.
     6. href가 없고 ngClick만 있는 메뉴도 pageProfiles에 해당 menuPath가 있으면 안정적인 heading 또는 mainContainer 정도만 보수적으로 검증한다.
@@ -284,8 +286,39 @@ def build_menu_test_prompt(generation_input):
     13. errorIndicators가 있으면 오류 화면 후보로 보고, broad text regex를 만들지 말고 수집된 type/text를 근거로 TODO 또는 제한적인 negative assertion만 생성한다.
     14. pageProfiles가 없거나 후보가 약하면 기존 Level 1 URL/hash assertion과 TODO 주석을 유지한다.
 
+    [selector 사용 규칙]
+    1. heading assertion은 getByRole('heading', {{ name }})를 사용해도 된다.
+    2. mainContainer, table, tab, content 영역 assertion 또는 highlight locator는 반드시 pageProfiles에 수집된 cssPath를 그대로 사용한다.
+    3. pageProfiles에 없는 selector를 새로 만들거나 축약하지 않는다.
+    4. 수집된 cssPath가 `div#developGuide01-01 > div.listContent > div.content:nth-of-type(2)`라면 그대로 사용한다.
+       `div#developGuide01-01` 같은 parent selector를 임의 생성하지 않는다.
+    5. 수집된 cssPath가 너무 길거나 불안정해 보이면 assertion을 만들지 말고 TODO 주석을 남긴다.
+    6. table은 `page.locator('table')` 같은 일반 selector를 사용하지 않는다. 수집된 table cssPath가 있을 때만 사용한다.
+    7. 개발 가이드/검증 가이드처럼 heading이 부모 메뉴명만 있는 경우에는 수집된 mainContainers[1] 또는 content cssPath를 그대로 사용해 visible assertion과 highlightPageIdentity를 생성한다.
+    8. buttons, 제품명, 모델명, 공지 제목, FAQ 질문은 selector 또는 text assertion으로 사용하지 않는다.
+
+    [Visual debug highlight 규칙]
+    1. Page Identity assertion을 생성한 경우, assertion 대상 locator를 highlightPageIdentity(page, locator, label)로 강조한다.
+    2. highlightPageIdentity는 HIGHLIGHT=true일 때만 동작하므로 일반 실행에는 영향이 없다.
+    3. 우선 heading locator를 강조한다.
+    4. heading이 없거나 heading이 부모 depth2 메뉴명과 동일해서 depth3 ngClick/tab 페이지를 식별하지 못하는 경우에는 mainContainer 또는 안정적인 tab locator를 강조한다.
+    5. showcase 모듈/모뎀, 단말 depth3 메뉴처럼 URL/hash가 동일한 ngClick tab 메뉴에서도 Page Identity highlight를 반드시 생성한다.
+    6. mainContainer visible assertion을 생성한 경우에는 같은 locator로 highlightPageIdentity를 반드시 호출한다.
+    7. tab locator는 안정적인 selector가 pageProfiles에 있고 제품명/모델명/버튼/목록 콘텐츠가 아닐 때만 사용한다.
+    8. label에는 menuPath 전체를 포함한다. 예: '단말 > NB-IoT: content area'
+    9. buttons, table, 공지 제목, FAQ 질문, 제품명/모델명, 상세보기 버튼은 assertion 또는 Page Identity highlight 대상으로 사용하지 않는다.
+    10. 예:
+       const identityHeading = page.getByRole('heading', {{ name: '단말' }});
+       await expect(identityHeading).toBeVisible();
+       await highlightPageIdentity(page, identityHeading, '단말 > NB-IoT: 단말');
+    11. mainContainer 예:
+       const identityArea = page.locator('.bizMainCont').first();
+       await expect(identityArea).toBeVisible();
+       await highlightPageIdentity(page, identityArea, '단말 > NB-IoT: content area');
+
     [사용 가능한 helper]
     const {{ openDepth1ByIndex, clickVisibleMenuByText, clickVisibleSubMenuByText }} = require('../../utils/gnb');
+    const {{ highlightPageIdentity }} = require('../../utils/highlight');
 
     [기본 코드 조건]
     - CommonJS 형식으로 작성한다.

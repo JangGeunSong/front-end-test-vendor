@@ -1,5 +1,153 @@
 # Task Log
 
+## 2026-06-24 - Page Identity selector shortening prompt guard
+
+### 작업 목적
+
+- generated spec에서 공유 메뉴 Page Identity assertion에 `pageProfiles`에 없는 축약 selector가 생성되어 W201 warning이 남는 문제를 prompt 규칙으로 보완한다.
+
+### 변경 내용
+
+- `agent_orchestrator.py` prompt에 Page Identity용 `page.locator(...)` selector는 반드시 `pageProfiles`에 수집된 `cssPath` 하나와 완전히 동일해야 한다고 명시했다.
+- 수집된 `cssPath`의 뒤쪽 segment를 제거해 상위 parent/content selector로 축약하지 않도록 했다.
+- 여러 메뉴에 공통으로 쓸 selector를 임의 생성하지 않도록 했다.
+- 공유 > 자료실/공지사항/FAQ처럼 안정적인 content `cssPath`를 하나 고르기 어렵다면 assertion과 highlight를 만들지 말고 TODO만 남기도록 했다.
+- `docs/PROMPT_STRATEGY.md`에 같은 selector 보존 규칙을 반영했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인을 수행했다.
+- 테스트 실행과 `npm run ai:validate`는 수행하지 않았다.
+
+### 다음 작업
+
+- 사용자가 `npm run ai:generate` 후 `npm run ai:validate`를 실행해 공유 메뉴의 축약 selector W201 warning이 사라지는지 확인한다.
+- generated spec에 `page.locator('selector1, selector2')` 또는 pageProfiles에 없는 공통 content selector가 생성되지 않는지 확인한다.
+
+## 2026-06-24 - Validator standard children loop format support
+
+### 작업 목적
+
+- generated spec이 parent test 내부의 `const children = [...]`와 `for (const child of children)` 표준 loop 형식으로 depth3 메뉴를 생성할 때 E101/E103 false positive가 발생하지 않도록 보완한다.
+
+### 변경 내용
+
+- `validate_generated_spec.py`가 같은 이름의 `children` 배열을 전역으로 덮어쓰지 않고, 각 loop 바로 앞의 정적 배열 인스턴스를 찾아 사용하도록 했다.
+- `const children = [...]` 배열의 `text/cssPath`와 `for (const child of children)` loop 내부 `clickVisibleSubMenuByText(page, parentText, child.text, { ... cssPath: child.cssPath ... })` 패턴을 정상 coverage로 인정하도록 했다.
+- `test.step(\`Depth 3: ${child.text}\`)` 형식을 depth3 step coverage로 인정하도록 했다.
+- `agent_orchestrator.py` prompt에 depth3 반복 생성 표준 포맷을 고정했다.
+- pageProfile selector를 `page.locator('selector1, selector2')`처럼 합성하지 말고 하나의 수집 `cssPath`만 사용하거나 TODO를 남기도록 명시했다.
+- `docs/GENERATED_SPEC_VALIDATION.md`와 `docs/PROMPT_STRATEGY.md`에 표준 loop 포맷과 selector 합성 금지 규칙을 반영했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/validate_generated_spec.py` 문법 확인을 수행했다.
+- 테스트 실행과 `npm run ai:validate` 실행은 수행하지 않았다.
+
+### 다음 작업
+
+- 사용자가 `npm run ai:generate` 후 `npm run ai:validate`를 실행해 표준 loop 포맷에서 E101/E103 false positive가 사라졌는지 확인한다.
+- 복합 selector warning이 의도한 W201로 남는지 확인한다.
+
+## 2026-06-24 - Validator computed loop cssPath rule
+
+### 작업 목적
+
+- loop 기반 generated spec은 coverage로 인정하되, depth3 menu `cssPath`를 `id` 기반 template/string 연산으로 계산하는 패턴은 금지하도록 validator와 prompt를 보완한다.
+
+### 변경 내용
+
+- `agent_orchestrator.py` prompt에 loop 기반 depth3 배열을 만들 때 `menu_map`의 `child.cssPath`를 literal field로 포함하도록 명시했다.
+- `cssPath: `a#\\3${tab.id.replace('_', ' _')}`` 같은 id 기반 계산식을 금지 예시로 추가했다.
+- `validate_generated_spec.py`에서 loop step coverage는 정적 배열의 `text`와 `${item.text}` step으로 인정하도록 분리했다.
+- loop click options가 `cssPath: item.cssPath`가 아니라 계산식이면 E101 대신 E104 `Computed cssPath is not allowed`로 리포트하도록 했다.
+- `docs/GENERATED_SPEC_VALIDATION.md`와 `docs/PROMPT_STRATEGY.md`에 loop 허용 조건과 cssPath 계산 금지 규칙을 추가했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/validate_generated_spec.py` 문법 확인을 수행했다.
+- 테스트 실행과 `npm run ai:validate` 실행은 수행하지 않았다.
+
+### 다음 작업
+
+- generated spec 재생성 후 정적 배열에 `cssPath` literal이 포함되고 click options에서 `tab.cssPath`를 사용하는지 확인한다.
+- 사용자가 `npm run ai:validate`를 실행해 E104가 사라지고 실제 누락만 error로 남는지 확인한다.
+
+## 2026-06-24 - Validator static array loop coverage support
+
+### 작업 목적
+
+- generated spec이 일부 depth3 메뉴를 literal call이 아니라 정적 배열 + `for...of` loop로 생성할 때 E101/E103 false positive가 발생하는 문제를 보완한다.
+
+### 변경 내용
+
+- `validate_generated_spec.py`가 `const modemChildren = [...]` 같은 정적 배열의 `text`와 `cssPath`를 읽도록 했다.
+- loop 내부 `clickVisibleSubMenuByText(page, parentText, child.text, { ... cssPath: child.cssPath ... })` 패턴을 depth3 cssPath coverage로 인정하도록 했다.
+- loop 내부 `test.step(\`depth3: ${child.text} ...\`)` 패턴을 menuTree step coverage로 인정하도록 했다.
+- literal `clickVisibleSubMenuByText(...)` parser를 regex 기반에서 괄호 균형 기반 parser로 바꿔 줄바꿈, 공백, options object가 있어도 안정적으로 인식하도록 했다.
+- 기존 금지 selector 검사, depth3 단독 click 금지 검사, pageProfile selector warning 검사는 유지했다.
+- `docs/GENERATED_SPEC_VALIDATION.md`에 정적 배열 + loop generated spec 허용 규칙을 추가했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/validate_generated_spec.py` 문법 확인을 수행했다.
+- `python tools/ai-generator/validate_generated_spec.py` 직접 실행 결과 errors 0, warnings 0으로 `validation passed`를 확인했다.
+- 현재 셸에서는 `npm`이 PATH에 없어 `npm run ai:validate`는 실행하지 못했다.
+
+### 다음 작업
+
+- npm이 PATH에 잡힌 환경에서 `npm run ai:validate`를 실행해 같은 결과가 나오는지 확인한다.
+- 더 복잡한 동적 loop generated spec이 생기면 warning 처리 기준을 추가한다.
+
+## 2026-06-24 - Validator W201 menu cssPath false positive fix
+
+### 작업 목적
+
+- `a#\\35 G`처럼 `menuTree`의 depth3 메뉴 클릭용 `cssPath`가 pageProfiles 목록에 없다는 이유로 W201 warning이 발생하는 false positive를 보완한다.
+
+### 변경 내용
+
+- `validate_generated_spec.py`의 W201 검사에서 `pageProfiles` cssPath뿐 아니라 `menuTree` depth2/depth3 메뉴 `cssPath`도 허용 selector 목록에 포함하도록 했다.
+- 메뉴 클릭용 selector와 Page Identity selector를 구분해, `clickVisibleSubMenuByText` options에 쓰이는 메뉴 `cssPath`가 W201로 보고되지 않도록 했다.
+- JavaScript 문자열 escaping 때문에 `a#\\35 G`가 spec 소스에서 `a#\\\\35 G`처럼 보이는 경우를 정규화해 같은 CSS selector로 비교하도록 했다.
+- 기존 금지 selector error, depth3 cssPath 누락 error, step coverage 검사는 유지했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/validate_generated_spec.py` 문법 확인을 수행했다.
+- `python tools/ai-generator/validate_generated_spec.py` 직접 실행 결과 errors 0, warnings 0으로 `validation passed`를 확인했다.
+- 현재 셸에서는 `npm`이 PATH에 없어 `npm run ai:validate`는 실행하지 못했다.
+
+### 다음 작업
+
+- validator warning 기준이 실제 generated spec 변화에 맞게 과하거나 느슨하지 않은지 계속 조정한다.
+
+## 2026-06-24 - Generated Spec Validator quality gate
+
+### 작업 목적
+
+- AI generated spec을 사람이 검토하기 전에 prompt 규칙 위반, 위험 selector, menuTree 누락 가능성을 정적으로 점검하는 Generated Spec Validator를 추가한다.
+
+### 변경 내용
+
+- `tools/ai-generator/validate_generated_spec.py`를 새로 추가했다.
+- validator는 `tests/generated/generated_menu_access.spec.js`, `tools/ai-generator/generated/menu_map.json`, `tools/ai-generator/generated/scout_result.json`을 읽어 정적 검사를 수행한다.
+- 금지 selector, pageProfile `cssPath` 보존 위반, depth3 `cssPath` option 누락, depth3 단독 클릭, menuTree step coverage 누락을 error로 리포트하도록 했다.
+- 공지/FAQ/제품명/모델명/버튼 text 기반 assertion 의심 패턴은 warning으로 리포트하도록 했다.
+- `package.json`에 `ai:validate` script를 추가했다.
+- `docs/GENERATED_SPEC_VALIDATION.md`를 새로 작성해 목적, 실행 명령, error/warning 기준, 검토 흐름을 정리했다.
+- README에는 generated spec 정적 검증 명령을 간단히 추가했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/validate_generated_spec.py`로 문법 확인을 수행했다.
+- 테스트 실행과 generated spec 수정은 수행하지 않았다.
+
+### 다음 작업
+
+- `npm run ai:generate` 후 `npm run ai:validate`를 실행해 실제 generated spec의 error/warning 리포트를 확인한다.
+- validator 결과를 바탕으로 prompt 규칙 또는 generated spec 품질 기준을 추가 보완한다.
+
 ## 2026-06-24 - Preserve pageProfile cssPath in generated assertions
 
 ### 작업 목적

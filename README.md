@@ -112,6 +112,12 @@ npm run ai:generate
 
 이 명령은 `tools/ai-generator/agent_orchestrator.py`를 실행하고, 생성된 Playwright spec을 `tests/generated` 아래에 저장합니다.
 
+생성된 spec을 실행하기 전에 정적 검증을 수행할 수 있습니다.
+
+```powershell
+npm run ai:validate
+```
+
 Level 2 Page Identity Test, Level 3 Safe Interaction Test, Level 4 Business Scenario Test는 향후 확장 단계이며 현재 실행 절차에는 포함하지 않습니다.
 
 ## 8. generated 테스트 실행

@@ -4,6 +4,16 @@
 
 - Generated tests keep the existing Level 1 GNB navigation flow.
 - Generated tests must create a `test.step` for every depth2 menu and every depth3 child in `menuTree`.
+- Loop-based generation is allowed, but it should use the standard format inside each parent test:
+  - `const children = [...]`
+  - `for (const child of children)`
+  - ``test.step(`Depth 3: ${child.text}`)``
+  - `clickVisibleSubMenuByText(page, 'parentText', child.text, { ... cssPath: child.cssPath ... })`
+- Each static depth3 `children` array item must include the literal `cssPath` from `menu_map`.
+- Generated specs must not compute menu `cssPath` from `id`, template literals, or string operations such as `replace`.
+- Forbidden example: ``cssPath: `a#\\3${tab.id.replace('_', ' _')}```.
+- Allowed example: `{ text: 'NB-IoT', id: '4_1', ngClick: "modemTab('nbiot')", cssPath: "a#\\34 _1" }`.
+- Loop click options should use `tab.cssPath` or `child.cssPath`, not a computed selector expression.
 - Weak or unstable Page Identity candidates must not cause menu steps to be skipped.
 - Each menu step should at least open the correct depth1 area, click the target menu, and assert URL/hash when available.
 - If URL/hash does not change or the menu is ngClick/tab-like, leave a TODO when stable heading/mainContainer evidence is insufficient.
@@ -24,6 +34,11 @@
 - Generic selectors such as `page.locator('table')`, `page.locator('form')`, and `page.locator('[role="tab"]')` should not be generated.
 - Except for heading assertions using `getByRole('heading')`, generated specs must use the exact `cssPath` collected in `pageProfiles`.
 - Generated specs must not shorten, invent, or generalize pageProfile selectors.
+- Generated specs must not combine pageProfile selectors into `page.locator('selector1, selector2')`. Choose one collected `cssPath` or leave a TODO.
+- Page Identity `page.locator(...)` selectors must match one collected `pageProfiles` `cssPath` exactly.
+- Generated specs must not remove trailing selector segments to create a parent/content selector.
+- Generated specs must not invent one shared content selector for multiple menus.
+- For shared menus such as `공유 > 자료실/공지사항/FAQ`, if no single stable collected `cssPath` is clear, leave a TODO instead of creating a Page Identity assertion or highlight.
 - For example, if scout collected `div#developGuide01-01 > div.listContent > div.content:nth-of-type(2)`, generated specs must not replace it with `div#developGuide01-01`.
 - If a collected `cssPath` looks too long or unstable, leave a TODO instead of generating an assertion.
 - Guide pages whose heading is only the parent menu label should use collected `mainContainers[1]` or content `cssPath` for visible assertion and Page Identity highlight.

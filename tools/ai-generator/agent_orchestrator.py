@@ -255,6 +255,15 @@ def build_menu_test_prompt(generation_input):
     1. menuTree에 포함된 모든 depth2 메뉴에 대해 반드시 test.step을 생성한다.
     2. 각 depth2.children에 포함된 모든 depth3 메뉴에 대해 반드시 test.step을 생성한다.
     3. Page Identity 후보가 약하거나 불안정해도 메뉴 step 자체를 생략하지 않는다.
+    3-1. loop 기반 생성은 허용한다. 단, 각 parent test 내부에서 배열명은 반드시 `children`으로 작성한다.
+         예: const children = [ ... ];
+    3-2. children 배열의 각 child는 text, href 또는 ngClick, id, cssPath를 menu_map 값 그대로 literal field로 포함한다.
+         허용 예: {{ text: 'NB-IoT', id: '4_1', ngClick: "modemTab('nbiot')", cssPath: "a#\\\\34 _1" }}
+         금지 예: cssPath: `a#\\\\3${{tab.id.replace('_', ' _')}}`
+    3-3. loop는 반드시 `for (const child of children)` 형식을 사용한다.
+    3-4. depth3 loop의 test.step 제목은 반드시 `Depth 3: ${{child.text}}` 형식을 포함한다.
+    3-5. clickVisibleSubMenuByText options에서는 계산식이 아니라 child.cssPath를 사용한다.
+         허용 예: clickVisibleSubMenuByText(page, '모듈/모뎀', child.text, {{ id: child.id, ngClick: child.ngClick, cssPath: child.cssPath }})
     4. 각 메뉴 step은 최소한 다음을 수행한다:
        - openDepth1ByIndex(page, depth1Index)
        - 해당 depth2 또는 depth3 메뉴 클릭
@@ -290,6 +299,10 @@ def build_menu_test_prompt(generation_input):
     1. heading assertion은 getByRole('heading', {{ name }})를 사용해도 된다.
     2. mainContainer, table, tab, content 영역 assertion 또는 highlight locator는 반드시 pageProfiles에 수집된 cssPath를 그대로 사용한다.
     3. pageProfiles에 없는 selector를 새로 만들거나 축약하지 않는다.
+    3-1. `page.locator('selector1, selector2')`처럼 여러 pageProfile selector를 합성하지 않는다. 하나를 고르기 어렵다면 TODO를 남긴다.
+    3-2. Page Identity용 page.locator selector는 반드시 pageProfiles에 수집된 cssPath 하나와 완전히 동일해야 한다.
+    3-3. 수집된 cssPath에서 뒤쪽 segment를 제거해 상위 parent selector로 축약하지 않는다.
+    3-4. 여러 메뉴에 공통으로 쓸 content selector를 임의 생성하지 않는다. 공유 > 자료실/공지사항/FAQ처럼 안정적인 content cssPath를 하나 고르기 어렵다면 assertion과 highlight를 만들지 말고 TODO 주석만 남긴다.
     4. 수집된 cssPath가 `div#developGuide01-01 > div.listContent > div.content:nth-of-type(2)`라면 그대로 사용한다.
        `div#developGuide01-01` 같은 parent selector를 임의 생성하지 않는다.
     5. 수집된 cssPath가 너무 길거나 불안정해 보이면 assertion을 만들지 말고 TODO 주석을 남긴다.

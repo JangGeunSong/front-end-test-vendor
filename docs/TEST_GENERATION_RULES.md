@@ -1,36 +1,124 @@
 # Test Generation Rules
 
-테스트 자동화 단계 정의와 generated 테스트의 smoke/regression 승격 기준은 `docs/TEST_LEVELS.md`를 따른다.
+## Purpose
 
-생성 테스트의 목적:
-- 메뉴 접근 가능 여부 확인
-- 주요 버튼/입력 필드 존재 여부 확인
-- 페이지 이동 후 에러 화면 여부 확인
-- 기본 UI 렌더링 검증
+이 문서는 AI generated Playwright spec 생성 규칙을 정의한다.
 
-생성 금지:
-- 실제 데이터 등록/수정/삭제
-- 운영 데이터에 영향을 주는 버튼 클릭
-- 파일 업로드/다운로드 자동 실행
-- 외부 시스템 연동 실행
+현재 자동 생성 범위는 Level 1 Navigation Smoke Test와 Level 2 Page Identity Test MVP까지이다. Level 3 Safe Interaction Test와 Level 4 Business Scenario Test는 자동 생성 대상이 아니다.
 
-기본 테스트 패턴:
-1. 로그인 또는 세션 준비
-2. 메뉴 이동
-3. 페이지 로딩 확인
-4. 핵심 요소 visible 확인
-5. 에러 메시지 또는 500 화면 여부 확인
-6. 결과 하이라이트 표시
+## Generated Spec Scope
 
-위험 액션:
+generated spec이 자동 생성할 수 있는 범위:
+
+- navigation/GNB hover 또는 open
+- depth2 메뉴 클릭
+- depth3 child 메뉴 클릭
+- URL/hash assertion
+- 명백한 오류 화면 접근 여부 확인
+- pageProfiles 기반 heading assertion
+- pageProfiles 기반 mainContainer visible assertion
+- 보수적인 Page Identity highlight
+- 안정적인 후보가 없을 때 TODO 주석
+
+## Out of Scope
+
+현재 generated spec이 자동 생성하지 않는 범위:
+
+- 데이터 생성/수정/삭제/승인/발송/업로드
+- 업무 시나리오 검증
+- 입력값 조합 테스트
+- 조회 결과 데이터 정확성 검증
+- 제품명, 모델명, 공지 제목, FAQ 질문 같은 volatile content assertion
+- selector 근거 없이 만든 임의 locator assertion
+
+## Safety Rules
+
+다음 액션은 자동 생성하지 않는다.
+
 - 저장
 - 삭제
-- 승인
-- 전송
-- 발송
 - 등록
-- 초기화
+- 생성
+- 수정
+- 승인
+- 반려
+- 발송
+- 제출
 - 업로드
+- 데이터 변경 가능성이 있는 초기화
 
-위험 액션은 기본 생성 테스트에서 클릭하지 않는다.
-위험 액션 테스트는 별도 승인된 regression 시나리오에서만 작성한다.
+모호한 버튼이나 action은 클릭하지 않고 TODO로 남긴다.
+
+## Selector Rules
+
+generated spec은 scout/menu_map/pageProfiles 근거를 벗어나면 안 된다.
+
+규칙:
+
+- depth3 메뉴 클릭용 `cssPath`는 `menu_map.json`의 값을 그대로 사용한다.
+- Page Identity용 `page.locator(...)` selector는 `pageProfiles`에 수집된 `cssPath` 하나를 그대로 사용한다.
+- 수집된 `cssPath`를 상위 parent selector로 축약하지 않는다.
+- 여러 selector를 `page.locator('selector1, selector2')`처럼 합성하지 않는다.
+- `page.locator('table')`, `page.locator('form')`, `page.locator('[role="tab"]')` 같은 일반 selector를 생성하지 않는다.
+- selector가 길거나 불안정해 보이면 assertion 대신 TODO를 남긴다.
+
+heading assertion은 `getByRole('heading', { name })` 사용을 허용한다.
+
+## Depth3 Generation Rules
+
+depth3 child 메뉴는 parent context 없이 단독 클릭하지 않는다.
+
+허용:
+
+```js
+await clickVisibleSubMenuByText(page, parentText, childText, { cssPath });
+```
+
+loop 기반 생성도 허용한다.
+
+표준 패턴:
+
+```js
+const children = [
+  { text: '...', href: '...', id: '...', cssPath: '...' }
+];
+
+for (const child of children) {
+  await test.step(`Depth 3: ${child.text}`, async () => {
+    await clickVisibleSubMenuByText(page, parentText, child.text, {
+      cssPath: child.cssPath
+    });
+  });
+}
+```
+
+`cssPath`는 계산하거나 합성하지 않고 `menu_map`에서 온 literal 값을 사용한다.
+
+## Validator Gate
+
+generated spec은 `npm run ai:validate` 통과 전에는 smoke/regression 승격 후보로 보지 않는다.
+
+validator error가 있으면:
+
+1. generated spec을 직접 수정하지 않는다.
+2. prompt, scout/pageProfile 수집, menu_map 구성, validator 규칙 중 원인을 찾는다.
+3. 생성 로직을 보완한다.
+4. `npm run ai:generate`로 재생성한다.
+5. `npm run ai:validate`를 다시 실행한다.
+
+warning은 사람이 검토해 false positive인지 실제 개선 대상인지 판단한다.
+
+## Promotion Rule
+
+generated spec은 자동 생성 초안이다.
+
+승격 전 필요 조건:
+
+- validator 통과
+- generated test 실행 통과
+- visual/debug 확인
+- 데이터 변경 없음
+- 반복 실행 안정성
+- 테스트 목적 명확성
+
+세부 기준은 `docs/TEST_LEVELS.md`를 따른다.

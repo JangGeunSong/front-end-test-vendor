@@ -1,5 +1,30 @@
 # Task Log
 
+## 2026-06-25 - Documentation refresh for Level 2 and validation gate
+
+### 작업 목적
+
+- Level 2 Page Identity MVP와 Generated Spec Validator 구현 이후 README와 주요 docs를 현재 구현 상태에 맞게 현행화한다.
+- 프로젝트 방향을 특정 사이트 산출물이 아니라 임의의 대상 URL을 입력받는 범용 WEB 자동 테스트 AX 패키지로 정리한다.
+
+### 변경 내용
+
+- `README.md`에 현재 구현 상태를 Level 1 Navigation Smoke Test, Level 2 Page Identity Test MVP, Generated Spec Validation Gate로 정리했다.
+- 실행 흐름을 `npm run ai:generate` -> `npm run ai:validate` -> `npm run test:generated` -> `npm run test:generated:visual` 기준으로 최신화했다.
+- validator 실패 시 generated spec을 직접 수정하지 않고 prompt, scout/pageProfile 수집, validator 규칙을 보완한 뒤 재생성하는 흐름을 명시했다.
+- `docs/TEST_LEVELS.md`에 Level 2 MVP와 validator 품질 게이트 상태를 반영하고, smoke/regression 승격 기준에 `ai:validate` 통과를 포함했다.
+- `docs/DATA_FLOW.md`, `docs/MODULE_MAP.md`, `docs/TEST_GENERATION_RULES.md`, `docs/PLAYWRIGHT_CONVENTION.md`, `docs/GENERATED_SPEC_VALIDATION.md`를 현재 파이프라인과 범용 대상 URL 관점으로 정리했다.
+
+### 확인 결과
+
+- 문서 작업만 수행했으며 테스트 실행은 하지 않았다.
+- 코드 파일, generated spec, sample/example 디렉터리는 수정하지 않았다.
+
+### 다음 작업
+
+- 실제 사용 흐름에서 README의 명령 순서가 충분히 자연스러운지 확인한다.
+- Level 3 Safe Interaction Test 설계가 시작되면 TEST_LEVELS와 관련 schema 문서를 별도로 확장한다.
+
 ## 2026-06-24 - Page Identity selector shortening prompt guard
 
 ### 작업 목적

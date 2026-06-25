@@ -1,43 +1,37 @@
-# WEB 프론트엔드 테스트 자동화 Vendor 프로젝트
+# WEB 자동 테스트 AX 패키지
 
-Playwright 기반 WEB 프론트엔드 테스트 자동화 프로젝트입니다.
+임의의 WEB 사이트 URL을 대상으로 Playwright 기반 UI 탐색, AI generated spec 생성, 정적 validator 검수, 테스트 실행까지 이어지는 자동 테스트 보조 패키지입니다.
 
-이 프로젝트는 수동으로 작성하거나 녹화한 Playwright 테스트를 실행하는 기본 테스트 프로젝트이면서, `tools/ai-generator`를 통해 AI-assisted 테스트 코드 초안을 생성하는 보조 도구를 함께 포함합니다.
+이 프로젝트는 특정 사이트 전용 테스트 코드 저장소가 아니라, 대상 URL의 UI 구조를 수집하고 그 결과를 바탕으로 사람이 검토할 수 있는 Playwright 테스트 초안을 생성하는 도구입니다.
 
-현재 AI generated 테스트의 수준은 **Level 1 Navigation Smoke Test MVP**입니다. 전수 테스트 자동화가 아니라 GNB 메뉴 접근과 기본 페이지 접근 가능 여부를 빠르게 확인하는 단계입니다.
+## 현재 구현 상태
 
-## 1. 목적
+현재 구현 범위는 다음과 같습니다.
 
-이 프로젝트의 목적은 배포 전 WEB 주요 기능의 회귀 위험을 Playwright 테스트로 빠르게 확인하는 것입니다.
+- **Level 1 Navigation Smoke Test**
+  - GNB 또는 navigation 메뉴 hover/click
+  - URL/hash 이동 확인
+  - 명백한 접근 오류 확인
+- **Level 2 Page Identity Test MVP**
+  - 메뉴 클릭 후 의도한 페이지에 도달했는지 확인
+  - heading, main container, 안정적인 pageProfile 후보 기반 assertion 생성
+  - visual debug에서 Page Identity 대상 highlight 지원
+- **Generated Spec Validation Gate**
+  - AI가 생성한 `tests/generated/generated_menu_access.spec.js`를 실행 전에 정적으로 검수
+  - selector 임의 생성, menuTree coverage 누락, depth3 클릭 규칙 위반 등을 리포트
 
-주요 목적:
+Level 3 Safe Interaction Test와 Level 4 Business Scenario Test는 향후 확장 단계입니다.
 
-- 배포 전 기본 화면 접근 확인
-- GNB 메뉴 이동 흐름 확인
-- 주요 페이지 접근 중 명백한 오류 여부 확인
-- 사람이 검증한 테스트를 `tests/smoke` 또는 `tests/regression` 영역으로 관리
-- AI를 활용해 `tests/generated` 영역의 테스트 초안을 생성
+## 실행 환경
 
-## 2. 사용 시점
-
-다음 상황에서 사용합니다.
-
-- 보안 패치 배포 전 기본 동작 확인
-- 고도화 개발 반영 후 주요 화면 접근 확인
-- 코드 리팩토링 또는 개선 후 회귀 확인
-- 운영 반영 전 사전 검증
-- 일간 또는 수시 배포 전 기본 기능 확인
-
-## 3. 실행 환경
-
-아래 버전은 현재 검증한 개발 환경 기준입니다. 다른 버전에서도 동작할 수 있지만, 문제가 발생하면 먼저 아래 기준과 차이를 확인합니다.
+아래 버전은 현재 검증한 개발 환경 기준입니다. 다른 버전에서도 동작할 수 있지만 문제가 발생하면 먼저 이 기준과 차이를 확인합니다.
 
 - **Node.js**: `24.15.0`
 - **npm**: `11.12.1`
-- **Playwright**: `package.json` 기준 버전 사용
-- **Python**: `tools/ai-generator/agent_orchestrator.py` 실행 가능해야 함
+- **Playwright**: `package.json` 기준 버전
+- **Python**: `tools/ai-generator/agent_orchestrator.py` 실행 가능 버전
 
-## 4. 사전 준비
+## 사전 준비
 
 의존성을 설치합니다.
 
@@ -51,7 +45,7 @@ Playwright browser 설치 여부를 확인합니다.
 npx playwright install
 ```
 
-AI generated 테스트를 생성하려면 프로젝트 루트에 `.env`를 준비하고 Gemini API key를 설정합니다.
+AI generated spec 생성을 위해 프로젝트 루트에 `.env`를 준비합니다.
 
 ```env
 GEMINI_API_KEY=your_api_key_here
@@ -59,152 +53,140 @@ GEMINI_API_KEY=your_api_key_here
 
 `GEMINI_API_KEY`는 `npm run ai:generate` 실행 시 필요합니다.
 
-## 5. 수동 테스트 녹화
+## 기본 실행 흐름
 
-Playwright codegen으로 테스트를 녹화할 수 있습니다.
-
-```powershell
-npm run codegen -- -o tests/my_new_test.spec.js
-```
-
-설명:
-
-- `-- -o ...` 옵션은 녹화한 테스트를 지정한 파일로 저장하기 위한 옵션입니다.
-- 자동 파일 생성을 원하지 않으면 `-o` 옵션 없이 codegen을 실행할 수 있습니다.
-- 사람이 검증한 테스트만 `tests/smoke` 또는 `tests/regression`으로 이동합니다.
-
-## 6. 전체 테스트 실행
-
-프로젝트의 Playwright 테스트를 실행합니다.
+권장 흐름은 다음 순서입니다.
 
 ```powershell
-npm run test
+npm run ai:generate
+npm run ai:validate
+npm run test:generated
+npm run test:generated:visual
 ```
 
-Playwright는 일반적으로 다음 형식의 테스트 파일을 실행합니다.
-
-- `*.test.js`
-- `*.spec.js`
-
-## 7. AI generated 테스트 생성
-
-현재 AI generated 테스트는 **Level 1 Navigation Smoke Test MVP**입니다.
-
-현재 범위:
-
-- GNB hover/click
-- URL 또는 hash 이동 확인
-- 명백한 navigation 오류 없이 페이지 접근 가능한지 확인
-
-현재 범위가 아닌 것:
-
-- 페이지 heading 검증
-- 대표 텍스트 검증
-- 테이블, 폼, 입력 필드 검증
-- 조회 결과 검증
-- 데이터 변경 업무 흐름 검증
-
-테스트를 생성합니다.
+### 1. AI generated spec 생성
 
 ```powershell
 npm run ai:generate
 ```
 
-이 명령은 `tools/ai-generator/agent_orchestrator.py`를 실행하고, 생성된 Playwright spec을 `tests/generated` 아래에 저장합니다.
+이 명령은 `tools/ai-generator/agent_orchestrator.py`를 실행합니다.
 
-생성된 spec을 실행하기 전에 정적 검증을 수행할 수 있습니다.
+주요 흐름:
+
+- 대상 URL을 기준으로 `scout.js` 실행
+- `scout_result.json` 생성
+- `menu_map.json` 생성
+- menuTree와 pageProfiles를 LLM prompt 입력으로 구성
+- `tests/generated/generated_menu_access.spec.js` 저장
+
+생성된 spec은 자동 생성 초안입니다. 바로 smoke/regression 테스트로 보지 않습니다.
+
+### 2. generated spec 정적 검수
 
 ```powershell
 npm run ai:validate
 ```
 
-Level 2 Page Identity Test, Level 3 Safe Interaction Test, Level 4 Business Scenario Test는 향후 확장 단계이며 현재 실행 절차에는 포함하지 않습니다.
+이 명령은 `tools/ai-generator/validate_generated_spec.py`를 실행합니다.
 
-## 8. generated 테스트 실행
+validator는 테스트를 실행하지 않고 다음 파일을 읽어 정적으로 검사합니다.
 
-AI generator가 생성한 테스트만 실행합니다.
+- `tests/generated/generated_menu_access.spec.js`
+- `tools/ai-generator/generated/menu_map.json`
+- `tools/ai-generator/generated/scout_result.json`
+
+검사 예:
+
+- 금지 selector 사용 여부
+- pageProfiles에 없는 selector 사용 여부
+- depth3 메뉴 클릭 시 parent context와 cssPath option 사용 여부
+- menuTree depth2/depth3 step coverage 누락 여부
+- 불안정한 text assertion 의심 패턴
+
+validator error가 발생하면 generated spec을 직접 손으로 수정하지 않습니다. 원인은 prompt, scout 수집 규칙, pageProfile 구조, validator 규칙 중 어디에 있는지 확인하고 생성 로직을 보완한 뒤 다시 생성합니다.
+
+### 3. generated 테스트 실행
 
 ```powershell
 npm run test:generated
 ```
 
-`tests/generated`의 테스트는 자동 생성 산출물입니다. 바로 smoke 또는 regression 테스트로 간주하지 않습니다.
+`tests/generated` 아래의 자동 생성 테스트를 실행합니다. validator를 통과한 뒤 실행하는 것을 기준으로 합니다.
 
-## 9. visual debug 실행
-
-GNB hover/click 대상을 화면에서 확인하면서 generated 테스트를 실행합니다.
+### 4. visual debug 실행
 
 ```powershell
 npm run test:generated:visual
 ```
 
-이 명령은 다음 조건으로 실행됩니다.
+이 명령은 `HIGHLIGHT=true`, headed mode, `--workers=1` 조건으로 generated 테스트를 실행합니다.
 
-- `HIGHLIGHT=true`
-- headed mode
-- `--workers=1`
+visual debug에서는 다음을 눈으로 확인합니다.
 
-`HIGHLIGHT=true`가 적용되면 GNB hover/click 대상이 화면에 강조 표시됩니다. 메뉴 이동 경로와 중복 메뉴 클릭 위치를 사람이 눈으로 확인할 때 사용합니다.
+- 메뉴 hover/click 위치
+- 중복 메뉴가 올바른 parent 아래에서 클릭되는지
+- Page Identity assertion 또는 highlight 대상이 의도한 본문 영역인지
 
-## 10. smoke 테스트 실행
+## 수동 테스트 녹화
 
-사람이 검증해 승격한 smoke 테스트를 실행합니다.
+Playwright codegen으로 사람이 직접 테스트 초안을 녹화할 수 있습니다.
+
+```powershell
+npm run codegen -- -o tests/my_new_test.spec.js
+```
+
+사람이 검증한 테스트만 `tests/smoke` 또는 `tests/regression`으로 승격합니다.
+
+## smoke/regression 실행
 
 ```powershell
 npm run test:smoke
-```
-
-smoke 테스트는 빠르게 실행 가능하고, 데이터 변경이 없으며, visual/debug 확인이 끝난 기본 안정성 확인 테스트만 포함해야 합니다.
-
-## 11. regression 테스트 실행
-
-사람이 검증해 승격한 regression 테스트를 실행합니다.
-
-```powershell
 npm run test:regression
 ```
 
-regression 테스트는 테스트 데이터, 전제조건, 기대 결과, 반복 검증 가치가 명확한 경우에만 포함합니다.
+`tests/smoke`와 `tests/regression`은 사람이 검증한 테스트 영역입니다. generated 테스트는 validator 통과, 실행 확인, visual/debug 확인 후 승격 여부를 검토합니다.
 
-## 12. 테스트 리포트 확인
+승격 기준은 `docs/TEST_LEVELS.md`를 따릅니다.
 
-Playwright 리포트를 브라우저에서 확인합니다.
+## 리포트 확인
 
 ```powershell
 npm run report
 ```
 
-테스트 실패 원인, 실행 결과, trace 또는 screenshot 등 Playwright report에 기록된 정보를 확인할 수 있습니다.
+Playwright report에서 실행 결과, trace, screenshot 등 디버깅 정보를 확인합니다.
 
-## 13. generated 테스트 주의사항
+## generated 테스트 주의사항
 
-- generated 테스트는 자동 생성 초안입니다.
-- generated 테스트는 바로 `tests/smoke` 또는 `tests/regression`으로 보지 않습니다.
-- 사람이 실행 결과와 visual debug 결과를 검증한 뒤 승격 여부를 결정합니다.
-- 승격 기준은 `docs/TEST_LEVELS.md`를 따릅니다.
-- 현재 generated 테스트는 Level 1 Navigation Smoke Test MVP입니다.
-- 페이지 내부 내용 검증은 향후 Level 2 Page Identity Test 대상입니다.
-- 데이터 변경 없는 안전 상호작용 검증은 향후 Level 3 Safe Interaction Test 대상입니다.
+- generated spec은 재생성 가능한 산출물입니다.
+- generated spec은 사람이 검토하기 전까지 신뢰된 테스트로 취급하지 않습니다.
+- validator 통과는 최소 품질 게이트이며, 최종 승격 판단은 사람이 합니다.
+- generated spec을 직접 수정해 문제를 덮지 않습니다.
+- 문제가 있으면 prompt, scout/pageProfile 수집, validator 규칙을 보완하고 다시 생성합니다.
+- 데이터 변경 액션은 자동 생성 대상이 아닙니다.
 
-## 14. 명령어 요약
+## 명령어 요약
 
-| 항목 | 명령어 |
+| 목적 | 명령 |
 |---|---|
 | 의존성 설치 | `npm install` |
 | Playwright browser 설치 | `npx playwright install` |
 | 수동 테스트 녹화 | `npm run codegen -- -o tests/my_new_test.spec.js` |
-| 전체 테스트 실행 | `npm run test` |
-| AI generated 테스트 생성 | `npm run ai:generate` |
+| AI generated spec 생성 | `npm run ai:generate` |
+| generated spec 정적 검수 | `npm run ai:validate` |
 | generated 테스트 실행 | `npm run test:generated` |
 | generated visual debug 실행 | `npm run test:generated:visual` |
 | smoke 테스트 실행 | `npm run test:smoke` |
 | regression 테스트 실행 | `npm run test:regression` |
-| 리포트 확인 | `npm run report` |
+| 전체 테스트 실행 | `npm run test` |
+| Playwright report 확인 | `npm run report` |
 
-## 15. 참고 문서
+## 참고 문서
 
-- 테스트 레벨과 승격 기준: `docs/TEST_LEVELS.md`
+- 테스트 수준과 승격 기준: `docs/TEST_LEVELS.md`
 - 테스트 생성 규칙: `docs/TEST_GENERATION_RULES.md`
 - Playwright 작성 규칙: `docs/PLAYWRIGHT_CONVENTION.md`
 - 데이터 흐름: `docs/DATA_FLOW.md`
 - 모듈 역할: `docs/MODULE_MAP.md`
+- generated spec validator: `docs/GENERATED_SPEC_VALIDATION.md`

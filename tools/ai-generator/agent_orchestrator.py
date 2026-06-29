@@ -12,22 +12,6 @@ GENERATED_DIR = BASE_DIR / "generated"
 # node 에서 바로 실행할 수 있도록 적용
 TESTS_GENERATED_DIR = ROOT_DIR / "tests" / "generated"
 
-# Depth 1 짜리 네비게이션 바 메뉴 목록
-DEPTH1_INDEX_MAP = {
-    "KT IoT 소개": 0,
-    "사업 분야": 0,
-    "요금제": 0,
-
-    "모듈/모뎀": 1,
-    "단말": 1,
-
-    "개발 지원": 2,
-    "검증 지원": 2,
-    "KT IoT 사업협력센터": 2,
-
-    "공유": 3,
-}
-
 # 1. LLM 설정 (API 키는 환경변수나 별도 파일 권장)
 def configure_llm():
     load_dotenv(ROOT_DIR / ".env")
@@ -225,7 +209,8 @@ def build_menu_test_prompt(generation_input):
 
     아래 JSON은 WEB 사이트의 GNB/nav 메뉴 구조와 Level 2 Page Identity 후보 데이터다.
     menuTree는 depth2 메뉴와 depth3 하위 메뉴 관계를 나타낸다.
-    각 depth2 메뉴에는 depth1Index가 포함되어 있으며, 이는 실제 화면에서 먼저 hover해야 하는 visible depth1 메뉴의 index이다.
+    각 depth2 메뉴에는 scout.js가 DOM 구조로 추론한 depth1Index가 포함될 수 있으며, 이는 `.menuContainer .depth1 > li` 기준 index이다.
+    depth1Index가 null이면 자동 추론에 실패한 것이므로 openDepth1ByIndex(page, null)를 호출하지 말고 TODO 주석으로 hover target 확인 필요성을 남긴다.
     pageProfiles는 scout.js가 각 메뉴 후보를 클릭한 뒤 수집한 페이지 식별 후보이며, 전수 테스트 데이터가 아니라 의도한 페이지 도달 여부를 판단하기 위한 보조 신호다.
 
     [menuTree + pageProfiles JSON]
@@ -237,14 +222,15 @@ def build_menu_test_prompt(generation_input):
 
     [중요한 실행 규칙]
     1. hidden 상태의 depth2/depth3 메뉴를 직접 hover/click 하지 않는다.
-    2. depth2 또는 depth3 메뉴 클릭 전에는 반드시 openDepth1ByIndex(page, depth1Index)를 호출한다.
+    2. depth2 또는 depth3 메뉴 클릭 전에는 depth1Index가 number일 때만 openDepth1ByIndex(page, depth1Index)를 호출한다.
+    2-1. depth1Index가 null 또는 undefined이면 openDepth1ByIndex를 호출하지 말고 TODO 주석으로 hover target 확인 필요성을 남긴다.
     3. depth2 메뉴 클릭은 clickVisibleMenuByText(page, menuName)를 사용한다.
     3-1. depth3 child 메뉴 클릭은 반드시 clickVisibleSubMenuByText(page, parentDepth2Name, childName, options)를 사용한다.
     3-2. depth3 child 메뉴에는 같은 text가 여러 depth2 parent 아래에 있을 수 있으므로 clickVisibleMenuByText(page, childName)를 단독으로 사용하지 않는다.
     3-3. child JSON에 id, ngClick, cssPath가 있으면 options에 반드시 포함한다. cssPath가 있으면 절대 생략하지 않는다.
-         예: clickVisibleSubMenuByText(page, '개발 지원', '개발 가이드', {{ cssPath: 'li#supportDevMain > a' }})
+         예: clickVisibleSubMenuByText(page, 'Parent Menu', 'Child Menu', {{ cssPath: 'li#child-menu > a' }})
          예: {{ id: child.id, ngClick: child.ngClick, cssPath: child.cssPath }}
-    4. requiresHoverBeforeClick=true인 메뉴는 반드시 openDepth1ByIndex 호출 후 클릭한다.
+    4. requiresHoverBeforeClick=true인 메뉴는 depth1Index가 number일 때 openDepth1ByIndex 호출 후 클릭한다. depth1Index가 없으면 TODO를 남긴다.
     5. href가 있는 메뉴는 클릭 후 URL 또는 hash 변화를 expect(page).toHaveURL()로 검증한다.
     6. href가 없고 ngClick만 있는 메뉴도 pageProfiles에 해당 menuPath가 있으면 안정적인 heading 또는 mainContainer 정도만 보수적으로 검증한다.
     7. 모든 동작은 test.step()으로 묶는다.
@@ -258,14 +244,14 @@ def build_menu_test_prompt(generation_input):
     3-1. loop 기반 생성은 허용한다. 단, 각 parent test 내부에서 배열명은 반드시 `children`으로 작성한다.
          예: const children = [ ... ];
     3-2. children 배열의 각 child는 text, href 또는 ngClick, id, cssPath를 menu_map 값 그대로 literal field로 포함한다.
-         허용 예: {{ text: 'NB-IoT', id: '4_1', ngClick: "modemTab('nbiot')", cssPath: "a#\\\\34 _1" }}
+         허용 예: {{ text: 'Child Menu', id: 'child_1', ngClick: "openTab('child')", cssPath: "a#child_1" }}
          금지 예: cssPath: `a#\\\\3${{tab.id.replace('_', ' _')}}`
     3-3. loop는 반드시 `for (const child of children)` 형식을 사용한다.
     3-4. depth3 loop의 test.step 제목은 반드시 `Depth 3: ${{child.text}}` 형식을 포함한다.
     3-5. clickVisibleSubMenuByText options에서는 계산식이 아니라 child.cssPath를 사용한다.
-         허용 예: clickVisibleSubMenuByText(page, '모듈/모뎀', child.text, {{ id: child.id, ngClick: child.ngClick, cssPath: child.cssPath }})
+         허용 예: clickVisibleSubMenuByText(page, 'Parent Menu', child.text, {{ id: child.id, ngClick: child.ngClick, cssPath: child.cssPath }})
     4. 각 메뉴 step은 최소한 다음을 수행한다:
-       - openDepth1ByIndex(page, depth1Index)
+       - depth1Index가 number이면 openDepth1ByIndex(page, depth1Index)
        - 해당 depth2 또는 depth3 메뉴 클릭
        - href가 있으면 URL/hash assertion
        - href가 없거나 URL/hash가 동일하면 TODO 주석으로 추가 검증 필요성을 기록
@@ -302,12 +288,12 @@ def build_menu_test_prompt(generation_input):
     3-1. `page.locator('selector1, selector2')`처럼 여러 pageProfile selector를 합성하지 않는다. 하나를 고르기 어렵다면 TODO를 남긴다.
     3-2. Page Identity용 page.locator selector는 반드시 pageProfiles에 수집된 cssPath 하나와 완전히 동일해야 한다.
     3-3. 수집된 cssPath에서 뒤쪽 segment를 제거해 상위 parent selector로 축약하지 않는다.
-    3-4. 여러 메뉴에 공통으로 쓸 content selector를 임의 생성하지 않는다. 공유 > 자료실/공지사항/FAQ처럼 안정적인 content cssPath를 하나 고르기 어렵다면 assertion과 highlight를 만들지 말고 TODO 주석만 남긴다.
+    3-4. 여러 메뉴에 공통으로 쓸 content selector를 임의 생성하지 않는다. 여러 sibling 메뉴가 비슷한 content layout을 공유해 안정적인 content cssPath를 하나 고르기 어렵다면 assertion과 highlight를 만들지 말고 TODO 주석만 남긴다.
     4. 수집된 cssPath가 `div#developGuide01-01 > div.listContent > div.content:nth-of-type(2)`라면 그대로 사용한다.
        `div#developGuide01-01` 같은 parent selector를 임의 생성하지 않는다.
     5. 수집된 cssPath가 너무 길거나 불안정해 보이면 assertion을 만들지 말고 TODO 주석을 남긴다.
     6. table은 `page.locator('table')` 같은 일반 selector를 사용하지 않는다. 수집된 table cssPath가 있을 때만 사용한다.
-    7. 개발 가이드/검증 가이드처럼 heading이 부모 메뉴명만 있는 경우에는 수집된 mainContainers[1] 또는 content cssPath를 그대로 사용해 visible assertion과 highlightPageIdentity를 생성한다.
+    7. heading이 부모 메뉴명만 있어 child 페이지를 식별하지 못하는 경우에는 수집된 mainContainers[1] 또는 content cssPath를 그대로 사용해 visible assertion과 highlightPageIdentity를 생성한다.
     8. buttons, 제품명, 모델명, 공지 제목, FAQ 질문은 selector 또는 text assertion으로 사용하지 않는다.
 
     [Visual debug highlight 규칙]
@@ -315,19 +301,19 @@ def build_menu_test_prompt(generation_input):
     2. highlightPageIdentity는 HIGHLIGHT=true일 때만 동작하므로 일반 실행에는 영향이 없다.
     3. 우선 heading locator를 강조한다.
     4. heading이 없거나 heading이 부모 depth2 메뉴명과 동일해서 depth3 ngClick/tab 페이지를 식별하지 못하는 경우에는 mainContainer 또는 안정적인 tab locator를 강조한다.
-    5. showcase 모듈/모뎀, 단말 depth3 메뉴처럼 URL/hash가 동일한 ngClick tab 메뉴에서도 Page Identity highlight를 반드시 생성한다.
+    5. URL/hash가 동일한 ngClick tab 메뉴에서도 안정적인 heading 또는 mainContainer가 있으면 Page Identity highlight를 생성한다.
     6. mainContainer visible assertion을 생성한 경우에는 같은 locator로 highlightPageIdentity를 반드시 호출한다.
     7. tab locator는 안정적인 selector가 pageProfiles에 있고 제품명/모델명/버튼/목록 콘텐츠가 아닐 때만 사용한다.
-    8. label에는 menuPath 전체를 포함한다. 예: '단말 > NB-IoT: content area'
+    8. label에는 menuPath 전체를 포함한다. 예: 'Parent Menu > Child Menu: content area'
     9. buttons, table, 공지 제목, FAQ 질문, 제품명/모델명, 상세보기 버튼은 assertion 또는 Page Identity highlight 대상으로 사용하지 않는다.
     10. 예:
-       const identityHeading = page.getByRole('heading', {{ name: '단말' }});
+       const identityHeading = page.getByRole('heading', {{ name: 'Page Title' }});
        await expect(identityHeading).toBeVisible();
-       await highlightPageIdentity(page, identityHeading, '단말 > NB-IoT: 단말');
+       await highlightPageIdentity(page, identityHeading, 'Parent Menu > Child Menu: Page Title');
     11. mainContainer 예:
-       const identityArea = page.locator('.bizMainCont').first();
+       const identityArea = page.locator('div#content > div.mainContent').first();
        await expect(identityArea).toBeVisible();
-       await highlightPageIdentity(page, identityArea, '단말 > NB-IoT: content area');
+       await highlightPageIdentity(page, identityArea, 'Parent Menu > Child Menu: content area');
 
     [사용 가능한 helper]
     const {{ openDepth1ByIndex, clickVisibleMenuByText, clickVisibleSubMenuByText }} = require('../../utils/gnb');
@@ -441,6 +427,7 @@ def extract_menu_candidate(dom_data):
             "id": item.get("id", ""),
             "ngClick": item.get("ngClick", ""),
             "menuDepth": item.get("menuDepth"),
+            "depth1Index": item.get("depth1Index"),
             "isVisible": item.get("isVisible"),
             "requiresHoverBeforeClick": item.get("isGnbCandidate") and not item.get("isVisible"),
             "parentText": item.get("parentText", ""),
@@ -461,14 +448,21 @@ def build_menu_tree(menu_candidates):
         if depth == 2:
             current_depth2 = {
                 **menu,
-                "depth1Index": DEPTH1_INDEX_MAP.get(menu.get("text")),
+                "depth1Index": menu.get("depth1Index"),
                 "children": []
             }
             tree.append(current_depth2)
 
         elif depth == 3:
             if current_depth2 is not None:
-                current_depth2["children"].append(menu)
+                child_depth1_index = menu.get("depth1Index")
+                if child_depth1_index is None:
+                    child_depth1_index = current_depth2.get("depth1Index")
+
+                current_depth2["children"].append({
+                    **menu,
+                    "depth1Index": child_depth1_index
+                })
             else:
                 tree.append({
                     **menu,

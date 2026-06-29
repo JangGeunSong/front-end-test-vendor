@@ -417,6 +417,7 @@ function extractMenuCandidates(elements) {
       id: item.id || '',
       ngClick: item.ngClick || '',
       menuDepth: item.menuDepth,
+      depth1Index: item.depth1Index,
       isVisible: item.isVisible,
       parentText: item.parentText || '',
       cssPath: item.cssPath || '',
@@ -433,6 +434,7 @@ function extractMenuCandidates(elements) {
         id: currentDepth2.id,
         ngClick: currentDepth2.ngClick,
         menuDepth: currentDepth2.menuDepth,
+        depth1Index: currentDepth2.depth1Index,
         cssPath: currentDepth2.cssPath
       };
       menu.menuPath = [currentDepth2.text, menu.text].filter(Boolean);
@@ -453,6 +455,7 @@ function toProfileMenu(menu) {
     id: menu.id || '',
     ngClick: menu.ngClick || '',
     menuDepth: menu.menuDepth,
+    depth1Index: menu.depth1Index,
     parentText: menu.parentMenu?.text || '',
     cssPath: menu.cssPath || ''
   };
@@ -655,6 +658,25 @@ async function scoutSite(url) {
       });
     }
 
+    const depth1Items = Array.from(document.querySelectorAll('.menuContainer .depth1 > li'));
+    const menuContentPanels = Array.from(document.querySelectorAll('.menuContainer .menuContent'));
+
+    function inferDepth1Index(el) {
+      const depth1Item = el.closest('.menuContainer .depth1 > li');
+      if (depth1Item) {
+        const index = depth1Items.indexOf(depth1Item);
+        return index >= 0 ? index : null;
+      }
+
+      const menuContentPanel = el.closest('.menuContainer .menuContent');
+      if (menuContentPanel) {
+        const index = menuContentPanels.indexOf(menuContentPanel);
+        return index >= 0 && index < depth1Items.length ? index : null;
+      }
+
+      return null;
+    }
+
     function buildLocatorCandidates(el, text) {
       const candidates = [];
 
@@ -776,6 +798,7 @@ async function scoutSite(url) {
           isHoverTarget,
           isGnbCandidate,
           menuDepth,
+          depth1Index: inferDepth1Index(el),
 
           parentText: getParentText(el),
           cssPath: getCssPath(el),

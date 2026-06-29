@@ -17,6 +17,7 @@ AI generated spec 생성 파이프라인을 조율한다.
 - `scout_result.json` 저장
 - menu 후보 추출
 - `menuTree` 구성
+- scout가 수집한 `depth1Index`를 `menuTree`에 보존
 - `pageProfiles` 연결
 - LLM generation input 구성
 - prompt 작성
@@ -31,7 +32,8 @@ AI generated spec 생성 파이프라인을 조율한다.
 주요 책임:
 
 - navigation/GNB 후보 수집
-- menu depth, text, href, ngClick, id, cssPath 수집
+- menu depth, depth1Index, text, href, ngClick, id, cssPath 수집
+- `.menuContainer .depth1 > li` DOM 순서를 기준으로 depth1Index 자동 추론
 - Level 1 menu_map 생성을 위한 `elements` 수집
 - Level 2 Page Identity MVP를 위한 `pageProfiles` 수집
 - heading, main container, table, form, tab, button, error indicator 후보 수집

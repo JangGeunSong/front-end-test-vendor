@@ -34,6 +34,7 @@ target URL
 
 - navigation/GNB 후보
 - menu depth 정보
+- DOM 순서 기반 depth1Index 추론 정보
 - id, text, href, ngClick, cssPath
 - pageProfile 후보
 - heading, main container, table/form/tab/button 후보
@@ -64,6 +65,8 @@ target URL
 - `pageProfiles`
 
 `menuTree`는 Level 1 navigation test coverage의 기준이 된다. `pageProfiles`는 Level 2 Page Identity assertion 후보의 근거가 된다.
+
+`depth1Index`는 특정 메뉴명 mapping이 아니라 scout가 `.menuContainer .depth1 > li` DOM 순서에서 자동 추론한 값이다. 추론할 수 없으면 null로 남기고 generated spec은 보수적인 TODO를 남긴다.
 
 ### 5. agent_orchestrator.py
 

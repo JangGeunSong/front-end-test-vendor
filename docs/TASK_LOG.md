@@ -1,5 +1,30 @@
 # Task Log
 
+## 2026-06-29 - Generic depth1Index inference
+
+### 작업 목적
+
+- 특정 사이트 메뉴명에 의존하던 `DEPTH1_INDEX_MAP`을 제거하고, 대상 URL의 DOM 구조에서 depth1Index를 자동 추론하도록 개선한다.
+
+### 변경 내용
+
+- `agent_orchestrator.py`에서 특정 메뉴명 기반 `DEPTH1_INDEX_MAP`을 제거했다.
+- `scout.js`가 `.menuContainer .depth1 > li` DOM 순서를 기준으로 `depth1Index`를 추론해 element/menu/pageProfile 후보에 보존하도록 했다.
+- `build_menu_tree`는 hard-coded map 대신 scout가 수집한 `depth1Index`를 사용하도록 변경했다.
+- depth3 child는 자체 `depth1Index`가 없으면 직전 depth2 parent의 `depth1Index`를 상속하도록 했다.
+- `depth1Index` 추론이 실패한 경우 generated prompt가 `openDepth1ByIndex(page, null)`을 만들지 않고 TODO를 남기도록 안내했다.
+- `docs/MODULE_MAP.md`와 `docs/DATA_FLOW.md`에 depth1Index 자동 추론 흐름을 반영했다.
+
+### 확인 결과
+
+- 문법 확인만 수행했다.
+- 테스트 실행과 generated spec 재생성은 수행하지 않았다.
+
+### 다음 작업
+
+- `npm run ai:generate` 후 `menu_map.json`의 depth2/depth3 항목에 `depth1Index`가 기대대로 채워지는지 확인한다.
+- 추론이 불가능한 사이트에서는 generated spec이 null index 호출 대신 TODO를 남기는지 확인한다.
+
 ## 2026-06-25 - Documentation refresh for Level 2 and validation gate
 
 ### 작업 목적

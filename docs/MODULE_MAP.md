@@ -18,6 +18,7 @@ AI generated spec 생성 파이프라인을 조율한다.
 - menu 후보 추출
 - `menuTree` 구성
 - scout가 수집한 `depth1Index`를 `menuTree`에 보존
+- 전체 후보를 `primaryMenuTree`, `linkCandidates`, `ctaCandidates`, `footerLinks`, `nonPrimaryNavigationCandidates`로 projection
 - `pageProfiles` 연결
 - LLM generation input 구성
 - prompt 작성
@@ -33,7 +34,8 @@ AI generated spec 생성 파이프라인을 조율한다.
 
 - navigation/GNB 후보 수집
 - menu depth, depth1Index, text, href, ngClick, id, cssPath 수집
-- `.menuContainer .depth1 > li` DOM 순서를 기준으로 depth1Index 자동 추론
+- navigation region/group과 DOM hierarchy를 기준으로 depth1Index 자동 추론
+- `semanticRegion`, `navigationGroupIndex`, `inferredMenuDepth`, `confidence`, `discoveryReason` 수집
 - Level 1 menu_map 생성을 위한 `elements` 수집
 - Level 2 Page Identity MVP를 위한 `pageProfiles` 수집
 - heading, main container, table, form, tab, button, error indicator 후보 수집
@@ -78,6 +80,8 @@ generated spec 생성을 위한 정제 데이터이다.
 - `pageProfiles`
 
 `menuTree`는 Level 1 navigation coverage 기준이고, `pageProfiles`는 Level 2 Page Identity MVP의 후보 근거이다.
+
+`menuTree`는 validator 호환을 위해 Level 1/2 generated spec 대상인 `primaryMenuTree`와 동일하게 유지한다. main CTA, footer link, quick link 등은 `menus`에는 보존하되 primary navigation tree에서는 제외한다.
 
 ## tests/generated/
 

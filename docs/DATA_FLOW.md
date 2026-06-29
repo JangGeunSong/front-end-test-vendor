@@ -34,7 +34,8 @@ target URL
 
 - navigation/GNB 후보
 - menu depth 정보
-- DOM 순서 기반 depth1Index 추론 정보
+- navigation region/group과 DOM hierarchy 기반 depth1Index 추론 정보
+- semanticRegion, navigationGroupIndex, inferredMenuDepth, confidence, discoveryReason
 - id, text, href, ngClick, cssPath
 - pageProfile 후보
 - heading, main container, table/form/tab/button 후보
@@ -53,6 +54,8 @@ target URL
 
 이 파일은 대상 사이트에서 수집된 산출물이므로 제품 샘플이나 고정 fixture로 보지 않는다.
 
+scout는 후보를 넓게 수집한다. header primary navigation뿐 아니라 main CTA, quick link, footer link, unknown region link도 구조화된 후보로 남긴다. 이 후보들은 Level 1/2 generated spec에 모두 들어가지 않고, `menu_map.json`에서 생성 목적별 projection으로 분리한다.
+
 ### 4. menu_map.json
 
 `menu_map.json`은 generated spec 생성을 위한 정제 데이터이다.
@@ -66,7 +69,22 @@ target URL
 
 `menuTree`는 Level 1 navigation test coverage의 기준이 된다. `pageProfiles`는 Level 2 Page Identity assertion 후보의 근거가 된다.
 
-`depth1Index`는 특정 메뉴명 mapping이 아니라 scout가 `.menuContainer .depth1 > li` DOM 순서에서 자동 추론한 값이다. 추론할 수 없으면 null로 남기고 generated spec은 보수적인 TODO를 남긴다.
+`depth1Index`는 특정 메뉴명 또는 특정 selector mapping이 아니라 scout가 navigation region/group과 DOM hierarchy를 기반으로 best-effort 추론한 값이다. 추론할 수 없으면 null로 남기고 generated spec은 보수적인 TODO를 남긴다.
+
+`menu_map.json`은 다음 projection을 함께 가진다.
+
+- `menus`: scout가 수집한 전체 navigation/action 후보
+- `primaryMenuTree`: Level 1/2 generated spec 입력으로 쓰는 primary navigation tree
+- `menuTree`: validator 호환을 위해 `primaryMenuTree`와 동일하게 유지
+- `linkCandidates`: main/footer/unknown region link 후보
+- `ctaCandidates`: main content CTA/button 후보
+- `footerLinks`: footer region link 후보
+- `nonPrimaryNavigationCandidates`: primary navigation 생성에서 제외된 후보
+- `unresolvedPrimaryNavigationCandidates`: header/navigation 후보처럼 보이지만 parent-child 관계를 안전하게 추론하지 못해 tree에 넣지 않은 후보
+
+`agent_orchestrator.py`는 각 후보에 `candidateKind`/`navigationRole`을 부여해 생성 목적별 projection을 만든다. `navigationTrigger`, `logoHome`, `footerLink`, `contentCta`, `quickLink`, `utilityLink`는 primary navigation parent가 될 수 없다.
+
+Level 1/2 generated spec은 `primaryMenuTree`만 사용한다. main CTA, footer link, quick link는 추후 Level 3/link profile 확장 후보로 보존한다. parent-child 관계가 불확실한 후보는 generic menu trigger 아래에 몰아넣지 않고 `unresolvedPrimaryNavigationCandidates`로 남긴다.
 
 ### 5. agent_orchestrator.py
 

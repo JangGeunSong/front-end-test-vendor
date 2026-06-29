@@ -1,5 +1,90 @@
 # Task Log
 
+## 2026-06-29 - Primary navigation candidate classification fix
+
+### 작업 목적
+
+- framework-agnostic scout가 header/main/footer 후보를 넓게 수집한 뒤, Level 1/2 generated spec 대상이 아닌 trigger/logo/footer/CTA 후보까지 `primaryMenuTree`에 섞이는 문제를 보완했다.
+- `메뉴` 같은 hamburger/trigger button이 primary navigation parent가 되고 모든 child가 그 아래로 몰리는 상황을 방지했다.
+
+### 변경 내용
+
+- `agent_orchestrator.py`에서 각 menu 후보에 `candidateKind`와 `navigationRole`을 채우도록 했다.
+- 후보를 `primaryNavigation`, `primaryNavigationItem`, `navigationTrigger`, `logoHome`, `quickLink`, `contentCta`, `footerLink`, `utilityLink`, `unknown`으로 분류한다.
+- `navigationTrigger`와 `logoHome`은 `primaryMenuTree` parent가 될 수 없도록 제외했다.
+- parent-child 관계는 navigation group, DOM index 순서, parentText에 포함된 child text를 기준으로 best-effort 재구성한다.
+- 확실히 묶을 수 없는 primary 후보는 generic parent 아래에 붙이지 않고 `unresolvedPrimaryNavigationCandidates`로 보존한다.
+- `docs/JSON_SCHEMA.md`와 `docs/DATA_FLOW.md`에 candidate classification과 unresolved 후보 보존 방식을 보강했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인을 통과했다.
+- 기존 `scout_result.json` 기준 dry-run projection에서 전체 menus 62개, primary parent 9개, primary child 32개로 계산되는 것을 확인했다.
+- `메뉴` trigger는 `primaryMenuTree` parent에서 제외되는 것을 확인했다.
+- 테스트 실행, `npm run ai:generate`, `npm run ai:validate`는 수행하지 않았다.
+
+### 다음 작업
+
+- 사용자가 `npm run ai:generate` 후 `menu_map.json`에서 `candidateKind` 분포와 `primaryMenuTree` 구조를 확인한다.
+- 이후 `npm run ai:validate`로 footer/main CTA/quick link가 generated GNB coverage 대상으로 잡히지 않는지 확인한다.
+
+## 2026-06-29 - Primary navigation projection for generated specs
+
+### 작업 목적
+
+- framework-agnostic scout가 header/main/footer 후보를 넓게 수집한 뒤, 모든 후보가 Level 1/2 generated GNB spec 대상으로 들어가는 문제를 수정한다.
+- scout 수집 범위는 유지하면서 `agent_orchestrator.py`에서 생성 목적별 projection을 만들어 primary navigation만 generated spec 입력으로 사용한다.
+
+### 변경 내용
+
+- `menu_map.json` 구조에 `primaryMenuTree`, `primaryMenus`, `linkCandidates`, `ctaCandidates`, `footerLinks`, `nonPrimaryNavigationCandidates`, `excludedNavigationCandidates`를 추가했다.
+- validator 호환을 위해 `menuTree`는 `primaryMenuTree`와 동일하게 저장하도록 했다.
+- `menus`에는 scout가 수집한 전체 navigation/action 후보를 보존한다.
+- Level 1/2 generated spec 입력은 `primaryMenuTree`만 사용하도록 `build_menu_generation_input`을 변경했다.
+- primary navigation 후보는 header/nav region, menuDepth 2/3, navigation group 존재, 짧고 안정적인 text 기준으로 필터링한다.
+- main/footer/unknown region 후보, footer/policy 성격 text, brand/home/quick/utility 성격 후보, 긴 설명형 text는 primary 생성 대상에서 제외하고 별도 후보 목록에 보존한다.
+- depth3 child는 parent와 navigation group 또는 depth1Index가 일치할 때만 붙여, logo/home link 아래 모든 child가 몰리는 상황을 줄였다.
+- `docs/DATA_FLOW.md`, `docs/JSON_SCHEMA.md`, `docs/TEST_GENERATION_RULES.md`, `docs/MODULE_MAP.md`에 생성 목적별 projection 원칙을 반영했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인을 수행했다.
+- 기존 `scout_result.json` 기준 projection count를 저장 없이 계산해 전체 후보와 primary/non-primary 분리가 되는 것을 확인했다.
+- 테스트 실행, `npm run ai:generate`, `npm run ai:validate`는 수행하지 않았다.
+
+### 다음 작업
+
+- 사용자가 `npm run ai:generate` 후 `menu_map.json`에서 `menus` 전체 후보와 `primaryMenuTree` 생성 대상이 분리되었는지 확인한다.
+- `npm run ai:validate`에서 footer/main CTA/quick link가 E103 coverage 대상으로 잡히지 않는지 확인한다.
+
+## 2026-06-29 - Framework-agnostic scout discovery
+
+### 작업 목적
+
+- `scout.js`의 core discovery 로직을 특정 사이트 class 구조나 특정 프레임워크 selector에 의존하지 않도록 개선한다.
+- 임의의 target URL에서 렌더링된 DOM을 구조화된 후보 데이터로 수집하는 범용 WEB 자동 테스트 AX 패키지 방향에 맞춘다.
+
+### 변경 내용
+
+- Angular 전용 wait selector와 로그를 제거하고, networkidle best-effort, visible interactive element count, DOM mutation 안정화 대기를 조합한 framework-agnostic wait로 변경했다.
+- navigation 후보 수집을 특정 class selector 직접 의존에서 `nav`, `header`, navigation/menu role, `a[href]`, navigation 가능성이 있는 button 중심으로 변경했다.
+- class명에 nav/menu/dropdown/sidebar/header 계열 단어가 있는 경우는 core dependency가 아니라 discovery signal로만 사용하도록 했다.
+- menuDepth와 depth1Index는 특정 class가 아니라 navigation region/group, DOM hierarchy, list nesting, role, href/onClick/aria-haspopup 정보를 기반으로 best-effort 추론하도록 했다.
+- `elements`에 `semanticRegion`, `navigationGroupIndex`, `inferredMenuDepth`, `confidence`, `discoveryReason`을 추가했다.
+- pageProfile의 common layout 제외 기준을 header/footer/nav/aside/role navigation 중심으로 범용화했다.
+- `docs/DATA_FLOW.md`와 `docs/MODULE_MAP.md`에서 특정 selector 기반 depth1Index 설명을 제거하고 navigation region/group 기반 추론으로 갱신했다.
+
+### 확인 결과
+
+- 테스트 실행과 `npm run ai:generate`는 수행하지 않았다.
+- `node -c tools/ai-generator/scout.js` 문법 확인을 시도했으나 현재 셸에서 `node`가 PATH에 없어 실행하지 못했다.
+- 지정 문자열 검색 결과 `scout.js`에는 `menuContainer`, `depth1`, `depth2`, `depth3`, `ng-controller`, `ng-app`, `ng-scope` core dependency가 남아 있지 않다.
+
+### 다음 작업
+
+- 실제 target URL에서 `scout_result.json`의 `semanticRegion`, `navigationGroupIndex`, `inferredMenuDepth`, `confidence`, `discoveryReason`이 기대대로 생성되는지 확인한다.
+- hover exploration은 아직 best-effort 후보 판정 단계이므로, 필요한 경우 별도 작업으로 확장한다.
+
 ## 2026-06-29 - Generic depth1Index inference
 
 ### 작업 목적
@@ -9,7 +94,7 @@
 ### 변경 내용
 
 - `agent_orchestrator.py`에서 특정 메뉴명 기반 `DEPTH1_INDEX_MAP`을 제거했다.
-- `scout.js`가 `.menuContainer .depth1 > li` DOM 순서를 기준으로 `depth1Index`를 추론해 element/menu/pageProfile 후보에 보존하도록 했다.
+- `scout.js`가 navigation region/group과 DOM hierarchy를 기준으로 `depth1Index`를 추론해 element/menu/pageProfile 후보에 보존하도록 했다.
 - `build_menu_tree`는 hard-coded map 대신 scout가 수집한 `depth1Index`를 사용하도록 변경했다.
 - depth3 child는 자체 `depth1Index`가 없으면 직전 depth2 parent의 `depth1Index`를 상속하도록 했다.
 - `depth1Index` 추론이 실패한 경우 generated prompt가 `openDepth1ByIndex(page, null)`을 만들지 않고 TODO를 남기도록 안내했다.

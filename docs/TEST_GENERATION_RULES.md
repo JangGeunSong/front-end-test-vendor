@@ -10,6 +10,7 @@
 
 generated spec이 자동 생성할 수 있는 범위:
 
+- `menu_map.primaryMenuTree`에 포함된 primary navigation 후보
 - navigation/GNB hover 또는 open
 - depth2 메뉴 클릭
 - depth3 child 메뉴 클릭
@@ -19,6 +20,8 @@ generated spec이 자동 생성할 수 있는 범위:
 - pageProfiles 기반 mainContainer visible assertion
 - 보수적인 Page Identity highlight
 - 안정적인 후보가 없을 때 TODO 주석
+
+`menus` 전체 후보를 그대로 generated spec 대상으로 사용하지 않는다. `linkCandidates`, `ctaCandidates`, `footerLinks`, `nonPrimaryNavigationCandidates`는 Level 1/2 generated spec 대상이 아니며 추후 Level 3/link check 확장 후보로 보존한다.
 
 ## Out of Scope
 

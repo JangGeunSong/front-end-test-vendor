@@ -12,6 +12,51 @@ GENERATED_DIR = BASE_DIR / "generated"
 # node 에서 바로 실행할 수 있도록 적용
 TESTS_GENERATED_DIR = ROOT_DIR / "tests" / "generated"
 
+PRIMARY_MENU_REGIONS = {"header", "nav"}
+NON_PRIMARY_REGIONS = {"main", "footer", "unknown"}
+EXCLUDED_PRIMARY_TEXTS = {
+    "상세보기",
+    "더보기",
+    "회사소개",
+    "이용약관",
+    "개인정보처리방침",
+    "개인정보 처리방침",
+    "privacy policy",
+    "terms",
+    "terms of use",
+    "로그인",
+    "login",
+    "회원가입",
+    "사이트맵",
+    "sitemap",
+}
+CTA_TEXT_KEYWORDS = (
+    "상세",
+    "더보기",
+    "more",
+    "detail",
+    "learn more",
+    "view more",
+    "문의",
+    "신청",
+    "download",
+)
+MENU_TRIGGER_TEXTS = {
+    "menu",
+    "메뉴",
+    "hamburger",
+}
+BRAND_HOME_HINTS = (
+    "logo",
+    "brand",
+    "home",
+    "quick",
+    "shortcut",
+    "utility",
+    "main-logo",
+    "site-logo",
+)
+
 # 1. LLM 설정 (API 키는 환경변수나 별도 파일 권장)
 def configure_llm():
     load_dotenv(ROOT_DIR / ".env")
@@ -91,10 +136,10 @@ def analyze_and_generate_code(dom_data):
 
 def build_menu_generation_input(menu_map, generate_all=True, max_parent=3, max_children=3):
     if generate_all:
-        target_menu_tree = menu_map.get("menuTree", [])
+        target_menu_tree = menu_map.get("primaryMenuTree", menu_map.get("menuTree", []))
     else:
         target_menu_tree = limit_menu_tree(
-            menu_map.get("menuTree", []),
+            menu_map.get("primaryMenuTree", menu_map.get("menuTree", [])),
             max_parent=max_parent,
             max_children=max_children
         )
@@ -422,12 +467,22 @@ def extract_menu_candidate(dom_data):
             continue
         
         menus.append({
+            "index": item.get("index"),
+            "tagName": item.get("tagName", ""),
             "text": item.get("text", ""),
             "href": item.get("href", ""),
             "id": item.get("id", ""),
+            "className": item.get("className", ""),
+            "title": item.get("title", ""),
+            "role": item.get("role", ""),
             "ngClick": item.get("ngClick", ""),
             "menuDepth": item.get("menuDepth"),
+            "inferredMenuDepth": item.get("inferredMenuDepth"),
             "depth1Index": item.get("depth1Index"),
+            "navigationGroupIndex": item.get("navigationGroupIndex"),
+            "semanticRegion": item.get("semanticRegion", "unknown"),
+            "confidence": item.get("confidence", "unknown"),
+            "discoveryReason": item.get("discoveryReason", []),
             "isVisible": item.get("isVisible"),
             "requiresHoverBeforeClick": item.get("isGnbCandidate") and not item.get("isVisible"),
             "parentText": item.get("parentText", ""),
@@ -436,6 +491,348 @@ def extract_menu_candidate(dom_data):
         })
         
     return menus
+
+
+def normalize_text(value):
+    return " ".join(str(value or "").split()).strip()
+
+
+def lower_text(value):
+    return normalize_text(value).lower()
+
+
+def is_text_too_long_for_primary(text):
+    normalized = normalize_text(text)
+    return len(normalized) > 40 or len(normalized.split()) > 8
+
+
+def has_keyword(value, keywords):
+    normalized = lower_text(value)
+    return any(keyword in normalized for keyword in keywords)
+
+
+def same_navigation_group(left, right):
+    left_group = left.get("navigationGroupIndex")
+    right_group = right.get("navigationGroupIndex")
+
+    if left_group is not None and right_group is not None:
+        return left_group == right_group
+
+    left_depth1 = left.get("depth1Index")
+    right_depth1 = right.get("depth1Index")
+
+    if left_depth1 is not None and right_depth1 is not None:
+        return left_depth1 == right_depth1
+
+    return False
+
+
+def is_footer_or_policy_text(text):
+    normalized = lower_text(text)
+    return normalized in EXCLUDED_PRIMARY_TEXTS or has_keyword(
+        normalized,
+        (
+            "개인정보",
+            "privacy",
+            "이용약관",
+            "terms",
+            "copyright",
+            "고객센터",
+        )
+    )
+
+
+def is_likely_brand_home_candidate(menu):
+    combined = " ".join([
+        str(menu.get("id", "")),
+        str(menu.get("className", "")),
+        str(menu.get("title", "")),
+        str(menu.get("cssPath", "")),
+        str(menu.get("href", "")),
+    ])
+
+    if has_keyword(combined, BRAND_HOME_HINTS):
+        return True
+
+    href = lower_text(menu.get("href", ""))
+    return href in {"/", "/#", "index.html", "./"}
+
+
+def is_navigation_trigger(menu):
+    tag_name = lower_text(menu.get("tagName", ""))
+    role = lower_text(menu.get("role", ""))
+    text = lower_text(menu.get("text", ""))
+
+    return (
+        menu.get("semanticRegion") in PRIMARY_MENU_REGIONS and
+        not menu.get("href") and
+        (tag_name == "button" or role == "button") and
+        (text in MENU_TRIGGER_TEXTS or has_keyword(menu.get("className", ""), ("menu", "hamburger", "trigger", "toggle")))
+    )
+
+
+def has_group_child_text(menu, candidates):
+    parent_text = normalize_text(menu.get("parentText", ""))
+    own_text = normalize_text(menu.get("text", ""))
+
+    if not parent_text or parent_text == own_text:
+        return False
+
+    for candidate in candidates:
+        child_text = normalize_text(candidate.get("text", ""))
+        if (
+            child_text and
+            child_text != own_text and
+            same_navigation_group(menu, candidate) and
+            child_text in parent_text
+        ):
+            return True
+
+    return False
+
+
+def classify_candidate_kind(menu, all_candidates):
+    if is_navigation_trigger(menu):
+        return "navigationTrigger"
+
+    if is_likely_brand_home_candidate(menu):
+        return "logoHome"
+
+    if is_footer_link(menu):
+        return "footerLink"
+
+    if is_content_cta(menu):
+        return "contentCta"
+
+    if menu.get("semanticRegion") == "main" and menu.get("href"):
+        return "quickLink"
+
+    if menu.get("semanticRegion") not in PRIMARY_MENU_REGIONS:
+        return "unknown"
+
+    if is_footer_or_policy_text(menu.get("text", "")):
+        return "utilityLink"
+
+    if is_text_too_long_for_primary(menu.get("text", "")):
+        return "unknown"
+
+    if has_group_child_text(menu, all_candidates):
+        return "primaryNavigation"
+
+    if menu.get("menuDepth") in (2, 3) and (
+        menu.get("depth1Index") is not None or menu.get("navigationGroupIndex") is not None
+    ):
+        return "primaryNavigationItem"
+
+    return "unknown"
+
+
+def is_primary_navigation_candidate(menu):
+    if menu.get("candidateKind") not in ("primaryNavigation", "primaryNavigationItem"):
+        return False
+
+    if menu.get("semanticRegion") not in PRIMARY_MENU_REGIONS:
+        return False
+
+    if menu.get("menuDepth") not in (2, 3):
+        return False
+
+    if menu.get("depth1Index") is None and menu.get("navigationGroupIndex") is None:
+        return False
+
+    text = menu.get("text", "")
+    if not normalize_text(text):
+        return False
+
+    if is_text_too_long_for_primary(text):
+        return False
+
+    if is_footer_or_policy_text(text):
+        return False
+
+    if is_likely_brand_home_candidate(menu):
+        return False
+
+    return True
+
+
+def is_footer_link(menu):
+    return menu.get("semanticRegion") == "footer"
+
+
+def is_content_cta(menu):
+    if menu.get("semanticRegion") != "main":
+        return False
+
+    role = lower_text(menu.get("role", ""))
+    tag_name = lower_text(menu.get("tagName", ""))
+    text = lower_text(menu.get("text", ""))
+
+    return (
+        role == "button" or
+        tag_name == "button" or
+        has_keyword(text, CTA_TEXT_KEYWORDS)
+    )
+
+
+def is_link_candidate(menu):
+    return (
+        menu.get("semanticRegion") in NON_PRIMARY_REGIONS and
+        bool(menu.get("href"))
+    )
+
+
+def project_menu_candidates(menu_candidates):
+    primary_menus = []
+    link_candidates = []
+    cta_candidates = []
+    footer_links = []
+    non_primary = []
+
+    for menu in menu_candidates:
+        candidate_kind = classify_candidate_kind(menu, menu_candidates)
+        menu["candidateKind"] = candidate_kind
+        menu["navigationRole"] = candidate_kind
+
+        if is_primary_navigation_candidate(menu):
+            primary_menus.append(menu)
+            continue
+
+        excluded = {
+            **menu,
+            "excludeReason": get_non_primary_reason(menu)
+        }
+        non_primary.append(excluded)
+
+        if is_footer_link(menu):
+            footer_links.append(excluded)
+
+        if is_content_cta(menu):
+            cta_candidates.append(excluded)
+
+        if is_link_candidate(menu):
+            link_candidates.append(excluded)
+
+    return {
+        "primaryMenus": primary_menus,
+        "linkCandidates": link_candidates,
+        "ctaCandidates": cta_candidates,
+        "footerLinks": footer_links,
+        "nonPrimaryNavigationCandidates": non_primary,
+        "unresolvedPrimaryNavigationCandidates": [],
+    }
+
+
+def get_non_primary_reason(menu):
+    candidate_kind = menu.get("candidateKind")
+    if candidate_kind and candidate_kind not in ("primaryNavigation", "primaryNavigationItem"):
+        return f"candidate-kind:{candidate_kind}"
+    if menu.get("semanticRegion") not in PRIMARY_MENU_REGIONS:
+        return f"non-primary-region:{menu.get('semanticRegion', 'unknown')}"
+    if menu.get("menuDepth") not in (2, 3):
+        return "missing-or-unsupported-menu-depth"
+    if menu.get("depth1Index") is None and menu.get("navigationGroupIndex") is None:
+        return "missing-navigation-group"
+    if is_text_too_long_for_primary(menu.get("text", "")):
+        return "long-or-description-like-text"
+    if is_footer_or_policy_text(menu.get("text", "")):
+        return "footer-or-policy-like-text"
+    if is_likely_brand_home_candidate(menu):
+        return "brand-or-home-like-link"
+    return "not-primary-navigation"
+
+
+def build_primary_menu_tree(primary_menus):
+    parents = [
+        menu for menu in primary_menus
+        if menu.get("candidateKind") == "primaryNavigation"
+    ]
+    children = [
+        menu for menu in primary_menus
+        if menu.get("candidateKind") == "primaryNavigationItem"
+    ]
+
+    parents = sorted(parents, key=lambda item: item.get("index") if item.get("index") is not None else 10**9)
+    children = sorted(children, key=lambda item: item.get("index") if item.get("index") is not None else 10**9)
+
+    tree = []
+    assigned_child_indexes = set()
+
+    for parent_index, parent in enumerate(parents):
+        next_parent = find_next_parent_in_group(parent, parents[parent_index + 1:])
+        parent_node = {
+            **parent,
+            "menuDepth": 2,
+            "depth1Index": parent.get("depth1Index"),
+            "children": []
+        }
+
+        for child in children:
+            child_index = child.get("index")
+
+            if child_index in assigned_child_indexes:
+                continue
+
+            if not belongs_to_parent_group(child, parent):
+                continue
+
+            if not is_child_after_parent(child, parent):
+                continue
+
+            if next_parent is not None and not is_child_before_next_parent(child, next_parent):
+                continue
+
+            if normalize_text(child.get("text", "")) == normalize_text(parent.get("text", "")):
+                continue
+
+            child_depth1_index = child.get("depth1Index")
+            if child_depth1_index is None:
+                child_depth1_index = parent.get("depth1Index")
+
+            parent_node["children"].append({
+                **child,
+                "menuDepth": 3,
+                "depth1Index": child_depth1_index
+            })
+            assigned_child_indexes.add(child_index)
+
+        if parent_node["children"]:
+            tree.append(parent_node)
+
+    unresolved_children = [
+        child for child in children
+        if child.get("index") not in assigned_child_indexes
+    ]
+
+    return tree, unresolved_children
+
+
+def find_next_parent_in_group(parent, following_parents):
+    for candidate in following_parents:
+        if belongs_to_parent_group(candidate, parent) and is_child_after_parent(candidate, parent):
+            return candidate
+
+    return None
+
+
+def is_child_after_parent(child, parent):
+    child_index = child.get("index")
+    parent_index = parent.get("index")
+
+    if child_index is None or parent_index is None:
+        return True
+
+    return child_index > parent_index
+
+
+def is_child_before_next_parent(child, next_parent):
+    child_index = child.get("index")
+    next_parent_index = next_parent.get("index")
+
+    if child_index is None or next_parent_index is None:
+        return True
+
+    return child_index < next_parent_index
 
 # AI가 테스트 케이스를 더 잘 만들 수 있도록 같은 depth 에 묶인 매뉴들은 parents를 체크해서 tree 구조로 생성하도록 작성
 def build_menu_tree(menu_candidates):
@@ -454,7 +851,7 @@ def build_menu_tree(menu_candidates):
             tree.append(current_depth2)
 
         elif depth == 3:
-            if current_depth2 is not None:
+            if current_depth2 is not None and belongs_to_parent_group(menu, current_depth2):
                 child_depth1_index = menu.get("depth1Index")
                 if child_depth1_index is None:
                     child_depth1_index = current_depth2.get("depth1Index")
@@ -479,6 +876,22 @@ def build_menu_tree(menu_candidates):
 
     return tree
 
+
+def belongs_to_parent_group(child, parent):
+    child_group = child.get("navigationGroupIndex")
+    parent_group = parent.get("navigationGroupIndex")
+
+    if child_group is not None and parent_group is not None:
+        return child_group == parent_group
+
+    child_depth1 = child.get("depth1Index")
+    parent_depth1 = parent.get("depth1Index")
+
+    if child_depth1 is not None and parent_depth1 is not None:
+        return child_depth1 == parent_depth1
+
+    return False
+
 def extract_page_profiles(dom_data):
     if isinstance(dom_data, dict):
         return dom_data.get("pageProfiles", [])
@@ -486,20 +899,38 @@ def extract_page_profiles(dom_data):
     return []
 
 
-def build_menu_map(target_url, menu_candidates, menu_tree, page_profiles=None):
+def build_menu_map(target_url, menu_candidates, primary_menu_tree, projections, page_profiles=None):
     return {
         "url": target_url,
         "count": len(menu_candidates),
         "menus": menu_candidates,
-        "menuTree": menu_tree,
+        "menuTree": primary_menu_tree,
+        "primaryMenuTree": primary_menu_tree,
+        "primaryMenus": projections.get("primaryMenus", []),
+        "linkCandidates": projections.get("linkCandidates", []),
+        "ctaCandidates": projections.get("ctaCandidates", []),
+        "footerLinks": projections.get("footerLinks", []),
+        "nonPrimaryNavigationCandidates": projections.get("nonPrimaryNavigationCandidates", []),
+        "excludedNavigationCandidates": projections.get("nonPrimaryNavigationCandidates", []),
+        "unresolvedPrimaryNavigationCandidates": projections.get("unresolvedPrimaryNavigationCandidates", []),
         "pageProfiles": page_profiles or []
     }
 
 
-def print_generation_summary(dom_map, menu_candidates):
+def print_generation_summary(dom_map, menu_map):
     element_count = len(dom_map) if isinstance(dom_map, list) else dom_map.get('count', 0)
     print(f"수집 요소 수: {element_count}")
-    print(f"메뉴 후보 수: {len(menu_candidates)}")
+    print(f"메뉴 후보 수: {len(menu_map.get('menus', []))}")
+    print(f"Primary navigation parent 수: {len(menu_map.get('primaryMenuTree', []))}")
+    print(f"Primary navigation child 수: {count_tree_children(menu_map.get('primaryMenuTree', []))}")
+    print(f"Footer link 후보 수: {len(menu_map.get('footerLinks', []))}")
+    print(f"CTA 후보 수: {len(menu_map.get('ctaCandidates', []))}")
+    print(f"Non-primary navigation 후보 수: {len(menu_map.get('nonPrimaryNavigationCandidates', []))}")
+    print(f"Unresolved primary navigation 후보 수: {len(menu_map.get('unresolvedPrimaryNavigationCandidates', []))}")
+
+
+def count_tree_children(menu_tree):
+    return sum(len(item.get("children", [])) for item in menu_tree)
 
 
 def run_generation_pipeline(target_url):
@@ -513,12 +944,20 @@ def run_generation_pipeline(target_url):
     save_json(dom_map, "scout_result.json")
 
     menu_candidates = extract_menu_candidate(dom_map)
-    menu_tree = build_menu_tree(menu_candidates)
+    projections = project_menu_candidates(menu_candidates)
+    primary_menu_tree, unresolved_primary = build_primary_menu_tree(projections.get("primaryMenus", []))
+    projections["unresolvedPrimaryNavigationCandidates"] = unresolved_primary
     page_profiles = extract_page_profiles(dom_map)
-    menu_map = build_menu_map(target_url, menu_candidates, menu_tree, page_profiles)
+    menu_map = build_menu_map(
+        target_url,
+        menu_candidates,
+        primary_menu_tree,
+        projections,
+        page_profiles
+    )
 
     save_json(menu_map, "menu_map.json")
-    print_generation_summary(dom_map, menu_candidates)
+    print_generation_summary(dom_map, menu_map)
 
     # code = analyze_and_generate_code(dom_map)
     # code = analyze_and_generate_menu_test(menu_map)

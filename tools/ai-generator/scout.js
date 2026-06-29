@@ -2,17 +2,49 @@
 const { chromium } = require('playwright');
 
 async function waitForAppReady(page) {
-  try {
-    await Promise.race([
-      // 전략 A: Angular 전용 속성이 보일 때까지 대기
-      page.waitForSelector('[ng-controller], [ng-app], .ng-scope, [ng-repeat]', { timeout: 10000 }),
-      // 전략 B: 본문 내부의 인터랙티브 요소(a, button 등)가 최소 5개 이상 생길 때까지 대기
-      page.waitForFunction(() => document.querySelectorAll('a, button, input').length > 5, { timeout: 10000 })
-    ]);
-    console.warn("✅ Angular 컨텐츠 로딩 확인");
-  } catch (e) {
-    console.warn("⚠️ 자동 로딩 확인 실패. 현재 상태로 스캐닝을 강제 진행합니다.");
-  }
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+
+  await page.waitForFunction(() => {
+    const interactiveSelectors = [
+      'a[href]',
+      'button',
+      'input',
+      'select',
+      'textarea',
+      '[role="button"]',
+      '[role="link"]',
+      '[role="menuitem"]'
+    ].join(', ');
+
+    return document.querySelectorAll(interactiveSelectors).length > 0;
+  }, { timeout: 10000 }).catch(() => {});
+
+  await page.evaluate(() => {
+    return new Promise(resolve => {
+      let timer;
+      const quietMs = 500;
+      const maxMs = 3000;
+
+      const done = () => {
+        observer.disconnect();
+        resolve();
+      };
+
+      const observer = new MutationObserver(() => {
+        clearTimeout(timer);
+        timer = setTimeout(done, quietMs);
+      });
+
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true
+      });
+
+      timer = setTimeout(done, quietMs);
+      setTimeout(done, maxMs);
+    });
+  }).catch(() => {});
 }
 
 async function collectPageProfile(page) {
@@ -48,10 +80,30 @@ async function collectPageProfile(page) {
       );
     }
 
+    function getClassAndIdText(el) {
+      return `${el.id || ''} ${typeof el.className === 'string' ? el.className : ''}`;
+    }
+
+    function hasCommonLayoutSignal(el) {
+      return /(^|[-_\s])(header|footer|nav|navigation|gnb|lnb|menu|menubar|sidebar|aside)([-_\s]|$)/i
+        .test(getClassAndIdText(el));
+    }
+
+    function closestByPredicate(el, predicate) {
+      let current = el;
+      while (current && current !== document.body) {
+        if (predicate(current)) {
+          return current;
+        }
+        current = current.parentElement;
+      }
+      return null;
+    }
+
     function isInsideCommonLayout(el) {
       return !!el.closest(
-        'header, footer, nav, aside, .header, .footer, .gnb, .lnb, .menuContainer, .menuContent, .depth1, .depth2, .depth3'
-      );
+        'header, footer, nav, aside, [role="banner"], [role="navigation"], [role="menubar"], [role="menu"], [role="contentinfo"], [role="complementary"]'
+      ) || !!closestByPredicate(el, hasCommonLayoutSignal);
     }
 
     function getCssPath(el) {
@@ -418,6 +470,11 @@ function extractMenuCandidates(elements) {
       ngClick: item.ngClick || '',
       menuDepth: item.menuDepth,
       depth1Index: item.depth1Index,
+      semanticRegion: item.semanticRegion || 'unknown',
+      navigationGroupIndex: item.navigationGroupIndex,
+      inferredMenuDepth: item.inferredMenuDepth,
+      confidence: item.confidence || 'unknown',
+      discoveryReason: item.discoveryReason || [],
       isVisible: item.isVisible,
       parentText: item.parentText || '',
       cssPath: item.cssPath || '',
@@ -435,6 +492,9 @@ function extractMenuCandidates(elements) {
         ngClick: currentDepth2.ngClick,
         menuDepth: currentDepth2.menuDepth,
         depth1Index: currentDepth2.depth1Index,
+        semanticRegion: currentDepth2.semanticRegion,
+        navigationGroupIndex: currentDepth2.navigationGroupIndex,
+        confidence: currentDepth2.confidence,
         cssPath: currentDepth2.cssPath
       };
       menu.menuPath = [currentDepth2.text, menu.text].filter(Boolean);
@@ -456,6 +516,11 @@ function toProfileMenu(menu) {
     ngClick: menu.ngClick || '',
     menuDepth: menu.menuDepth,
     depth1Index: menu.depth1Index,
+    semanticRegion: menu.semanticRegion || 'unknown',
+    navigationGroupIndex: menu.navigationGroupIndex,
+    inferredMenuDepth: menu.inferredMenuDepth,
+    confidence: menu.confidence || 'unknown',
+    discoveryReason: menu.discoveryReason || [],
     parentText: menu.parentMenu?.text || '',
     cssPath: menu.cssPath || ''
   };
@@ -521,34 +586,27 @@ async function scoutSite(url) {
   const browser = await chromium.launch();
   const page = await browser.newPage();
 
-  // 1. 페이지 이동 (가장 느린 네트워크가 끝날 때까지 1차 대기)
-  await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+  // 1. 페이지 이동 후 렌더링된 DOM을 기준으로 best-effort 탐색한다.
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-  // 2. [Smart Wait] Angular/SPA 범용 로딩 대기
-  // 사이트마다 다른 메인 태그를 감안하여 'ng-'로 시작하는 속성이 나타날 때까지 기다립니다.
+  // 2. framework-agnostic 로딩 안정화 대기
   await waitForAppReady(page);
 
   // 3. 요소 추출 (Body 및 dynamic content 포함)
   const scoutResult = await page.evaluate(() => {
     const selectors = [
-      'a',
+      'nav a',
+      'header a',
+      '[role="navigation"] a',
+      '[role="menubar"] a',
+      '[role="menu"] a',
+      '[role="menuitem"]',
+      'a[href]',
       'button',
-      'input',
-      'select',
-      'textarea',
-      '[ng-click]',
-      '[ng-mouseover]',
       '[onclick]',
       '[role="button"]',
       '[role="link"]',
-      '[role="menuitem"]',
-      '.bizMainCont a',
-      '.menuContainer a',
-      '.menuContainer button',
-      '.menuContent a',
-      '.depth1 a',
-      '.depth2 a',
-      '.depth3 a'
+      '[aria-haspopup="true"]'
     ].join(', ');
 
     function normalizeText(value) {
@@ -658,23 +716,161 @@ async function scoutSite(url) {
       });
     }
 
-    const depth1Items = Array.from(document.querySelectorAll('.menuContainer .depth1 > li'));
-    const menuContentPanels = Array.from(document.querySelectorAll('.menuContainer .menuContent'));
+    function getClassAndIdText(el) {
+      return `${el.id || ''} ${typeof el.className === 'string' ? el.className : ''}`;
+    }
 
-    function inferDepth1Index(el) {
-      const depth1Item = el.closest('.menuContainer .depth1 > li');
-      if (depth1Item) {
-        const index = depth1Items.indexOf(depth1Item);
-        return index >= 0 ? index : null;
+    function hasNavigationClassSignal(el) {
+      return /(^|[-_\s])(nav|navigation|menu|menubar|dropdown|sidebar|gnb|lnb|header)([-_\s]|$)/i
+        .test(getClassAndIdText(el));
+    }
+
+    function getSemanticRegion(el) {
+      const region = el.closest(
+        'header, nav, main, aside, footer, [role="banner"], [role="navigation"], [role="main"], [role="complementary"], [role="contentinfo"]'
+      );
+
+      if (!region) {
+        return 'unknown';
       }
 
-      const menuContentPanel = el.closest('.menuContainer .menuContent');
-      if (menuContentPanel) {
-        const index = menuContentPanels.indexOf(menuContentPanel);
-        return index >= 0 && index < depth1Items.length ? index : null;
+      const tagName = region.tagName.toLowerCase();
+      const role = region.getAttribute('role') || '';
+
+      if (tagName === 'header' || role === 'banner') return 'header';
+      if (tagName === 'nav' || role === 'navigation') return 'nav';
+      if (tagName === 'main' || role === 'main') return 'main';
+      if (tagName === 'aside' || role === 'complementary') return 'aside';
+      if (tagName === 'footer' || role === 'contentinfo') return 'footer';
+
+      return 'unknown';
+    }
+
+    function uniqueBy(items, keyFn) {
+      const seen = new Set();
+      const results = [];
+
+      for (const item of items) {
+        const key = keyFn(item);
+        if (!key || seen.has(key)) {
+          continue;
+        }
+
+        seen.add(key);
+        results.push(item);
       }
 
-      return null;
+      return results;
+    }
+
+    const semanticNavigationGroups = Array.from(document.querySelectorAll(
+      'nav, header, aside, [role="navigation"], [role="menubar"], [role="menu"], [role="banner"], [role="complementary"]'
+    ));
+    const classSignalNavigationGroups = Array.from(document.querySelectorAll('body *'))
+      .filter(el => hasNavigationClassSignal(el) && el.querySelector('a, button, [role="link"], [role="menuitem"]'));
+    const navigationGroups = uniqueBy(
+      [...semanticNavigationGroups, ...classSignalNavigationGroups],
+      el => getCssPath(el)
+    );
+
+    function findNavigationGroup(el) {
+      let bestGroup = null;
+      let bestDepth = Infinity;
+
+      for (const group of navigationGroups) {
+        if (!group.contains(el)) {
+          continue;
+        }
+
+        let depth = 0;
+        let current = el;
+        while (current && current !== group) {
+          depth += 1;
+          current = current.parentElement;
+        }
+
+        if (depth < bestDepth) {
+          bestDepth = depth;
+          bestGroup = group;
+        }
+      }
+
+      return bestGroup;
+    }
+
+    function getNavigationGroupIndex(el) {
+      const group = findNavigationGroup(el);
+      if (!group) {
+        return null;
+      }
+
+      const index = navigationGroups.indexOf(group);
+      return index >= 0 ? index : null;
+    }
+
+    function getListDepthWithinGroup(el) {
+      const group = findNavigationGroup(el);
+      let depth = 0;
+      let current = el.parentElement;
+
+      while (current && current !== document.body && current !== group?.parentElement) {
+        const tagName = current.tagName.toLowerCase();
+        const role = current.getAttribute('role') || '';
+
+        if (tagName === 'ul' || tagName === 'ol' || role === 'menu' || role === 'menubar') {
+          depth += 1;
+        }
+
+        if (current === group) {
+          break;
+        }
+
+        current = current.parentElement;
+      }
+
+      return depth;
+    }
+
+    function inferMenuDepth(el) {
+      const role = el.getAttribute('role') || '';
+      const group = findNavigationGroup(el);
+      const listDepth = getListDepthWithinGroup(el);
+
+      if (!group && role !== 'menuitem' && !hasNavigationClassSignal(el)) {
+        return null;
+      }
+
+      if (listDepth >= 2) {
+        return 3;
+      }
+
+      return 2;
+    }
+
+    function getDiscoveryReason(el) {
+      const reasons = [];
+      const role = el.getAttribute('role') || '';
+
+      if (findNavigationGroup(el)) reasons.push('navigation-region');
+      if (role) reasons.push(`role:${role}`);
+      if (el.getAttribute('href')) reasons.push('href');
+      if (el.hasAttribute('onclick')) reasons.push('onclick');
+      if (el.getAttribute('aria-haspopup')) reasons.push('aria-haspopup');
+      if (hasNavigationClassSignal(el)) reasons.push('class-signal');
+      if (hasHiddenChildren(el)) reasons.push('hidden-children');
+
+      return reasons;
+    }
+
+    function getNavigationConfidence(el) {
+      const reasons = getDiscoveryReason(el);
+      if (reasons.includes('navigation-region') && reasons.some(reason => reason === 'href' || reason.startsWith('role:'))) {
+        return 'high';
+      }
+      if (reasons.includes('navigation-region') || reasons.includes('class-signal')) {
+        return 'medium';
+      }
+      return reasons.length > 0 ? 'low' : 'unknown';
     }
 
     function buildLocatorCandidates(el, text) {
@@ -749,27 +945,31 @@ async function scoutSite(url) {
         const onclick = el.getAttribute('onclick') || '';
 
         const isVisible = isElementVisible(el);
+        const semanticRegion = getSemanticRegion(el);
+        const navigationGroupIndex = getNavigationGroupIndex(el);
+        const discoveryReason = getDiscoveryReason(el);
+        const confidence = getNavigationConfidence(el);
+        const inferredMenuDepth = inferMenuDepth(el);
+        const buttonNavigationReason = discoveryReason.some(reason => {
+          return (
+            reason === 'navigation-region' ||
+            reason === 'class-signal' ||
+            reason === 'aria-haspopup' ||
+            reason === 'onclick' ||
+            reason === 'hidden-children'
+          );
+        });
+        const isNavigationCandidate =
+          tagNameLower === 'a' ||
+          role === 'link' ||
+          role === 'menuitem' ||
+          !!href ||
+          ((tagNameLower === 'button' || role === 'button') && buttonNavigationReason);
 
         const isHoverTarget =
-          !!el.querySelector('ul, ol, .dropdown-menu, .submenu, .sub-menu') ||
-          el.classList.contains('has-sub') ||
-          el.classList.contains('dropdown') ||
-          el.classList.contains('depth1') ||
-          el.classList.contains('menu') ||
-          el.hasAttribute('ng-mouseover') ||
+          el.getAttribute('aria-haspopup') === 'true' ||
+          hasNavigationClassSignal(el) ||
           hasHiddenChildren(el);
-
-        const isGnbCandidate = !!el.closest(
-          '.menuContainer, .menuContent, .depth1, .depth2, .depth3'
-        );
-
-        const menuDepth = el.closest('.depth3')
-          ? 3
-          : el.closest('.depth2')
-            ? 2
-            : el.closest('.depth1')
-              ? 1
-              : null;
 
         return {
           index,
@@ -796,9 +996,14 @@ async function scoutSite(url) {
 
           isVisible,
           isHoverTarget,
-          isGnbCandidate,
-          menuDepth,
-          depth1Index: inferDepth1Index(el),
+          isGnbCandidate: isNavigationCandidate && confidence !== 'unknown',
+          semanticRegion,
+          navigationGroupIndex,
+          inferredMenuDepth,
+          menuDepth: inferredMenuDepth,
+          depth1Index: navigationGroupIndex,
+          confidence,
+          discoveryReason,
 
           parentText: getParentText(el),
           cssPath: getCssPath(el),
@@ -809,23 +1014,20 @@ async function scoutSite(url) {
             isButton: tagNameLower === 'button' || role === 'button',
             isInput: tagNameLower === 'input' || tagNameLower === 'textarea',
             isSelect: tagNameLower === 'select',
-            isNavigationCandidate:
-              tagNameLower === 'a' ||
-              role === 'link' ||
-              role === 'menuitem' ||
-              !!href,
+            isNavigationCandidate,
             isActionCandidate:
               tagNameLower === 'button' ||
               role === 'button' ||
               el.hasAttribute('ng-click') ||
               el.hasAttribute('onclick'),
-            requiresHoverBeforeClick: isGnbCandidate && !isVisible
+            requiresHoverBeforeClick: isHoverTarget && !isVisible
           }
         };
       })
       .filter(item => {
         return (
           (item.isVisible || item.isGnbCandidate) &&
+          item.testHint.isNavigationCandidate &&
           (
             item.text.length > 0 ||
             item.id.length > 0 ||

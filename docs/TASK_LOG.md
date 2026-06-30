@@ -1,5 +1,31 @@
 # Task Log
 
+## 2026-06-30 - depth1Index hover target inference fix
+
+### 작업 목적
+
+- generated spec이 모든 primary navigation parent에 동일한 `depth1Index`를 사용해 일부 GNB submenu가 hidden 상태로 남는 문제를 보완했다.
+- `depth1Index`를 `navigationGroupIndex`가 아니라 실제 hover/open 해야 하는 top-level navigation item index로 추론하도록 정리했다.
+
+### 변경 내용
+
+- `scout.js`에서 DOM ancestor를 따라 가장 바깥쪽 navigation `li`를 찾고, 해당 sibling index를 `depth1Index`로 저장하도록 변경했다.
+- `hoverTargetCssPath`와 `openTriggerCssPath`를 함께 수집해 hover target 추론 결과를 사람이 확인할 수 있게 했다.
+- `navigationGroupIndex`는 projection/grouping 식별자로만 유지하고, hover index로 사용하지 않도록 분리했다.
+- `agent_orchestrator.py`가 `hoverTargetCssPath`와 `openTriggerCssPath`를 `menu_map.json`까지 보존하도록 했다.
+- prompt에 `navigationGroupIndex`를 `openDepth1ByIndex` 인자로 사용하지 말고, `depth1Index`가 number일 때만 open helper를 호출하도록 명시했다.
+- `docs/JSON_SCHEMA.md`와 `docs/DATA_FLOW.md`에 `depth1Index`, `navigationGroupIndex`, `hoverTargetCssPath`, `openTriggerCssPath`의 의미를 보강했다.
+
+### 확인 결과
+
+- 문법 확인만 수행했다.
+- 테스트 실행, `npm run ai:generate`, `npm run ai:validate`는 수행하지 않았다.
+
+### 다음 작업
+
+- `npm run ai:generate` 후 `menu_map.json`에서 primary parent들의 `depth1Index`가 실제 top-level hover 대상별로 분리되는지 확인한다.
+- 이후 `npm run ai:validate`, `npm run test:generated`, `npm run test:generated:visual` 순서로 재생성 결과를 확인한다.
+
 ## 2026-06-29 - Primary navigation candidate classification fix
 
 ### 작업 목적

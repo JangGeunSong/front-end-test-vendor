@@ -254,7 +254,9 @@ def build_menu_test_prompt(generation_input):
 
     아래 JSON은 WEB 사이트의 GNB/nav 메뉴 구조와 Level 2 Page Identity 후보 데이터다.
     menuTree는 depth2 메뉴와 depth3 하위 메뉴 관계를 나타낸다.
-    각 depth2 메뉴에는 scout.js가 DOM 구조로 추론한 depth1Index가 포함될 수 있으며, 이는 `.menuContainer .depth1 > li` 기준 index이다.
+    각 depth2 메뉴에는 scout.js가 DOM hierarchy로 추론한 depth1Index가 포함될 수 있으며, 이는 실제 hover/open 해야 하는 top-level navigation item index이다.
+    navigationGroupIndex는 수집 그룹 식별자일 뿐 openDepth1ByIndex 인자로 사용하지 않는다.
+    hoverTargetCssPath/openTriggerCssPath는 사람이 확인할 수 있는 보조 정보이며, 별도 helper가 없는 한 cssPath 기반 open 코드를 임의 생성하지 않는다.
     depth1Index가 null이면 자동 추론에 실패한 것이므로 openDepth1ByIndex(page, null)를 호출하지 말고 TODO 주석으로 hover target 확인 필요성을 남긴다.
     pageProfiles는 scout.js가 각 메뉴 후보를 클릭한 뒤 수집한 페이지 식별 후보이며, 전수 테스트 데이터가 아니라 의도한 페이지 도달 여부를 판단하기 위한 보조 신호다.
 
@@ -267,7 +269,7 @@ def build_menu_test_prompt(generation_input):
 
     [중요한 실행 규칙]
     1. hidden 상태의 depth2/depth3 메뉴를 직접 hover/click 하지 않는다.
-    2. depth2 또는 depth3 메뉴 클릭 전에는 depth1Index가 number일 때만 openDepth1ByIndex(page, depth1Index)를 호출한다.
+    2. depth2 또는 depth3 메뉴 클릭 전에는 depth1Index가 number일 때만 openDepth1ByIndex(page, depth1Index)를 호출한다. navigationGroupIndex를 대신 사용하지 않는다.
     2-1. depth1Index가 null 또는 undefined이면 openDepth1ByIndex를 호출하지 말고 TODO 주석으로 hover target 확인 필요성을 남긴다.
     3. depth2 메뉴 클릭은 clickVisibleMenuByText(page, menuName)를 사용한다.
     3-1. depth3 child 메뉴 클릭은 반드시 clickVisibleSubMenuByText(page, parentDepth2Name, childName, options)를 사용한다.
@@ -479,6 +481,8 @@ def extract_menu_candidate(dom_data):
             "menuDepth": item.get("menuDepth"),
             "inferredMenuDepth": item.get("inferredMenuDepth"),
             "depth1Index": item.get("depth1Index"),
+            "hoverTargetCssPath": item.get("hoverTargetCssPath", ""),
+            "openTriggerCssPath": item.get("openTriggerCssPath", ""),
             "navigationGroupIndex": item.get("navigationGroupIndex"),
             "semanticRegion": item.get("semanticRegion", "unknown"),
             "confidence": item.get("confidence", "unknown"),

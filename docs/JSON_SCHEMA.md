@@ -129,6 +129,10 @@ Menu candidates can include:
 - `id`: DOM id candidate for stable selection
 - `ngClick`: Angular click handler or action identifier
 - `menuDepth`: menu depth such as depth2 or depth3
+- `depth1Index`: zero-based index of the actual top-level navigation item that should be hovered/opened before clicking this candidate. This is not the same as `navigationGroupIndex`.
+- `navigationGroupIndex`: discovery group identifier used for projection and grouping
+- `hoverTargetCssPath`: CSS path of the inferred top-level hover target when available
+- `openTriggerCssPath`: CSS path of the inferred open trigger when available. It is informational unless a generated helper explicitly supports cssPath-based opening.
 - `isVisible`: visibility at collection time
 - `requiresHoverBeforeClick`: whether a GNB hover is required before clicking
 - `parentText`: parent or nearby text captured during discovery

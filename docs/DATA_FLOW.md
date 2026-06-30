@@ -69,7 +69,9 @@ scout는 후보를 넓게 수집한다. header primary navigation뿐 아니라 m
 
 `menuTree`는 Level 1 navigation test coverage의 기준이 된다. `pageProfiles`는 Level 2 Page Identity assertion 후보의 근거가 된다.
 
-`depth1Index`는 특정 메뉴명 또는 특정 selector mapping이 아니라 scout가 navigation region/group과 DOM hierarchy를 기반으로 best-effort 추론한 값이다. 추론할 수 없으면 null로 남기고 generated spec은 보수적인 TODO를 남긴다.
+`depth1Index`는 특정 메뉴명 또는 특정 selector mapping이 아니라 scout가 DOM hierarchy를 기반으로 best-effort 추론한 실제 top-level hover/open 대상 index이다. `navigationGroupIndex`는 수집 그룹 식별자이며 `openDepth1ByIndex` 인자로 사용하지 않는다. 추론할 수 없으면 null로 남기고 generated spec은 보수적인 TODO를 남긴다.
+
+scout는 가능한 경우 `hoverTargetCssPath`와 `openTriggerCssPath`도 함께 남긴다. 이 값은 사람이 hover target 추론을 확인하기 위한 보조 정보이며, cssPath 기반 open helper가 없는 경우 generated spec은 임의로 cssPath hover 코드를 만들지 않는다.
 
 `menu_map.json`은 다음 projection을 함께 가진다.
 

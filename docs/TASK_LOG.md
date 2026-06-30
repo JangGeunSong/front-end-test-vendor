@@ -1,5 +1,55 @@
 # Task Log
 
+## 2026-06-30 - Prevent sibling pageProfile selector fallback
+
+### 작업 목적
+
+- generated spec이 같은 parent 아래 depth3 child들의 Page Identity selector를 공통 fallback으로 섞어 쓰면서, 특정 child 페이지에 존재하지 않는 selector를 검증하는 문제를 방지한다.
+- child별 Page Identity assertion은 해당 child `menuPath`에 매칭되는 pageProfile만 근거로 생성하도록 prompt 규칙을 강화한다.
+
+### 변경 내용
+
+- `agent_orchestrator.py` prompt에 sibling child의 pageProfile selector를 fallback으로 사용하지 말라는 규칙을 추가했다.
+- loop 내부에서 child별 Page Identity selector가 다르면 `if (child.text === '...')` 또는 `else if` 분기 안에서 해당 child selector만 사용하도록 명시했다.
+- 모든 child pageProfile에서 같은 cssPath가 확인되는 경우에만 공통 assertion을 허용하고, 불확실하면 TODO를 남기도록 했다.
+- `if contentArea visible else noticeArea` 같은 cross-sibling fallback chain 생성을 금지했다.
+- `docs/PROMPT_STRATEGY.md`에 동일한 규칙을 반영했다.
+
+### 확인 결과
+
+- 문법 확인만 수행했다.
+- 테스트 실행, `npm run ai:generate`, `npm run ai:validate`는 수행하지 않았다.
+
+### 다음 작업
+
+- `npm run ai:generate` 후 공유 메뉴 child loop에서 sibling selector fallback이 생성되지 않는지 확인한다.
+- `npm run ai:validate`와 `npm run test:generated`로 validator 통과와 9 passed 여부를 확인한다.
+
+## 2026-06-30 - PrimaryMenuTree based pageProfile collection
+
+### 작업 목적
+
+- broad scout discovery와 primaryNavigation projection 분리 이후 `pageProfiles`가 generated spec 대상 메뉴와 연결되지 않아 Level 2 Page Identity assertion과 visual highlight가 거의 생성되지 않는 문제를 보완했다.
+- Level 2 Page Identity 후보를 generated spec 대상인 `primaryMenuTree` 기준으로 다시 수집하도록 했다.
+
+### 변경 내용
+
+- `scout.js`에 `--profile-tree` 모드를 추가해 primary menu tree를 입력받아 parent/child menuPath 기준으로 pageProfiles를 수집하도록 했다.
+- pageProfile 수집 시 각 target마다 시작 URL로 돌아간 뒤, `hoverTargetCssPath` 또는 `depth1Index`를 사용해 메뉴를 open하고 대상 메뉴를 클릭하도록 했다.
+- broad discovery 단계에서는 `elements` 수집에 집중하고, pageProfiles는 primary tree 생성 이후 별도 profile scout 호출 결과로 채우도록 분리했다.
+- `agent_orchestrator.py`는 `primaryMenuTree` 생성 후 profile scout를 다시 호출하고, 그 결과를 `scout_result.json`과 `menu_map.json`에 반영한다.
+- `docs/DATA_FLOW.md`, `docs/JSON_SCHEMA.md`, `docs/PROMPT_STRATEGY.md`에 pageProfiles가 `primaryMenuTree` 기준으로 수집/매칭된다는 규칙을 보강했다.
+
+### 확인 결과
+
+- 문법 확인만 수행했다.
+- 테스트 실행, `npm run ai:generate`, `npm run ai:validate`는 수행하지 않았다.
+
+### 다음 작업
+
+- `npm run ai:generate` 후 `menu_map.json`의 `pageProfiles`가 primary parent/child menuPath 기준으로 여러 건 생성되는지 확인한다.
+- `npm run ai:validate`, `npm run test:generated`, `npm run test:generated:visual`로 Page Identity assertion과 `highlightPageIdentity` 복원을 확인한다.
+
 ## 2026-06-30 - depth1Index hover target inference fix
 
 ### 작업 목적

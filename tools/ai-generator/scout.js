@@ -560,7 +560,115 @@ async function clickMenuCandidate(page, menu) {
   return false;
 }
 
-async function collectMenuPageProfiles(page, menus) {
+function flattenProfileTargets(menuTree) {
+  const targets = [];
+
+  for (const parent of menuTree || []) {
+    if (!parent?.text || !parent?.cssPath) {
+      continue;
+    }
+
+    targets.push({
+      ...parent,
+      menuPath: [parent.text],
+      parentMenu: null
+    });
+
+    for (const child of parent.children || []) {
+      if (!child?.text || !child?.cssPath) {
+        continue;
+      }
+
+      targets.push({
+        ...child,
+        menuPath: [parent.text, child.text],
+        parentMenu: {
+          text: parent.text || '',
+          href: parent.href || '',
+          id: parent.id || '',
+          ngClick: parent.ngClick || '',
+          menuDepth: parent.menuDepth,
+          depth1Index: parent.depth1Index,
+          hoverTargetCssPath: parent.hoverTargetCssPath || '',
+          openTriggerCssPath: parent.openTriggerCssPath || '',
+          semanticRegion: parent.semanticRegion || 'unknown',
+          navigationGroupIndex: parent.navigationGroupIndex,
+          confidence: parent.confidence || 'unknown',
+          cssPath: parent.cssPath || ''
+        }
+      });
+    }
+  }
+
+  return targets;
+}
+
+async function openMenuForProfile(page, menu) {
+  const hoverTargetCssPath =
+    menu.hoverTargetCssPath ||
+    menu.openTriggerCssPath ||
+    menu.parentMenu?.hoverTargetCssPath ||
+    menu.parentMenu?.openTriggerCssPath ||
+    '';
+
+  if (hoverTargetCssPath) {
+    const hoverTarget = page.locator(hoverTargetCssPath).first();
+
+    if (await hoverTarget.count()) {
+      await hoverTarget.hover({ timeout: 3000 }).catch(() => {});
+      await page.waitForTimeout(300);
+      return;
+    }
+  }
+
+  const depth1Index =
+    typeof menu.depth1Index === 'number'
+      ? menu.depth1Index
+      : menu.parentMenu?.depth1Index;
+
+  if (typeof depth1Index === 'number') {
+    const fallbackTarget = page.locator('.menuContainer .depth1 > li').nth(depth1Index);
+
+    if (await fallbackTarget.count()) {
+      await fallbackTarget.hover({ timeout: 3000 }).catch(() => {});
+      await page.waitForTimeout(300);
+    }
+  }
+}
+
+async function clickMenuTargetForProfile(page, menu) {
+  if (!menu.cssPath) {
+    return false;
+  }
+
+  await openMenuForProfile(page, menu);
+
+  try {
+    const locator = page.locator(menu.cssPath).first();
+
+    if (!await locator.count()) {
+      return false;
+    }
+
+    if (await locator.isVisible().catch(() => false)) {
+      await locator.hover({ timeout: 3000 }).catch(() => {});
+      await locator.click({ timeout: 5000 });
+    } else {
+      await page.evaluate((cssPath) => {
+        document.querySelector(cssPath)?.click();
+      }, menu.cssPath);
+    }
+
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(500);
+    return true;
+  } catch (error) {
+    console.warn(`pageProfile menu click failed: ${menu.menuPath?.join(' > ') || menu.text} (${error.message})`);
+    return false;
+  }
+}
+
+async function collectMenuPageProfiles(page, menus, baseUrl = '') {
   const pageProfiles = [];
 
   for (const menu of menus) {
@@ -568,7 +676,12 @@ async function collectMenuPageProfiles(page, menus) {
       continue;
     }
 
-    const clicked = await clickMenuCandidate(page, menu);
+    if (baseUrl) {
+      await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+      await waitForAppReady(page);
+    }
+
+    const clicked = await clickMenuTargetForProfile(page, menu);
     if (!clicked) {
       continue;
     }
@@ -586,6 +699,25 @@ async function collectMenuPageProfiles(page, menus) {
   }
 
   return pageProfiles;
+}
+
+async function collectPrimaryMenuPageProfiles(url, menuTree) {
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await waitForAppReady(page);
+
+  const targets = flattenProfileTargets(menuTree);
+  const pageProfiles = await collectMenuPageProfiles(page, targets, url);
+
+  await browser.close();
+
+  return JSON.stringify({
+    url,
+    count: pageProfiles.length,
+    pageProfiles
+  });
 }
 
 async function scoutSite(url) {
@@ -1116,8 +1248,7 @@ async function scoutSite(url) {
     };
   });
 
-  const menus = extractMenuCandidates(scoutResult.elements);
-  scoutResult.pageProfiles = await collectMenuPageProfiles(page, menus);
+  scoutResult.pageProfiles = [];
 
   await browser.close();
   return JSON.stringify(scoutResult);
@@ -1130,9 +1261,24 @@ if (!url) {
   process.exit(1);
 }
 
+const profileFlagIndex = process.argv.indexOf('--profile-tree');
+const profileTreePath = profileFlagIndex >= 0 ? process.argv[profileFlagIndex + 1] : '';
+
+if (profileTreePath) {
+  const fs = require('fs');
+  const menuTree = JSON.parse(fs.readFileSync(profileTreePath, 'utf-8'));
+
+  collectPrimaryMenuPageProfiles(url, menuTree)
+    .then(data => console.log(data))
+    .catch(err => {
+      console.error(err);
+      process.exit(1);
+    });
+} else {
 scoutSite(url)
   .then(data => console.log(data)) // 파이썬이 가로챌 수 있게 출력
   .catch(err => {
     console.error(err);
     process.exit(1);
   });
+}

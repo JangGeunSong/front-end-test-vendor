@@ -100,6 +100,42 @@ def run_scout(url):
     
     return parse_scout_output(result.stdout)
 
+
+def run_page_profile_scout(url, primary_menu_tree):
+    print("Primary navigation pageProfiles 수집 중...")
+
+    GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+    profile_tree_path = GENERATED_DIR / "primary_menu_tree_for_profiles.json"
+    with open(profile_tree_path, "w", encoding="utf-8") as f:
+        json.dump(primary_menu_tree, f, indent=2, ensure_ascii=False)
+
+    current_env = os.environ.copy()
+
+    result = subprocess.run(
+        ['node', str(SCOUT_PATH), url, '--profile-tree', str(profile_tree_path)],
+        capture_output=True,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        env=current_env,
+        check=False
+    )
+
+    try:
+        profile_tree_path.unlink()
+    except OSError:
+        pass
+
+    if result.returncode != 0:
+        print("PageProfile scout 실행 실패:", result.stderr)
+        return []
+
+    profile_result = parse_scout_output(result.stdout)
+    if not isinstance(profile_result, dict):
+        return []
+
+    return profile_result.get("pageProfiles", [])
+
 def analyze_and_generate_code(dom_data):
     print("🤖 LLM이 시나리오를 분석하고 코드를 생성하고 있습니다...")
     
@@ -307,6 +343,10 @@ def build_menu_test_prompt(generation_input):
 
     [Level 2 Page Identity assertion 규칙]
     1. pageProfiles는 menuPath로 menuTree 항목과 연결한다.
+    1-1. depth3 child Page Identity assertion은 반드시 해당 child의 menuPath와 완전히 일치하는 pageProfile만 근거로 사용한다. sibling child의 pageProfile selector를 fallback으로 사용하지 않는다.
+    1-2. ['Parent', 'Child A'] assertion에는 ['Parent', 'Child A'] pageProfile만 사용하고, ['Parent', 'Child B'] 또는 ['Parent', 'Child C'] selector를 사용하지 않는다.
+    1-3. loop 내부에서 child별 Page Identity assertion이 다르면 반드시 if (child.text === '...') 또는 else if 분기 안에서 해당 child pageProfile의 selector만 사용한다.
+    1-4. 모든 child pageProfile에서 같은 cssPath가 확인되는 경우에만 loop 내부 공통 Page Identity assertion을 생성한다. 공통인지 불확실하면 공통 fallback assertion을 생성하지 말고 child별 TODO를 남긴다.
     2. assertion 우선순위는 반드시 다음 순서를 따른다:
        URL/hash > heading > mainContainer > representativeTexts.
     3. Level 2 assertion은 테스트 실패를 쉽게 만들 수 있으므로 적게 생성한다. 후보가 불안정하면 assertion을 만들지 말고 TODO 주석으로 남긴다.
@@ -336,6 +376,7 @@ def build_menu_test_prompt(generation_input):
     3-2. Page Identity용 page.locator selector는 반드시 pageProfiles에 수집된 cssPath 하나와 완전히 동일해야 한다.
     3-3. 수집된 cssPath에서 뒤쪽 segment를 제거해 상위 parent selector로 축약하지 않는다.
     3-4. 여러 메뉴에 공통으로 쓸 content selector를 임의 생성하지 않는다. 여러 sibling 메뉴가 비슷한 content layout을 공유해 안정적인 content cssPath를 하나 고르기 어렵다면 assertion과 highlight를 만들지 말고 TODO 주석만 남긴다.
+    3-5. if contentArea visible else noticeArea 같은 sibling pageProfile selector fallback chain을 생성하지 않는다. 해당 child menuPath에서 수집된 selector가 아니면 사용하지 않는다.
     4. 수집된 cssPath가 `div#developGuide01-01 > div.listContent > div.content:nth-of-type(2)`라면 그대로 사용한다.
        `div#developGuide01-01` 같은 parent selector를 임의 생성하지 않는다.
     5. 수집된 cssPath가 너무 길거나 불안정해 보이면 assertion을 만들지 말고 TODO 주석을 남긴다.
@@ -945,13 +986,13 @@ def run_generation_pipeline(target_url):
     if not dom_map:
         return
 
-    save_json(dom_map, "scout_result.json")
-
     menu_candidates = extract_menu_candidate(dom_map)
     projections = project_menu_candidates(menu_candidates)
     primary_menu_tree, unresolved_primary = build_primary_menu_tree(projections.get("primaryMenus", []))
     projections["unresolvedPrimaryNavigationCandidates"] = unresolved_primary
-    page_profiles = extract_page_profiles(dom_map)
+    page_profiles = run_page_profile_scout(target_url, primary_menu_tree)
+    dom_map["pageProfiles"] = page_profiles
+
     menu_map = build_menu_map(
         target_url,
         menu_candidates,
@@ -960,6 +1001,7 @@ def run_generation_pipeline(target_url):
         page_profiles
     )
 
+    save_json(dom_map, "scout_result.json")
     save_json(menu_map, "menu_map.json")
     print_generation_summary(dom_map, menu_map)
 

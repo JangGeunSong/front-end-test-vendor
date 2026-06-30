@@ -86,6 +86,8 @@ Each item in `menus` should include projection metadata when available:
 
 `navigationTrigger` items such as hamburger/menu buttons and `logoHome` items can be useful for opening or orienting navigation, but they must not become `primaryMenuTree` parents. If a parent-child relation cannot be inferred confidently, the candidate should remain outside `primaryMenuTree` rather than being attached under a generic trigger.
 
+`pageProfiles` should be collected for `primaryMenuTree` targets, not for every broad discovery candidate. The `menuPath` field must match a parent path such as `["Parent"]` or a child path such as `["Parent", "Child"]` so `agent_orchestrator.py` can attach Level 2 Page Identity evidence to the generated menu step.
+
 ### menuTree
 
 `menuTree` describes depth2 and depth3 menu relationships.

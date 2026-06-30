@@ -470,6 +470,8 @@ function extractMenuCandidates(elements) {
       ngClick: item.ngClick || '',
       menuDepth: item.menuDepth,
       depth1Index: item.depth1Index,
+      hoverTargetCssPath: item.hoverTargetCssPath || '',
+      openTriggerCssPath: item.openTriggerCssPath || '',
       semanticRegion: item.semanticRegion || 'unknown',
       navigationGroupIndex: item.navigationGroupIndex,
       inferredMenuDepth: item.inferredMenuDepth,
@@ -492,6 +494,8 @@ function extractMenuCandidates(elements) {
         ngClick: currentDepth2.ngClick,
         menuDepth: currentDepth2.menuDepth,
         depth1Index: currentDepth2.depth1Index,
+        hoverTargetCssPath: currentDepth2.hoverTargetCssPath || '',
+        openTriggerCssPath: currentDepth2.openTriggerCssPath || '',
         semanticRegion: currentDepth2.semanticRegion,
         navigationGroupIndex: currentDepth2.navigationGroupIndex,
         confidence: currentDepth2.confidence,
@@ -516,6 +520,8 @@ function toProfileMenu(menu) {
     ngClick: menu.ngClick || '',
     menuDepth: menu.menuDepth,
     depth1Index: menu.depth1Index,
+    hoverTargetCssPath: menu.hoverTargetCssPath || '',
+    openTriggerCssPath: menu.openTriggerCssPath || '',
     semanticRegion: menu.semanticRegion || 'unknown',
     navigationGroupIndex: menu.navigationGroupIndex,
     inferredMenuDepth: menu.inferredMenuDepth,
@@ -808,6 +814,67 @@ async function scoutSite(url) {
       return index >= 0 ? index : null;
     }
 
+    function isListContainer(el) {
+      if (!el) {
+        return false;
+      }
+
+      const tagName = el.tagName.toLowerCase();
+      const role = el.getAttribute('role') || '';
+
+      return tagName === 'ul' || tagName === 'ol' || role === 'menu' || role === 'menubar';
+    }
+
+    function getTopLevelNavigationItem(el) {
+      const group = findNavigationGroup(el);
+      if (!group) {
+        return null;
+      }
+
+      const listItems = [];
+      let current = el;
+
+      while (current && current !== document.body && current !== group.parentElement) {
+        if (current.tagName?.toLowerCase() === 'li') {
+          listItems.push(current);
+        }
+
+        if (current === group) {
+          break;
+        }
+
+        current = current.parentElement;
+      }
+
+      if (listItems.length > 0) {
+        return listItems[listItems.length - 1];
+      }
+
+      return null;
+    }
+
+    function getHoverTargetInfo(el) {
+      const topLevelItem = getTopLevelNavigationItem(el);
+
+      if (!topLevelItem || !isListContainer(topLevelItem.parentElement)) {
+        return {
+          depth1Index: null,
+          hoverTargetCssPath: '',
+          openTriggerCssPath: ''
+        };
+      }
+
+      const siblings = Array.from(topLevelItem.parentElement.children)
+        .filter(child => child.tagName?.toLowerCase() === 'li');
+      const index = siblings.indexOf(topLevelItem);
+
+      return {
+        depth1Index: index >= 0 ? index : null,
+        hoverTargetCssPath: getCssPath(topLevelItem),
+        openTriggerCssPath: getCssPath(topLevelItem)
+      };
+    }
+
     function getListDepthWithinGroup(el) {
       const group = findNavigationGroup(el);
       let depth = 0;
@@ -947,6 +1014,7 @@ async function scoutSite(url) {
         const isVisible = isElementVisible(el);
         const semanticRegion = getSemanticRegion(el);
         const navigationGroupIndex = getNavigationGroupIndex(el);
+        const hoverTargetInfo = getHoverTargetInfo(el);
         const discoveryReason = getDiscoveryReason(el);
         const confidence = getNavigationConfidence(el);
         const inferredMenuDepth = inferMenuDepth(el);
@@ -1001,7 +1069,9 @@ async function scoutSite(url) {
           navigationGroupIndex,
           inferredMenuDepth,
           menuDepth: inferredMenuDepth,
-          depth1Index: navigationGroupIndex,
+          depth1Index: hoverTargetInfo.depth1Index,
+          hoverTargetCssPath: hoverTargetInfo.hoverTargetCssPath,
+          openTriggerCssPath: hoverTargetInfo.openTriggerCssPath,
           confidence,
           discoveryReason,
 

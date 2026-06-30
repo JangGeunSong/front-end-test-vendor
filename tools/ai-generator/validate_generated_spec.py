@@ -209,25 +209,33 @@ def extract_object_string_value(object_body, key):
 
 
 def extract_loop_submenu_calls(spec_text):
-    loop_pattern = re.compile(
-        r"""for\s*\(\s*const\s+(\w+)\s+of\s+(\w+)\s*\)\s*\{(.*?)(?=\n\s*\}\s*(?:\n|;))""",
-        re.DOTALL,
-    )
+    loop_pattern = re.compile(r"""for\s*\(\s*const\s+(\w+)\s+of\s+(\w+)\s*\)\s*\{""")
     calls = []
     static_arrays = extract_static_child_array_instances(spec_text)
 
     for match in loop_pattern.finditer(spec_text):
         item_name = match.group(1)
         array_name = match.group(2)
-        body = match.group(3)
-        items = find_nearest_static_array_items(static_arrays, array_name, match.start())
-        submenu_pattern = re.compile(
-            rf"""clickVisibleSubMenuByText\s*\(\s*page\s*,\s*(['"])(.*?)\1\s*,\s*{re.escape(item_name)}\.text\s*,\s*(\{{.*?\}})\s*\)""",
-            re.DOTALL,
-        )
-        submenu_match = submenu_pattern.search(body)
+        open_brace_index = match.end() - 1
+        close_brace_index = find_matching_brace(spec_text, open_brace_index)
 
-        if not submenu_match:
+        if close_brace_index == -1:
+            calls.append({
+                "array": array_name,
+                "item": item_name,
+                "parent": "",
+                "options": "",
+                "has_step": False,
+                "recognized": False,
+                "items": find_nearest_static_array_items(static_arrays, array_name, match.start()),
+            })
+            continue
+
+        body = spec_text[open_brace_index + 1:close_brace_index]
+        items = find_nearest_static_array_items(static_arrays, array_name, match.start())
+        submenu_call = extract_loop_submenu_call_from_body(body, item_name)
+
+        if not submenu_call:
             calls.append({
                 "array": array_name,
                 "item": item_name,
@@ -242,14 +250,50 @@ def extract_loop_submenu_calls(spec_text):
         calls.append({
             "array": array_name,
             "item": item_name,
-            "parent": submenu_match.group(2),
-            "options": submenu_match.group(3),
+            "parent": submenu_call["parent"],
+            "options": submenu_call["options"],
             "has_step": has_child_text_step(body, item_name),
             "recognized": True,
             "items": items,
         })
 
     return calls
+
+
+def extract_loop_submenu_call_from_body(loop_body, item_name):
+    function_name = "clickVisibleSubMenuByText"
+    search_from = 0
+
+    while True:
+        function_index = loop_body.find(function_name, search_from)
+        if function_index == -1:
+            return None
+
+        open_index = loop_body.find("(", function_index + len(function_name))
+        if open_index == -1:
+            return None
+
+        close_index = find_matching_paren(loop_body, open_index)
+        if close_index == -1:
+            search_from = open_index + 1
+            continue
+
+        args_text = loop_body[open_index + 1:close_index]
+        args = split_top_level_args(args_text)
+
+        if len(args) >= 4 and args[0].strip() == "page":
+            parent = parse_js_string_literal(args[1])
+            child_expression = re.sub(r"\s+", "", args[2])
+            expected_child_expression = f"{item_name}.text"
+
+            if parent and child_expression == expected_child_expression:
+                return {
+                    "parent": parent,
+                    "options": args[3],
+                    "expression": loop_body[function_index:close_index + 1],
+                }
+
+        search_from = close_index + 1
 
 
 def find_nearest_static_array_items(static_arrays, array_name, before_index):
@@ -333,6 +377,35 @@ def find_matching_paren(text, open_index):
         elif char == "(":
             depth += 1
         elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return index
+
+    return -1
+
+
+def find_matching_brace(text, open_index):
+    depth = 0
+    quote = None
+    escaped = False
+
+    for index in range(open_index, len(text)):
+        char = text[index]
+
+        if quote:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = None
+            continue
+
+        if char in ("'", '"', "`"):
+            quote = char
+        elif char == "{":
+            depth += 1
+        elif char == "}":
             depth -= 1
             if depth == 0:
                 return index

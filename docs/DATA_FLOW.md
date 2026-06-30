@@ -88,6 +88,8 @@ scout는 가능한 경우 `hoverTargetCssPath`와 `openTriggerCssPath`도 함께
 
 Level 1/2 generated spec은 `primaryMenuTree`만 사용한다. main CTA, footer link, quick link는 추후 Level 3/link profile 확장 후보로 보존한다. parent-child 관계가 불확실한 후보는 generic menu trigger 아래에 몰아넣지 않고 `unresolvedPrimaryNavigationCandidates`로 남긴다.
 
+Level 2 `pageProfiles`도 `primaryMenuTree` 기준으로 별도 수집한다. broad discovery에서 발견된 전체 후보를 그대로 클릭하지 않고, generated spec 대상인 parent/child menuPath와 일치하는 profile만 LLM 입력으로 전달한다.
+
 ### 5. agent_orchestrator.py
 
 `agent_orchestrator.py`는 생성 파이프라인을 조율한다.

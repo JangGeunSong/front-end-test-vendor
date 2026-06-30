@@ -18,7 +18,13 @@
 - Each menu step should at least open the correct depth1 area, click the target menu, and assert URL/hash when available.
 - If URL/hash does not change or the menu is ngClick/tab-like, leave a TODO when stable heading/mainContainer evidence is insufficient.
 - The LLM input includes both `menuTree` and `pageProfiles`.
-- `pageProfiles` are matched to menu cases by `menuPath`.
+- `pageProfiles` are collected from `primaryMenuTree` targets and matched to menu cases by exact `menuPath`.
+- If a `pageProfile` exists for a parent or child menu, generated tests should use its stable heading/mainContainer evidence before leaving a generic Page Identity TODO.
+- Child Page Identity assertions must use only the pageProfile whose `menuPath` exactly matches that child.
+- Generated specs must not use a sibling child's pageProfile selector as a fallback.
+- In loop-based depth3 tests, child-specific Page Identity assertions should be placed inside `if (child.text === '...')` or `else if` branches when selectors differ by child.
+- A common Page Identity assertion inside a loop is allowed only when the same stable cssPath is confirmed across all child pageProfiles.
+- Generated specs must not create fallback chains such as `if contentArea visible else noticeArea` using selectors from different sibling menuPaths.
 - Page Identity assertion priority:
   1. URL/hash
   2. heading

@@ -1,5 +1,32 @@
 # Task Log
 
+## 2026-07-01 - Require target URL input for generation
+
+### 작업 목적
+
+- 도구 코드 내부의 특정 서비스 도메인 기본값을 제거하고, target URL을 명시 입력으로 받도록 정리한다.
+- generated spec은 생성 당시 target URL을 포함할 수 있는 target-specific 산출물로 유지한다.
+
+### 변경 내용
+
+- `agent_orchestrator.py`에 `--url` CLI 인자 처리를 추가했다.
+- target URL 입력 우선순위를 CLI `--url`, 환경변수 `TARGET_URL` 순서로 정리하고, 둘 다 없으면 명확한 에러 메시지와 사용 예시를 출력하도록 했다.
+- scout 실행과 primary pageProfile scout 실행에는 입력받은 target URL을 그대로 전달하도록 유지했다.
+- generated spec prompt는 `BASE_URL` override 또는 생성 당시 target URL fallback을 사용하도록 정리했다.
+- `docs/PROMPT_STRATEGY.md`에 도구 코드는 URL을 입력으로 받고, generated spec은 생성 당시 target URL을 포함할 수 있다는 원칙을 추가했다.
+
+### 확인 결과
+
+- 문법 확인을 수행했다.
+- `package.json`의 `ai:generate` script는 `npm run ai:generate -- --url https://target.example.com` 형태의 추가 인자를 Python으로 전달할 수 있는 기존 형태라 수정하지 않았다.
+- 실제 `npm run ai:generate`, `npm run ai:validate`, `npm run test:generated`는 사용자 환경에서 확인이 필요하다.
+
+### 다음 작업
+
+- `npm run ai:generate`를 URL 없이 실행했을 때 명확히 실패하는지 확인한다.
+- `npm run ai:generate -- --url https://target.example.com` 또는 `$env:TARGET_URL="https://target.example.com"; npm run ai:generate`로 생성 흐름을 확인한다.
+- 생성 후 `npm run ai:validate`와 `npm run test:generated`를 실행해 기존 Level 1/2 동작을 확인한다.
+
 ## 2026-06-30 - Prevent sibling pageProfile selector fallback
 
 ### 작업 목적

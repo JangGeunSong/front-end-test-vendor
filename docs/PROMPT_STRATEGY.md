@@ -2,6 +2,10 @@
 
 ## Level 2 Page Identity prompt rule
 
+- Tool code must receive the target URL from `--url` or `TARGET_URL`; it must not keep a service-domain default.
+- Generated specs are target-specific artifacts and may include the target URL used at generation time as their runnable fallback.
+- To test a different URL, run `ai:generate` again for that URL instead of reusing an old generated spec.
+- Generated specs should not be env-only URL wrappers; `npm run test:generated` should work after generation unless the user overrides `BASE_URL`.
 - Generated tests keep the existing Level 1 GNB navigation flow.
 - Generated tests must create a `test.step` for every depth2 menu and every depth3 child in `menuTree`.
 - Loop-based generation is allowed, but it should use the standard format inside each parent test:

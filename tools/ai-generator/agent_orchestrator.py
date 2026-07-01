@@ -1,9 +1,8 @@
+import argparse
 import subprocess
 import json
 import os
 from pathlib import Path
-from dotenv import load_dotenv
-import google.generativeai as genai  # pip install google-generativeai
 
 BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parents[1]
@@ -59,12 +58,46 @@ BRAND_HOME_HINTS = (
 
 # 1. LLM 설정 (API 키는 환경변수나 별도 파일 권장)
 def configure_llm():
+    from dotenv import load_dotenv
+    import google.generativeai as genai
+
     load_dotenv(ROOT_DIR / ".env")
     genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
 
 def create_gemini_model():
+    import google.generativeai as genai
+
     return genai.GenerativeModel('gemini-3-flash-preview')
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Generate Playwright tests from a target URL."
+    )
+    parser.add_argument(
+        "--url",
+        dest="url",
+        help="Target URL to scout and generate tests for."
+    )
+
+    return parser.parse_args()
+
+
+def resolve_target_url(args):
+    target_url = args.url or os.environ.get("TARGET_URL")
+
+    if target_url:
+        return target_url
+
+    print(
+        "Target URL is required.\n"
+        "Use one of:\n"
+        "  npm run ai:generate -- --url https://target.example.com\n"
+        "  TARGET_URL=https://target.example.com npm run ai:generate\n"
+        "  PowerShell: $env:TARGET_URL=\"https://target.example.com\"; npm run ai:generate"
+    )
+    raise SystemExit(2)
 
 
 def parse_scout_output(stdout):
@@ -285,6 +318,8 @@ def simplify_text_candidates(items, max_count=5, include_fields=()):
 
 
 def build_menu_test_prompt(generation_input):
+    target_url_literal = json.dumps(generation_input.get("url", ""), ensure_ascii=False)
+
     return f"""
     너는 전문 QA 엔지니어이자 Playwright 테스트 아키텍트다.
 
@@ -407,10 +442,19 @@ def build_menu_test_prompt(generation_input):
     const {{ openDepth1ByIndex, clickVisibleMenuByText, clickVisibleSubMenuByText }} = require('../../utils/gnb');
     const {{ highlightPageIdentity }} = require('../../utils/highlight');
 
+    [Generated BASE_URL rule]
+    - The generated spec is a target-specific test artifact and may include the target URL scanned during this generation.
+    - Do not use a fixed service-domain default from tool code.
+    - Generate a standalone runnable default URL using the current generation input:
+      const BASE_URL = process.env.BASE_URL || {target_url_literal};
+    - test.beforeEach should navigate to BASE_URL.
+    - Do not generate env-only URL code such as `const BASE_URL = process.env.BASE_URL || process.env.TARGET_URL;`.
+    - To test another URL, the user should run ai:generate again for that URL instead of reusing this generated spec.
+
     [기본 코드 조건]
     - CommonJS 형식으로 작성한다.
     - const {{ test, expect }} = require('@playwright/test'); 를 포함한다.
-    - test.beforeEach에서 page.goto(process.env.BASE_URL || 'https://example.com')를 사용한다.
+    - test.beforeEach에서 page.goto(BASE_URL)를 사용한다.
     - await page.waitForSelector('header.header.pc'); 를 포함한다.
 
     [코드 스타일]
@@ -1016,5 +1060,5 @@ def run_generation_pipeline(target_url):
 
 
 if __name__ == "__main__":
-    target_url = "https://iotbiz.kt.co.kr" # 실제 테스트 대상 URL
+    target_url = resolve_target_url(parse_args())
     run_generation_pipeline(target_url)

@@ -1,5 +1,33 @@
 # Task Log
 
+## 2026-07-03 - Add deterministic test plan renderer draft
+
+### 작업 목적
+
+- structured test plan JSON을 입력으로 받아 Playwright spec을 생성하는 deterministic renderer 초안을 추가한다.
+- 기존 `ai:generate`, generated spec 생성, `ai:validate`, `test:generated` 흐름은 변경하지 않는다.
+
+### 변경 내용
+
+- `tools/ai-generator/render_test_plan.py`를 신규 추가했다.
+- 기본 입력은 `tools/ai-generator/generated/test_plan.example.json`, 기본 출력은 `tests/generated/generated_from_plan.spec.js`로 설정했다.
+- `navigation.urlOnly`, `navigation.headingIdentity`, `navigation.contentIdentity`, `navigation.tabIdentity`, `navigation.todoIdentity` 렌더링을 지원한다.
+- renderer가 CommonJS import, `BASE_URL`, `test.beforeEach`, URL assertion helper, click helper 호출, Page Identity assertion, TODO comment 형식을 고정하도록 했다.
+- `package.json`에 `ai:render-plan` script를 추가했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/render_test_plan.py` 문법 확인을 통과했다.
+- `python tools/ai-generator/validate_test_plan.py` 실행 결과 errors 0, warnings 0으로 통과했다.
+- `python tools/ai-generator/render_test_plan.py` 실행 후 `tests/generated/generated_from_plan.spec.js`가 생성되는 것을 확인했다.
+- 생성된 spec에서 `BASE_URL`, URL assertion helper, click helper 호출, heading/content/tab/TODO 렌더링 형식을 확인했다.
+- 현재 셸에서 `npm`이 PATH에 없어 `npm run ai:render-plan`은 실행하지 못했다.
+
+### 다음 작업
+
+- 실제 target URL 기반 test plan JSON 생성 단계와 연결하기 전에 renderer 출력 형식을 리뷰한다.
+- future 단계에서 `agent_orchestrator.py`가 LLM에게 JS가 아니라 test plan JSON을 요청하도록 점진 전환한다.
+
 ## 2026-07-03 - Add structured test plan validator draft
 
 ### 작업 목적

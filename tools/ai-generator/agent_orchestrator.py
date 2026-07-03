@@ -2,6 +2,7 @@ import argparse
 import subprocess
 import json
 import os
+import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -10,6 +11,12 @@ SCOUT_PATH = BASE_DIR / "scout.js"
 GENERATED_DIR = BASE_DIR / "generated"
 # node 에서 바로 실행할 수 있도록 적용
 TESTS_GENERATED_DIR = ROOT_DIR / "tests" / "generated"
+BUILD_TEST_PLAN_PATH = BASE_DIR / "build_test_plan.py"
+VALIDATE_TEST_PLAN_PATH = BASE_DIR / "validate_test_plan.py"
+RENDER_TEST_PLAN_PATH = BASE_DIR / "render_test_plan.py"
+MENU_MAP_PATH = GENERATED_DIR / "menu_map.json"
+TEST_PLAN_GENERATED_PATH = GENERATED_DIR / "test_plan.generated.json"
+PLAN_RENDER_OUTPUT_PATH = TESTS_GENERATED_DIR / "generated_from_plan.spec.js"
 
 PRIMARY_MENU_REGIONS = {"header", "nav"}
 NON_PRIMARY_REGIONS = {"main", "footer", "unknown"}
@@ -80,6 +87,12 @@ def parse_args():
         dest="url",
         help="Target URL to scout and generate tests for."
     )
+    parser.add_argument(
+        "--generation-mode",
+        choices=("spec", "plan"),
+        default="spec",
+        help="Generation mode. 'spec' keeps direct LLM Playwright spec generation. 'plan' runs deterministic structured plan shadow output."
+    )
 
     return parser.parse_args()
 
@@ -104,11 +117,11 @@ def parse_scout_output(stdout):
     try:
         return json.loads(stdout)
     except json.JSONDecodeError:
-        print("❌ JSON 파싱 실패. 출력물을 확인하세요.")
+        print("JSON 파싱 실패. 출력물을 확인하세요.")
         return None
 
 def run_scout(url):
-    print(f"🔍 '{url}' 사이트 구조 분석 중...")
+    print(f"'{url}' 사이트 구조 분석 중...")
 
     # 현재 환경 변수 복사 및 UTF-8 설정 주입
     current_env = os.environ.copy()
@@ -128,7 +141,7 @@ def run_scout(url):
     )
     
     if result.returncode != 0:
-        print("❌ Scout 실행 실패:", result.stderr)
+        print("Scout 실행 실패:", result.stderr)
         return None
     
     return parse_scout_output(result.stdout)
@@ -170,7 +183,7 @@ def run_page_profile_scout(url, primary_menu_tree):
     return profile_result.get("pageProfiles", [])
 
 def analyze_and_generate_code(dom_data):
-    print("🤖 LLM이 시나리오를 분석하고 코드를 생성하고 있습니다...")
+    print("LLM이 시나리오를 분석하고 코드를 생성하고 있습니다...")
     
     prompt = f"""
     너는 전문 QA 엔지니어이자 Playwright 아키텍트다.
@@ -475,7 +488,7 @@ def strip_markdown_code_block(text):
 
 
 def analyze_and_generate_menu_test(menu_map, generate_all=True, max_parent=3, max_children=3):
-    print("🤖 LLM이 menuTree 기반 GNB 메뉴 접근 테스트를 생성하고 있습니다...")
+    print("LLM이 menuTree 기반 GNB 메뉴 접근 테스트를 생성하고 있습니다...")
 
     generation_input = build_menu_generation_input(
         menu_map,
@@ -515,7 +528,7 @@ def save_test_spec(code, file_name="generated_test.spec.js"):
     with open(file_path, 'w', encoding='utf-8') as f:
         f.write(ensure_playwright_header(code))
 
-    print(f"✅ 테스트 파일 생성 완료: {file_path}")
+    print(f"테스트 파일 생성 완료: {file_path}")
 
 
 def save_generated_test_spec(code, file_name="generated_menu_access.spec.js"):
@@ -525,7 +538,7 @@ def save_generated_test_spec(code, file_name="generated_menu_access.spec.js"):
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(ensure_playwright_header(code))
 
-    print(f"✅ 실행용 테스트 파일 생성 완료: {file_path}")
+    print(f"실행용 테스트 파일 생성 완료: {file_path}")
 
 
 def save_json(data, file_name="scout_result.json"):
@@ -535,7 +548,7 @@ def save_json(data, file_name="scout_result.json"):
     with open(file_path, "w", encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
         
-    print(f"✅ JSON 저장 완료: {file_path}")
+    print(f"JSON 저장 완료: {file_path}")
 
 # 의미있는 페이지 이동 버튼들만 선택하여 처리할 수 있는 형태의 MAP으로 재 구성
 def extract_menu_candidate(dom_data):
@@ -1022,13 +1035,12 @@ def count_tree_children(menu_tree):
     return sum(len(item.get("children", [])) for item in menu_tree)
 
 
-def run_generation_pipeline(target_url):
-    configure_llm()
-
+def build_and_save_menu_map(target_url):
+    print("running scout")
     dom_map = run_scout(target_url)
     print(dom_map)
     if not dom_map:
-        return
+        raise RuntimeError("scout failed")
 
     menu_candidates = extract_menu_candidate(dom_map)
     projections = project_menu_candidates(menu_candidates)
@@ -1049,6 +1061,13 @@ def run_generation_pipeline(target_url):
     save_json(menu_map, "menu_map.json")
     print_generation_summary(dom_map, menu_map)
 
+    return menu_map
+
+
+def run_generation_pipeline(target_url):
+    configure_llm()
+    menu_map = build_and_save_menu_map(target_url)
+
     # code = analyze_and_generate_code(dom_map)
     # code = analyze_and_generate_menu_test(menu_map)
 
@@ -1059,6 +1078,61 @@ def run_generation_pipeline(target_url):
     save_generated_test_spec(code, "generated_menu_access.spec.js")
 
 
+def run_subprocess_stage(stage_name, command):
+    print(stage_name)
+    result = subprocess.run(command, cwd=ROOT_DIR, check=False)
+
+    if result.returncode != 0:
+        raise RuntimeError(f"{stage_name} failed")
+
+
+def run_plan_generation_pipeline(target_url):
+    build_and_save_menu_map(target_url)
+
+    run_subprocess_stage(
+        "building structured test plan",
+        [
+            sys.executable,
+            str(BUILD_TEST_PLAN_PATH),
+            "--input",
+            str(MENU_MAP_PATH),
+            "--output",
+            str(TEST_PLAN_GENERATED_PATH),
+        ]
+    )
+    run_subprocess_stage(
+        "validating structured test plan",
+        [
+            sys.executable,
+            str(VALIDATE_TEST_PLAN_PATH),
+            "--input",
+            str(TEST_PLAN_GENERATED_PATH),
+        ]
+    )
+    run_subprocess_stage(
+        "rendering Playwright spec from test plan",
+        [
+            sys.executable,
+            str(RENDER_TEST_PLAN_PATH),
+            "--input",
+            str(TEST_PLAN_GENERATED_PATH),
+            "--output",
+            str(PLAN_RENDER_OUTPUT_PATH),
+        ]
+    )
+    print(f"rendered output: {PLAN_RENDER_OUTPUT_PATH}")
+
+
 if __name__ == "__main__":
-    target_url = resolve_target_url(parse_args())
-    run_generation_pipeline(target_url)
+    args = parse_args()
+    target_url = resolve_target_url(args)
+    print(f"generation mode: {args.generation_mode}")
+
+    try:
+        if args.generation_mode == "plan":
+            run_plan_generation_pipeline(target_url)
+        else:
+            run_generation_pipeline(target_url)
+    except RuntimeError as error:
+        print(f"ERROR: {error}")
+        raise SystemExit(1) from error

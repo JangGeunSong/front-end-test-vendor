@@ -1,5 +1,34 @@
 # Task Log
 
+## 2026-07-03 - Conservative template selection for renderer path
+
+### 작업 목적
+
+- renderer 기반 산출물 `tests/generated/generated_from_plan.spec.js`를 실제 Playwright 실행 기준으로 검증한다.
+- 실행 결과를 바탕으로 `build_test_plan.py`의 template 선택 기준을 보수적으로 조정한다.
+- 기존 `ai:generate`, `generated_menu_access.spec.js`, `agent_orchestrator.py`, `scout.js` 흐름은 변경하지 않는다.
+
+### 변경 내용
+
+- `build_test_plan.py`에서 heading이 존재한다는 이유만으로 `navigation.headingIdentity`를 선택하지 않도록 조정했다.
+- headingIdentity는 heading text가 `menuPath` leaf text와 exact match되는 경우에만 선택하도록 변경했다.
+- depth3 child가 `ngClick`을 가지고 있거나 href가 비어 있는 tab-like 메뉴이면 heading보다 `navigation.tabIdentity`를 우선하도록 변경했다.
+- tabIdentity는 exact menuPath pageProfile의 tabs cssPath를 우선 사용하고, tabs 근거가 없지만 click cssPath가 있으면 `navigationChange: "unknown"`으로 보수 처리하도록 했다.
+- contentIdentity는 `MAIN` 또는 너무 넓은 subContainer 대신 더 구체적인 main/content container cssPath를 선택하도록 조정했다.
+- sibling pageProfile selector fallback 금지 원칙은 유지했다.
+
+### 확인 결과
+
+- 보수화 전 renderer 기반 spec 실행 결과 `npx playwright test tests/generated/generated_from_plan.spec.js`에서 41 passed를 확인했다.
+- 보수화 후 `npm run ai:plan` 실행 결과 build, validate, render가 모두 통과했다.
+- 보수화 후 `test_plan.generated.json` template 분포는 `navigation.headingIdentity` 20건, `navigation.contentIdentity` 11건, `navigation.tabIdentity` 10건으로 조정되었다.
+- 보수화 후 `npx playwright test tests/generated/generated_from_plan.spec.js` 실행 결과 41 passed를 확인했다.
+
+### 다음 작업
+
+- renderer 기반 spec의 visual/debug 확인을 별도로 수행할지 검토한다.
+- 이후 `agent_orchestrator.py`를 LLM JS 생성에서 structured test plan JSON 생성으로 전환하는 범위를 설계한다.
+
 ## 2026-07-03 - Clarify structured test plan npm scripts
 
 ### 작업 목적

@@ -74,6 +74,8 @@ Current plan scripts:
 - `npm run ai:validate-generated-plan`
 - `npm run ai:render-generated-plan`
 - `npm run ai:plan`
+- `npm run ai:generate-plan -- --url https://target.example.com`
+- `npm run ai:generate-llm-plan -- --url https://target.example.com`
 
 Current experimental output files:
 
@@ -142,18 +144,28 @@ menu_map.json + pageProfiles
 
 Behavior:
 
-- Add a plan-generation prompt to `agent_orchestrator.py`.
+- `agent_orchestrator.py --generation-mode llm-plan` runs this shadow mode.
 - The LLM outputs JSON only.
+- The raw LLM response is stored as `tools/ai-generator/generated/test_plan.llm.raw.txt`.
 - Store LLM output as `tools/ai-generator/generated/test_plan.llm.json`.
 - Validate it before rendering.
-- Keep direct JS generation as fallback.
+- Do not silently fall back to direct JS generation in this opt-in mode.
 - Keep rendered output separate as `generated_from_plan.spec.js`.
 
 Failure fallback:
 
-- If JSON parse fails, keep direct JS generation path.
-- If plan validation fails, keep direct JS generation path.
-- If renderer fails, keep direct JS generation path.
+- If JSON parse fails, preserve the raw response and fail the command.
+- If plan validation fails, preserve `test_plan.llm.json` and fail the command.
+- If renderer fails, preserve the plan and fail the command.
+- The stable `spec` mode remains available as a separate explicit mode.
+
+## Generation Modes
+
+| Mode | LLM role | Plan source | Output | Status |
+| --- | --- | --- | --- | --- |
+| `spec` | Generates full Playwright JS spec | none | `tests/generated/generated_menu_access.spec.js` | default stable path |
+| `plan` | none | deterministic `build_test_plan.py` from `menu_map.json` | `tests/generated/generated_from_plan.spec.js` | opt-in shadow path |
+| `llm-plan` | Generates structured test plan JSON only | `test_plan.llm.json` | `tests/generated/generated_from_plan.spec.js` | opt-in LLM plan shadow path |
 
 ### Phase 3 - Opt-In Plan Mode
 

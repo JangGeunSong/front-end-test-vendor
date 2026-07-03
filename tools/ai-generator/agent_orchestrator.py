@@ -2,6 +2,7 @@ import argparse
 import subprocess
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -16,6 +17,8 @@ VALIDATE_TEST_PLAN_PATH = BASE_DIR / "validate_test_plan.py"
 RENDER_TEST_PLAN_PATH = BASE_DIR / "render_test_plan.py"
 MENU_MAP_PATH = GENERATED_DIR / "menu_map.json"
 TEST_PLAN_GENERATED_PATH = GENERATED_DIR / "test_plan.generated.json"
+TEST_PLAN_LLM_RAW_PATH = GENERATED_DIR / "test_plan.llm.raw.txt"
+TEST_PLAN_LLM_PATH = GENERATED_DIR / "test_plan.llm.json"
 PLAN_RENDER_OUTPUT_PATH = TESTS_GENERATED_DIR / "generated_from_plan.spec.js"
 
 PRIMARY_MENU_REGIONS = {"header", "nav"}
@@ -89,9 +92,9 @@ def parse_args():
     )
     parser.add_argument(
         "--generation-mode",
-        choices=("spec", "plan"),
+        choices=("spec", "plan", "llm-plan"),
         default="spec",
-        help="Generation mode. 'spec' keeps direct LLM Playwright spec generation. 'plan' runs deterministic structured plan shadow output."
+        help="Generation mode. 'spec' keeps direct LLM Playwright spec generation. 'plan' runs deterministic structured plan shadow output. 'llm-plan' asks the LLM for structured test plan JSON and renders it."
     )
 
     return parser.parse_args()
@@ -477,6 +480,139 @@ def build_menu_test_prompt(generation_input):
     """
 
 
+def build_structured_test_plan_prompt(generation_input):
+    return f"""
+    You are a QA test planning agent.
+
+    Your task is to create a structured test plan JSON object for a deterministic Playwright renderer.
+    Do not write Playwright JavaScript.
+    Do not write helper functions, regex code, locator code, loops, imports, or comments outside JSON.
+
+    Return JSON object only.
+    Do not wrap the response in markdown.
+    Do not use ```json code fences.
+
+    [Input]
+    The following JSON contains the target URL, primary navigation menu tree, and Level 2 pageProfile candidates.
+    Use only this data.
+
+    {json.dumps(generation_input, indent=2, ensure_ascii=False)}
+
+    [Top-level schema]
+    {{
+      "version": "1.0",
+      "targetUrl": "<target URL from input.url>",
+      "source": {{
+        "menuMapPath": "tools/ai-generator/generated/menu_map.json",
+        "scoutResultPath": "tools/ai-generator/generated/scout_result.json"
+      }},
+      "tests": []
+    }}
+
+    [Supported templates]
+    Use only these template values:
+    - navigation.urlOnly
+    - navigation.headingIdentity
+    - navigation.contentIdentity
+    - navigation.tabIdentity
+    - navigation.todoIdentity
+
+    [Required common test fields]
+    Each tests[] item must include:
+    - id: stable unique string
+    - title: human-readable string
+    - template: one supported template
+    - menuPath: array of strings
+    - depth1Index: number or null
+    - click: object
+    - assertions: object
+
+    [Click schema]
+    For depth2:
+    {{
+      "type": "depth2",
+      "text": "<menu text>",
+      "id": "<optional id>",
+      "ngClick": "<optional ngClick>",
+      "cssPath": "<optional cssPath from menu_map>"
+    }}
+
+    For depth3:
+    {{
+      "type": "depth3",
+      "parentText": "<parent depth2 text>",
+      "text": "<child text>",
+      "id": "<optional id>",
+      "ngClick": "<optional ngClick>",
+      "cssPath": "<optional cssPath from menu_map>"
+    }}
+
+    Preserve id, ngClick, and cssPath literally from menuTree when they exist.
+    Never calculate cssPath from id.
+    Never omit parentText for depth3.
+
+    [Template rules]
+    navigation.urlOnly:
+    - Requires assertions.url.href.
+    - Use this when URL/hash is the only stable signal.
+
+    navigation.headingIdentity:
+    - Requires assertions.url.href.
+    - Requires assertions.identity.type = "heading".
+    - Requires assertions.identity.text.
+    - Requires assertions.identity.exact boolean.
+    - Use exact: true by default.
+    - Use only when a stable visible heading matches the current menuPath leaf.
+
+    navigation.contentIdentity:
+    - Requires assertions.url.href.
+    - Requires assertions.identity.type = "content".
+    - Requires assertions.identity.selector.
+    - Requires assertions.identity.sourceMenuPath.
+    - selector must be a cssPath from the pageProfile whose menuPath exactly matches this test menuPath.
+    - sourceMenuPath must exactly equal menuPath.
+
+    navigation.tabIdentity:
+    - Requires assertions.identity.type = "tab".
+    - Requires navigationChange = "expected", "none", or "unknown".
+    - Requires at least one of assertions.identity.selector, assertions.identity.id, assertions.identity.text.
+    - Use this for ngClick/tab-like navigation where URL/hash may not change.
+    - If a URL/hash is available, include assertions.url.href.
+
+    navigation.todoIdentity:
+    - Requires assertions.url.href when available.
+    - Requires todo.reason.
+    - Use this when stable identity evidence is weak or ambiguous.
+
+    [Coverage rules]
+    - Create tests for every depth2 parent in menuTree.
+    - Create tests for every depth3 child in each parent.children.
+    - Do not skip a menu because Page Identity evidence is weak.
+    - Use navigation.todoIdentity when uncertain.
+
+    [URL/hash rules]
+    - assertions.url.href should use menuTree href when available.
+    - If menuTree href is empty, use the exact matching pageProfile navigation.hash when available.
+    - Do not invent routes.
+
+    [Selector and identity rules]
+    - Selectors may only come from the exact matching menuPath pageProfile.
+    - Sibling pageProfile selector fallback is forbidden.
+    - Do not shorten, merge, synthesize, or generalize cssPath selectors.
+    - Do not use selector lists such as "selector1, selector2".
+    - Do not use button text, product/model names, notice titles, FAQ questions, list data, or operational data as strong identity assertions.
+    - If heading/mainContainer/tab evidence is ambiguous, use navigation.todoIdentity.
+
+    [Safety rules]
+    - This plan is for Level 1 Navigation Smoke and Level 2 Page Identity only.
+    - Do not create save, delete, register, update, approve, send, upload, submit, or any data-changing action.
+    - Do not create Level 3 input or form interaction plans.
+
+    [Output]
+    Return a single valid JSON object matching the schema.
+    """
+
+
 def generate_content_with_llm(prompt):
     model = create_gemini_model()
     response = model.generate_content(prompt)
@@ -485,6 +621,26 @@ def generate_content_with_llm(prompt):
 
 def strip_markdown_code_block(text):
     return text.replace("```javascript", "").replace("```", "").strip()
+
+
+def strip_json_code_block(text):
+    cleaned = str(text or "").strip()
+    match = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", cleaned, flags=re.DOTALL | re.IGNORECASE)
+
+    if match:
+        return match.group(1).strip()
+
+    return cleaned
+
+
+def parse_llm_test_plan(raw_text):
+    cleaned = strip_json_code_block(raw_text)
+
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError as error:
+        print(f"LLM structured plan JSON parse failed. Raw response: {TEST_PLAN_LLM_RAW_PATH}")
+        raise RuntimeError(f"LLM structured plan JSON parse failed: {error}") from error
 
 
 def analyze_and_generate_menu_test(menu_map, generate_all=True, max_parent=3, max_children=3):
@@ -500,6 +656,25 @@ def analyze_and_generate_menu_test(menu_map, generate_all=True, max_parent=3, ma
     generated_code = strip_markdown_code_block(generate_content_with_llm(prompt))
 
     return generated_code
+
+
+def generate_structured_test_plan_with_llm(menu_map):
+    print("LLM이 structured test plan JSON을 생성하고 있습니다...")
+
+    generation_input = build_menu_generation_input(menu_map, generate_all=True)
+    prompt = build_structured_test_plan_prompt(generation_input)
+
+    try:
+        raw_response = generate_content_with_llm(prompt)
+    except Exception as error:
+        raise RuntimeError(f"LLM structured test plan generation failed: {error}") from error
+
+    save_text(raw_response, TEST_PLAN_LLM_RAW_PATH)
+
+    parsed_plan = parse_llm_test_plan(raw_response)
+    save_json_to_path(parsed_plan, TEST_PLAN_LLM_PATH)
+
+    return parsed_plan
 
 
 def limit_menu_tree(menu_tree, max_parent=3, max_children=3):
@@ -549,6 +724,21 @@ def save_json(data, file_name="scout_result.json"):
         json.dump(data, f, indent=2, ensure_ascii=False)
         
     print(f"JSON 저장 완료: {file_path}")
+
+
+def save_json_to_path(data, file_path):
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
+    print(f"JSON 저장 완료: {file_path}")
+
+
+def save_text(text, file_path):
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    file_path.write_text(str(text or ""), encoding="utf-8")
+    print(f"Raw response 저장 완료: {file_path}")
 
 # 의미있는 페이지 이동 버튼들만 선택하여 처리할 수 있는 형태의 MAP으로 재 구성
 def extract_menu_candidate(dom_data):
@@ -1123,13 +1313,47 @@ def run_plan_generation_pipeline(target_url):
     print(f"rendered output: {PLAN_RENDER_OUTPUT_PATH}")
 
 
+def run_llm_plan_generation_pipeline(target_url):
+    configure_llm()
+    menu_map = build_and_save_menu_map(target_url)
+
+    print("generating structured test plan with LLM")
+    generate_structured_test_plan_with_llm(menu_map)
+    print(f"raw response: {TEST_PLAN_LLM_RAW_PATH}")
+    print(f"parsed plan: {TEST_PLAN_LLM_PATH}")
+
+    run_subprocess_stage(
+        "validating LLM structured test plan",
+        [
+            sys.executable,
+            str(VALIDATE_TEST_PLAN_PATH),
+            "--input",
+            str(TEST_PLAN_LLM_PATH),
+        ]
+    )
+    run_subprocess_stage(
+        "rendering Playwright spec from LLM test plan",
+        [
+            sys.executable,
+            str(RENDER_TEST_PLAN_PATH),
+            "--input",
+            str(TEST_PLAN_LLM_PATH),
+            "--output",
+            str(PLAN_RENDER_OUTPUT_PATH),
+        ]
+    )
+    print(f"rendered output: {PLAN_RENDER_OUTPUT_PATH}")
+
+
 if __name__ == "__main__":
     args = parse_args()
     target_url = resolve_target_url(args)
     print(f"generation mode: {args.generation_mode}")
 
     try:
-        if args.generation_mode == "plan":
+        if args.generation_mode == "llm-plan":
+            run_llm_plan_generation_pipeline(target_url)
+        elif args.generation_mode == "plan":
             run_plan_generation_pipeline(target_url)
         else:
             run_generation_pipeline(target_url)

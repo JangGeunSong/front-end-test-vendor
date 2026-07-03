@@ -6,6 +6,7 @@
   "scripts": {
     "ai:generate": "python tools/ai-generator/agent_orchestrator.py",
     "ai:generate-plan": "python tools/ai-generator/agent_orchestrator.py --generation-mode plan",
+    "ai:generate-llm-plan": "python tools/ai-generator/agent_orchestrator.py --generation-mode llm-plan",
     "ai:validate": "python tools/ai-generator/validate_generated_spec.py",
     "ai:validate-plan": "python tools/ai-generator/validate_test_plan.py",
     "ai:build-plan": "python tools/ai-generator/build_test_plan.py",

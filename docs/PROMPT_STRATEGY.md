@@ -1,5 +1,32 @@
 # Prompt Strategy
 
+## Structured Test Plan prompt rule
+
+- `--generation-mode llm-plan` asks the LLM to generate structured test plan JSON, not Playwright JavaScript.
+- The LLM response must be a single JSON object only.
+- Markdown code blocks, JavaScript code, helper functions, regex code, Playwright locators, imports, loops, and prose explanations are forbidden.
+- The plan must use schema version `"1.0"`.
+- `targetUrl` must come from the current generation input URL.
+- `source.menuMapPath` must be `tools/ai-generator/generated/menu_map.json`.
+- `source.scoutResultPath` must be `tools/ai-generator/generated/scout_result.json`.
+- The LLM may choose only these templates:
+  - `navigation.urlOnly`
+  - `navigation.headingIdentity`
+  - `navigation.contentIdentity`
+  - `navigation.tabIdentity`
+  - `navigation.todoIdentity`
+- Every depth2 parent and every depth3 child in `menuTree` should be represented in `tests`.
+- `id`, `ngClick`, and `cssPath` values from `menuTree` must be preserved literally in `click` when present.
+- Depth3 tests must include `click.parentText`.
+- URL/hash assertions should use menu `href` first, then exact matching pageProfile `navigation.hash` when available.
+- Selectors may only come from the pageProfile whose `menuPath` exactly matches the test `menuPath`.
+- Sibling pageProfile selector fallback is forbidden.
+- Selectors must not be shortened, merged, synthesized, or converted into selector lists.
+- Heading identity should use `exact: true` by default and only when the heading is stable for the current menuPath.
+- If Page Identity evidence is weak or ambiguous, choose `navigation.todoIdentity`.
+- Risky or data-changing actions such as save, delete, register, update, approve, send, upload, and submit are forbidden.
+- The deterministic renderer owns Playwright code shape, URL escaping, helper imports, assertions, visual debug calls, and TODO comment rendering.
+
 ## Level 2 Page Identity prompt rule
 
 - Tool code must receive the target URL from `--url` or `TARGET_URL`; it must not keep a service-domain default.

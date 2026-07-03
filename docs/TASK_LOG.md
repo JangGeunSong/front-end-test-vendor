@@ -1,5 +1,39 @@
 # Task Log
 
+## 2026-07-03 - Add LLM structured plan generation mode
+
+### 작업 목적
+
+- `agent_orchestrator.py`에 `--generation-mode llm-plan` opt-in shadow mode를 추가한다.
+- LLM이 Playwright JS 전체가 아니라 structured test plan JSON만 생성하도록 실험 경로를 만든다.
+- 기존 `spec` mode와 deterministic `plan` mode는 유지한다.
+
+### 변경 내용
+
+- `agent_orchestrator.py`의 `--generation-mode` 선택지에 `llm-plan`을 추가했다.
+- `llm-plan` mode에서 scout, menu_map 생성 후 LLM structured test plan prompt를 호출하도록 했다.
+- LLM raw response를 `tools/ai-generator/generated/test_plan.llm.raw.txt`에 저장하도록 했다.
+- JSON code block strip 및 JSON parse 후 `tools/ai-generator/generated/test_plan.llm.json`에 저장하도록 했다.
+- parsed plan을 `validate_test_plan.py`로 검증하고 `render_test_plan.py`로 `tests/generated/generated_from_plan.spec.js`를 생성하도록 연결했다.
+- `package.json`에 `ai:generate-llm-plan` script를 추가했다.
+- `docs/STRUCTURED_PLAN_MIGRATION.md`와 `docs/PROMPT_STRATEGY.md`에 LLM plan shadow mode와 prompt 규칙을 반영했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인이 통과했다.
+- venv 활성화와 fnm 초기화 후 `npm run ai:generate-plan -- --url https://iotbiz.kt.co.kr`를 실행해 deterministic plan mode 회귀를 확인했다.
+- deterministic plan mode는 scout, pageProfile 수집, `test_plan.generated.json` build, plan validation, `generated_from_plan.spec.js` render가 통과했다.
+- venv 활성화와 fnm 초기화 후 `npm run ai:generate-llm-plan -- --url https://iotbiz.kt.co.kr`를 실행했다.
+- `llm-plan` mode는 scout, pageProfile 수집, `menu_map.json`/`scout_result.json` 저장까지 완료했으나 LLM API 호출 단계에서 `403 Lightning dunning decision is deny`로 실패했다.
+- LLM 응답을 받기 전에 실패했으므로 `test_plan.llm.raw.txt`와 `test_plan.llm.json`은 생성되지 않았다.
+- 실패 단계가 명확히 드러나도록 LLM structured plan generation 예외를 `RuntimeError`로 감싸는 처리를 추가했다.
+
+### 다음 작업
+
+- LLM API 권한/결제 상태가 정상화되면 `npm run ai:generate-llm-plan -- --url <target>`를 다시 실행해 raw/parsed plan artifact 생성을 확인한다.
+- LLM plan output이 validate 단계에서 실패하는 경우 raw response와 parsed plan을 기준으로 prompt를 보수화한다.
+- llm-plan 경로가 안정화되면 renderer output 실행 결과와 기존 spec mode 결과를 비교한다.
+
 ## 2026-07-03 - Add opt-in plan generation mode
 
 ### 작업 목적

@@ -24,6 +24,12 @@
 - Selectors must not be shortened, merged, synthesized, or converted into selector lists.
 - Heading identity should use `exact: true` by default and only when the heading is stable for the current menuPath.
 - If Page Identity evidence is weak or ambiguous, choose `navigation.todoIdentity`.
+- For `navigation.tabIdentity`, `navigationChange` is required and must be exactly one of `"expected"`, `"none"`, or `"unknown"`.
+- Do not use booleans, `null`, `"true"`, `"false"`, `"yes"`, `"no"`, `"same"`, `"changed"`, `"no-change"`, `"none expected"`, or any other value for `navigationChange`.
+- Use `"expected"` when URL/hash changes after click.
+- Use `"none"` when URL/hash does not change because the menu is tab-like or `ngClick`-based.
+- Use `"unknown"` when uncertain.
+- The orchestrator may normalize missing or invalid LLM `navigationChange` values before strict validation, but `validate_test_plan.py` remains strict.
 - Risky or data-changing actions such as save, delete, register, update, approve, send, upload, and submit are forbidden.
 - The deterministic renderer owns Playwright code shape, URL escaping, helper imports, assertions, visual debug calls, and TODO comment rendering.
 

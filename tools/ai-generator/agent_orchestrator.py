@@ -1,4 +1,5 @@
 import argparse
+import copy
 import subprocess
 import json
 import os
@@ -18,8 +19,10 @@ RENDER_TEST_PLAN_PATH = BASE_DIR / "render_test_plan.py"
 MENU_MAP_PATH = GENERATED_DIR / "menu_map.json"
 TEST_PLAN_GENERATED_PATH = GENERATED_DIR / "test_plan.generated.json"
 TEST_PLAN_LLM_RAW_PATH = GENERATED_DIR / "test_plan.llm.raw.txt"
+TEST_PLAN_LLM_ORIGINAL_PATH = GENERATED_DIR / "test_plan.llm.original.json"
 TEST_PLAN_LLM_PATH = GENERATED_DIR / "test_plan.llm.json"
 PLAN_RENDER_OUTPUT_PATH = TESTS_GENERATED_DIR / "generated_from_plan.spec.js"
+VALID_NAVIGATION_CHANGES = {"expected", "none", "unknown"}
 
 PRIMARY_MENU_REGIONS = {"header", "nav"}
 NON_PRIMARY_REGIONS = {"main", "footer", "unknown"}
@@ -574,7 +577,17 @@ def build_structured_test_plan_prompt(generation_input):
 
     navigation.tabIdentity:
     - Requires assertions.identity.type = "tab".
-    - Requires navigationChange = "expected", "none", or "unknown".
+    - navigationChange is required.
+    - navigationChange must be exactly one of these string literals:
+      - "expected"
+      - "none"
+      - "unknown"
+    - Do not use booleans.
+    - Do not use null.
+    - Do not use "true", "false", "yes", "no", "same", "changed", "no-change", "none expected", or any other value.
+    - If URL/hash changes after click, use "expected".
+    - If URL/hash does not change because the menu is tab-like/ngClick, use "none".
+    - If uncertain, use "unknown".
     - Requires at least one of assertions.identity.selector, assertions.identity.id, assertions.identity.text.
     - Use this for ngClick/tab-like navigation where URL/hash may not change.
     - If a URL/hash is available, include assertions.url.href.
@@ -643,6 +656,51 @@ def parse_llm_test_plan(raw_text):
         raise RuntimeError(f"LLM structured plan JSON parse failed: {error}") from error
 
 
+def infer_navigation_change(test_case):
+    click = test_case.get("click") if isinstance(test_case, dict) else {}
+    assertions = test_case.get("assertions") if isinstance(test_case, dict) else {}
+    url_assertion = assertions.get("url") if isinstance(assertions, dict) else {}
+
+    if isinstance(click, dict) and click.get("ngClick"):
+        return "none"
+
+    if isinstance(url_assertion, dict) and url_assertion.get("href"):
+        return "expected"
+
+    return "unknown"
+
+
+def normalize_llm_test_plan(plan):
+    normalized = copy.deepcopy(plan)
+
+    if not isinstance(normalized, dict):
+        return normalized
+
+    tests = normalized.get("tests", [])
+    if not isinstance(tests, list):
+        return normalized
+
+    for index, test_case in enumerate(tests):
+        if not isinstance(test_case, dict):
+            continue
+
+        if test_case.get("template") != "navigation.tabIdentity":
+            continue
+
+        current_value = test_case.get("navigationChange")
+        if current_value in VALID_NAVIGATION_CHANGES:
+            continue
+
+        repaired_value = infer_navigation_change(test_case)
+        print(
+            f"Repaired navigationChange for $.tests[{index}]: "
+            f"{json.dumps(current_value, ensure_ascii=False)} -> {json.dumps(repaired_value)}"
+        )
+        test_case["navigationChange"] = repaired_value
+
+    return normalized
+
+
 def analyze_and_generate_menu_test(menu_map, generate_all=True, max_parent=3, max_children=3):
     print("LLM이 menuTree 기반 GNB 메뉴 접근 테스트를 생성하고 있습니다...")
 
@@ -672,9 +730,12 @@ def generate_structured_test_plan_with_llm(menu_map):
     save_text(raw_response, TEST_PLAN_LLM_RAW_PATH)
 
     parsed_plan = parse_llm_test_plan(raw_response)
-    save_json_to_path(parsed_plan, TEST_PLAN_LLM_PATH)
+    save_json_to_path(parsed_plan, TEST_PLAN_LLM_ORIGINAL_PATH)
 
-    return parsed_plan
+    normalized_plan = normalize_llm_test_plan(parsed_plan)
+    save_json_to_path(normalized_plan, TEST_PLAN_LLM_PATH)
+
+    return normalized_plan
 
 
 def limit_menu_tree(menu_tree, max_parent=3, max_children=3):

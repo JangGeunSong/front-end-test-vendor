@@ -1,5 +1,34 @@
 # Task Log
 
+## 2026-07-03 - Normalize LLM plan navigationChange values
+
+### 작업 목적
+
+- `llm-plan` mode에서 LLM이 생성한 `navigation.tabIdentity` 테스트의 `navigationChange` 값이 schema enum을 벗어나 validate 단계에서 실패하는 문제를 보정한다.
+- `validate_test_plan.py`의 strict enum 검사는 유지하고, LLM parsed plan을 validation 전에 normalization/repair한다.
+- scout와 pageProfile 재수집 없이 기존 `test_plan.llm.json` artifact 기준으로 원인을 확인하고 수정한다.
+
+### 변경 내용
+
+- `test_plan.llm.json`의 `tests[13]`~`tests[22]`에서 `navigationChange`가 `null`로 생성된 것을 확인했다.
+- `build_structured_test_plan_prompt`의 `navigation.tabIdentity` 규칙에 허용 enum `"expected"`, `"none"`, `"unknown"`만 사용할 것을 명확히 추가했다.
+- `agent_orchestrator.py`에 `normalize_llm_test_plan(plan)`을 추가했다.
+- `navigation.tabIdentity`의 `navigationChange`가 누락되었거나 invalid이면 `click.ngClick` 존재 시 `"none"`, URL href가 있고 `ngClick`이 없으면 `"expected"`, 판단 불가 시 `"unknown"`으로 보정하도록 했다.
+- LLM parsed 원본은 `tools/ai-generator/generated/test_plan.llm.original.json`에 저장하고, normalized plan은 `tools/ai-generator/generated/test_plan.llm.json`에 저장하도록 했다.
+- `docs/PROMPT_STRATEGY.md`에 `navigationChange` enum 및 normalization 정책을 반영했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인이 통과했다.
+- 기존 `test_plan.llm.json`을 기준으로 normalization을 수행해 `tests[13]`~`tests[22]`의 `navigationChange`를 `null`에서 `"none"`으로 보정했다.
+- `python tools/ai-generator/validate_test_plan.py --input tools/ai-generator/generated/test_plan.llm.json` 실행 결과 errors 0, warnings 0으로 통과했다.
+- `python tools/ai-generator/render_test_plan.py --input tools/ai-generator/generated/test_plan.llm.json --output tests/generated/generated_from_plan.spec.js` 실행 결과 renderer output 생성이 통과했다.
+
+### 다음 작업
+
+- 다음 `llm-plan` 실행에서 동일 유형의 `navigationChange` 누락이 자동 보정되는지 확인한다.
+- LLM plan output에서 다른 schema 흔들림이 발견되면 prompt 강화와 normalization 범위를 최소 단위로 추가한다.
+
 ## 2026-07-03 - Add LLM structured plan generation mode
 
 ### 작업 목적

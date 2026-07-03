@@ -1,3 +1,4 @@
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -16,6 +17,19 @@ SUPPORTED_TEMPLATES = {
 }
 SUPPORTED_CLICK_TYPES = {"depth2", "depth3"}
 SUPPORTED_NAVIGATION_CHANGES = {"expected", "none", "unknown"}
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Validate structured test plan JSON."
+    )
+    parser.add_argument(
+        "--input",
+        default=str(DEFAULT_TEST_PLAN_PATH),
+        help="Path to structured test plan JSON."
+    )
+
+    return parser.parse_args()
 
 
 def rel(path):
@@ -322,7 +336,11 @@ def print_report(path, errors, warnings):
 
 
 def main():
-    path = DEFAULT_TEST_PLAN_PATH
+    args = parse_args()
+    path = Path(args.input)
+
+    if not path.is_absolute():
+        path = ROOT_DIR / path
 
     try:
         plan = load_json(path)

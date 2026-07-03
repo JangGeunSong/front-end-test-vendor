@@ -201,3 +201,24 @@ Future validators should check:
 - `click.type` and required click fields are valid
 - `todo.reason` exists for `navigation.todoIdentity`
 
+## Validator Command
+
+The draft validator checks the safe example fixture:
+
+```bash
+npm run ai:validate-plan
+```
+
+Equivalent Python command:
+
+```bash
+python tools/ai-generator/validate_test_plan.py
+```
+
+Current default input:
+
+```text
+tools/ai-generator/generated/test_plan.example.json
+```
+
+`navigation.tabIdentity` allows URL/hash to stay unchanged. If `navigationChange` is `"expected"` and `assertions.url.href` is missing, the validator reports a warning rather than an error. The future renderer can decide whether that case should become stricter.

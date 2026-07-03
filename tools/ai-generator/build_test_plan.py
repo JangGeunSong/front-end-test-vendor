@@ -81,7 +81,7 @@ def visible_items(items):
     ]
 
 
-def first_heading(page_profile, menu_path):
+def exact_heading(page_profile, menu_path):
     headings = visible_items((page_profile.get("pageProfile") or {}).get("headings"))
     if not headings:
         return None
@@ -92,7 +92,7 @@ def first_heading(page_profile, menu_path):
         if compact_string(heading.get("text")) == leaf_text:
             return heading
 
-    return headings[0]
+    return None
 
 
 def first_css_path(page_profile, field_name):
@@ -102,6 +102,42 @@ def first_css_path(page_profile, field_name):
             return css_path
 
     return ""
+
+
+def stable_main_container_selector(page_profile):
+    for item in visible_items((page_profile.get("pageProfile") or {}).get("mainContainers")):
+        css_path = compact_string(item.get("cssPath"))
+        tag_name = compact_string(item.get("tagName")).upper()
+        class_name = compact_string(item.get("className")).lower()
+
+        if not css_path:
+            continue
+        if tag_name == "MAIN":
+            continue
+        if "subcontainer" in class_name and "subcontent" not in class_name:
+            continue
+
+        return css_path
+
+    return ""
+
+
+def matching_tab_selector(page_profile, menu_path):
+    leaf_text = menu_path[-1] if menu_path else ""
+
+    for item in visible_items((page_profile.get("pageProfile") or {}).get("tabs")):
+        if compact_string(item.get("text")) != leaf_text:
+            continue
+
+        css_path = compact_string(item.get("cssPath"))
+        if css_path:
+            return css_path
+
+    return first_css_path(page_profile, "tabs")
+
+
+def has_ng_click(menu_item):
+    return bool(compact_string(menu_item.get("ngClick")))
 
 
 def navigation_href(menu_item, page_profile):
@@ -164,9 +200,31 @@ def with_url(test_case, href):
 def build_case(menu_item, menu_path, profile, parent_text=None):
     test_case = base_test_case(menu_item, menu_path, parent_text)
     href = navigation_href(menu_item, profile or {})
-    heading = first_heading(profile or {}, menu_path) if profile else None
-    main_selector = first_css_path(profile or {}, "mainContainers") if profile else ""
-    tab_selector = first_css_path(profile or {}, "tabs") if profile else ""
+    heading = exact_heading(profile or {}, menu_path) if profile else None
+    main_selector = stable_main_container_selector(profile or {}) if profile else ""
+    tab_selector = matching_tab_selector(profile or {}, menu_path) if profile else ""
+    is_depth3 = parent_text is not None
+    is_tab_like_child = is_depth3 and (has_ng_click(menu_item) or not compact_string(menu_item.get("href")))
+
+    if is_tab_like_child:
+        tab_fallback_selector = tab_selector or compact_string(menu_item.get("cssPath"))
+        if tab_fallback_selector:
+            test_case["template"] = "navigation.tabIdentity"
+            test_case["navigationChange"] = "none" if tab_selector else "unknown"
+            with_url(test_case, href)
+            test_case["assertions"]["identity"] = {
+                "type": "tab",
+                "selector": tab_fallback_selector,
+                "sourceMenuPath": menu_path,
+            }
+            return test_case
+
+        test_case["template"] = "navigation.todoIdentity"
+        with_url(test_case, href)
+        test_case["todo"] = {
+            "reason": "Depth3 tab-like menu has no stable exact-match tab or content identity evidence yet."
+        }
+        return test_case
 
     if heading and href:
         test_case["template"] = "navigation.headingIdentity"

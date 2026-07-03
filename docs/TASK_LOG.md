@@ -1,5 +1,32 @@
 # Task Log
 
+## 2026-07-03 - Add structured test plan validator draft
+
+### 작업 목적
+
+- future renderer 구현 전에 structured test plan JSON이 schema 계약을 지키는지 확인할 수 있는 초안 validator를 추가한다.
+- 기존 `ai:generate`, generated spec 생성, `ai:validate`, `test:generated` 흐름은 변경하지 않는다.
+
+### 변경 내용
+
+- `tools/ai-generator/validate_test_plan.py`를 신규 추가했다.
+- 기본 검증 대상은 `tools/ai-generator/generated/test_plan.example.json`으로 설정했다.
+- top-level 필드, test case 공통 필드, click 구조, template별 필수 필드를 검사한다.
+- `navigation.tabIdentity`에서 `navigationChange`가 `"expected"`인데 `assertions.url.href`가 없으면 warning으로 출력하도록 했다.
+- `package.json`에 `ai:validate-plan` script를 추가했다.
+- `docs/TEST_PLAN_SCHEMA.md`에 validator 실행 명령과 tabIdentity URL warning 정책을 추가했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/validate_test_plan.py` 문법 확인을 통과했다.
+- `python tools/ai-generator/validate_test_plan.py` 실행 결과 errors 0, warnings 0으로 통과했다.
+- 현재 셸에서 `npm`이 PATH에 없어 `npm run ai:validate-plan`은 실행하지 못했다.
+
+### 다음 작업
+
+- renderer 구현 전 test plan validator 규칙을 실제 LLM 출력 후보에 맞춰 보강한다.
+- future renderer가 test plan을 입력으로 받기 시작하면 validator를 renderer 앞단 quality gate로 연결한다.
+
 ## 2026-07-03 - Sanitize structured test plan examples
 
 ### 작업 목적

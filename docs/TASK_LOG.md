@@ -1,5 +1,30 @@
 # Task Log
 
+## 2026-07-03 - Plan structured test plan orchestration migration
+
+### 작업 목적
+
+- `agent_orchestrator.py`를 direct JS generation에서 structured test plan JSON + deterministic renderer 방식으로 전환하기 위한 단계별 설계를 문서화한다.
+- 기존 `ai:generate`, `generated_menu_access.spec.js`, `agent_orchestrator.py`, `scout.js` 동작은 변경하지 않는다.
+
+### 변경 내용
+
+- `docs/STRUCTURED_PLAN_MIGRATION.md`를 신규 작성했다.
+- 현재 direct JS generation 구조와 목표 structured plan 구조를 비교했다.
+- Phase 0 현재 상태, Phase 1 deterministic builder shadow mode, Phase 2 LLM plan shadow mode, Phase 3 opt-in plan mode, Phase 4 plan mode default 전환 단계를 정의했다.
+- plan JSON parse, plan validation, renderer, generated spec validation, Playwright 실행 실패에 대한 fallback/보존 정책을 정리했다.
+- 향후 `agent_orchestrator.py`에 `--generation-mode spec|plan` 옵션을 추가하는 구현 후보를 기록했다.
+
+### 확인 결과
+
+- 문서 작업만 수행했다.
+- 코드 실행이나 테스트 실행은 수행하지 않았다.
+
+### 다음 작업
+
+- `agent_orchestrator.py`에 `--generation-mode spec|plan` 옵션을 추가하되 기본값은 `spec`으로 유지하는 opt-in 전환 작업을 검토한다.
+- LLM plan output을 `test_plan.llm.json`으로 저장하고 `validate_test_plan.py`, `render_test_plan.py`와 연결하는 shadow mode 구현을 설계한다.
+
 ## 2026-07-03 - Conservative template selection for renderer path
 
 ### 작업 목적

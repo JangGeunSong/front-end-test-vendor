@@ -1,0 +1,101 @@
+{
+  "version": "1.0",
+  "targetUrl": "https://example.test",
+  "source": {
+    "menuMapPath": "tools/ai-generator/generated/menu_map.json",
+    "scoutResultPath": "tools/ai-generator/generated/scout_result.json"
+  },
+  "tests": [
+    {
+      "id": "gnb-products-pricing",
+      "title": "GNB: Products",
+      "template": "navigation.headingIdentity",
+      "menuPath": ["Products"],
+      "depth1Index": 0,
+      "click": {
+        "type": "depth2",
+        "text": "Products",
+        "cssPath": "nav.primary li.products > a"
+      },
+      "assertions": {
+        "url": {
+          "href": "#/products/pricing"
+        },
+        "identity": {
+          "type": "heading",
+          "text": "Products",
+          "exact": true
+        }
+      }
+    },
+    {
+      "id": "gnb-support-developer-guide",
+      "title": "GNB: Support > Developer Guide",
+      "template": "navigation.contentIdentity",
+      "menuPath": ["Support", "Developer Guide"],
+      "depth1Index": 1,
+      "click": {
+        "type": "depth3",
+        "parentText": "Support",
+        "text": "Developer Guide",
+        "id": "support-developer-guide",
+        "ngClick": "",
+        "cssPath": "nav.primary li.support-developer-guide > a"
+      },
+      "assertions": {
+        "url": {
+          "href": "#/support/developer-guide"
+        },
+        "identity": {
+          "type": "content",
+          "selector": "main[data-page='developer-guide']",
+          "sourceMenuPath": ["Support", "Developer Guide"]
+        }
+      }
+    },
+    {
+      "id": "gnb-products-overview",
+      "title": "GNB: Products > Overview",
+      "template": "navigation.tabIdentity",
+      "menuPath": ["Products", "Overview"],
+      "depth1Index": 0,
+      "click": {
+        "type": "depth3",
+        "parentText": "Products",
+        "text": "Overview",
+        "id": "products-overview",
+        "ngClick": "selectTab('overview')",
+        "cssPath": "nav.primary li.products-overview > a"
+      },
+      "navigationChange": "none",
+      "assertions": {
+        "identity": {
+          "type": "tab",
+          "selector": "[data-testid='products-tab-overview']",
+          "sourceMenuPath": ["Products", "Overview"]
+        }
+      }
+    },
+    {
+      "id": "gnb-resources-faq",
+      "title": "GNB: Resources > FAQ",
+      "template": "navigation.todoIdentity",
+      "menuPath": ["Resources", "FAQ"],
+      "depth1Index": 2,
+      "click": {
+        "type": "depth3",
+        "parentText": "Resources",
+        "text": "FAQ",
+        "cssPath": "nav.primary li.resources-faq > a"
+      },
+      "assertions": {
+        "url": {
+          "href": "#/resources/faq"
+        }
+      },
+      "todo": {
+        "reason": "No stable exact-match pageProfile selector is available yet for this child menu."
+      }
+    }
+  ]
+}

@@ -13,4 +13,5 @@ playwright/.local-browsers
 # python opensource library
 venv/
 
-tools/ai-generator/generated/
+tools/ai-generator/generated/*
+!tools/ai-generator/generated/test_plan.example.json

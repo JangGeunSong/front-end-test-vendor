@@ -1,5 +1,58 @@
 # Task Log
 
+## 2026-07-03 - Sanitize structured test plan examples
+
+### 작업 목적
+
+- structured test plan 문서와 example JSON에서 실제 사이트, 서비스, 메뉴, selector를 유추할 수 있는 값을 제거한다.
+- `test_plan.example.json`을 renderer/validator 개발용 안전 fixture로 유지한다.
+
+### 변경 내용
+
+- `docs/TEST_PLAN_SCHEMA.md` 예시를 `https://example.test`, `Products`, `Support`, `Resources` 등 가상 데이터로 정리했다.
+- `docs/TEST_TEMPLATE_CATALOG.md` 템플릿 예시를 실제 서비스 성격이 드러나지 않는 중립 값으로 교체했다.
+- `tools/ai-generator/generated/test_plan.example.json`의 route, selector, id, `ngClick`, menuPath를 모두 가상 fixture 값으로 변경했다.
+- example JSON은 실제 scout 결과가 아니라 schema 설명, LLM 출력 예시, future renderer/validator fixture라는 원칙을 문서화했다.
+
+### 확인 결과
+
+- `test_plan.example.json` JSON 파싱 확인이 필요하다.
+- 실제 사이트 유추 문자열이 structured test plan 문서와 example JSON에 남아 있지 않은지 검색 확인이 필요하다.
+
+### 다음 작업
+
+- future renderer 구현 시 이 fixture를 초기 입력 샘플로 사용한다.
+- renderer/validator 구현이 시작되면 schema 필수 필드와 fixture를 함께 갱신한다.
+
+## 2026-07-03 - Define structured test plan schema
+
+### 작업 목적
+- LLM이 Playwright spec 전체를 자유 생성하는 구조를 줄이기 위한 중간 산출물 계약을 정의한다.
+- 향후 deterministic renderer가 test plan JSON을 기반으로 generated spec을 만들 수 있도록 schema와 template catalog를 먼저 고정한다.
+
+### 변경 내용
+- `docs/TEST_PLAN_SCHEMA.md`를 추가해 structured test plan JSON의 목적, top-level 구조, test case 구조, click/assertion 규칙을 정의했다.
+- `docs/TEST_TEMPLATE_CATALOG.md`를 추가해 초기 navigation template 목록을 정의했다.
+- `tools/ai-generator/generated/test_plan.example.json`을 추가해 schema 예시 fixture를 제공했다.
+- `.gitignore`에서 generated 산출물은 제외하되 `test_plan.example.json`은 추적하도록 예외 처리했다.
+
+### Template Scope
+- `navigation.urlOnly`
+- `navigation.headingIdentity`
+- `navigation.contentIdentity`
+- `navigation.tabIdentity`
+- `navigation.todoIdentity`
+
+### Design Decision
+- 현재 `ai:generate` 동작은 변경하지 않는다.
+- 이번 작업은 renderer 구현 전 계약 문서화 단계다.
+- LLM은 향후 JS 코드가 아니라 template 선택과 structured field 작성을 담당한다.
+- URL 처리, heading exact, selector fallback 방지, Playwright helper 생성은 future renderer 책임으로 분리한다.
+
+### 확인 결과
+- `python -m json.tool tools/ai-generator/generated/test_plan.example.json`
+- Existing runtime flow unchanged.
+
 ## 2026-07-01 - Require target URL input for generation
 
 ### 작업 목적

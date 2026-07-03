@@ -1,5 +1,34 @@
 # Task Log
 
+## 2026-07-03 - Add opt-in plan generation mode
+
+### 작업 목적
+
+- `agent_orchestrator.py`에 `--generation-mode spec|plan` 옵션을 추가해 structured test plan renderer 경로를 opt-in으로 실행할 수 있게 한다.
+- 기본값은 `spec`으로 유지해 기존 direct JS generation 기반 `ai:generate` 흐름을 깨지 않는다.
+- 이번 단계에서는 LLM plan generation을 붙이지 않고 deterministic builder path만 orchestrator에서 연결한다.
+
+### 변경 내용
+
+- `agent_orchestrator.py`에 `--generation-mode` CLI 옵션을 추가했다.
+- `spec` mode는 기존 scout, menu_map 생성, LLM direct JS spec 생성, `generated_menu_access.spec.js` 저장 흐름을 유지한다.
+- `plan` mode는 scout와 menu_map 생성 후 `build_test_plan.py`, `validate_test_plan.py`, `render_test_plan.py`를 순서대로 실행하도록 연결했다.
+- plan mode output은 `tests/generated/generated_from_plan.spec.js`로 유지하고 `generated_menu_access.spec.js`는 덮어쓰지 않도록 했다.
+- `package.json`에 `ai:generate-plan` script를 추가했다.
+- `docs/STRUCTURED_PLAN_MIGRATION.md`에 Phase 1 deterministic builder path가 orchestrator opt-in mode로 연결되었음을 보완했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인이 통과했다.
+- `npm run ai:generate -- --url https://iotbiz.kt.co.kr`는 현재 Python 환경에 `python-dotenv`와 `google-generativeai` 의존성이 없어 `ModuleNotFoundError`로 실패했다. 기존 spec mode 로직 진입 전 의존성 문제이며 이번 mode 분기 변경으로 인한 실패는 아니다.
+- `npm run ai:generate-plan -- --url https://iotbiz.kt.co.kr` 실행 결과 scout, menu_map 생성, `test_plan.generated.json` build, plan validation, `generated_from_plan.spec.js` render가 통과했다.
+- `npx playwright test tests/generated/generated_from_plan.spec.js` 실행 결과 41 passed를 확인했다.
+
+### 다음 작업
+
+- `--generation-mode plan` 경로가 안정화되면 LLM structured plan generation shadow mode를 별도 단계로 설계한다.
+- 이후 `test_plan.llm.json` 저장, plan validation, renderer 연결을 검토한다.
+
 ## 2026-07-03 - Plan structured test plan orchestration migration
 
 ### 작업 목적

@@ -116,10 +116,14 @@ Behavior:
 - `build_test_plan.py` creates a deterministic plan from `primaryMenuTree` and `pageProfiles`.
 - Existing `generated_menu_access.spec.js` remains the primary generated test artifact.
 - `generated_from_plan.spec.js` is used for shadow comparison.
+- `agent_orchestrator.py --generation-mode plan` can run this deterministic builder path after scout/menu_map generation.
+- This mode does not ask the LLM to generate a structured plan yet.
+- This mode does not overwrite `tests/generated/generated_menu_access.spec.js`.
 
 Validation:
 
 - `npm run ai:plan`
+- `npm run ai:generate-plan -- --url https://target.example.com`
 - `npx playwright test tests/generated/generated_from_plan.spec.js`
 - Compare coverage and failures against existing generated spec.
 
@@ -264,4 +268,3 @@ Recommended next changes:
 - Run `render_test_plan.py` from the orchestrator.
 - Keep initial plan-mode output at `tests/generated/generated_from_plan.spec.js`.
 - Add clear stage logging and artifact preservation on failure.
-

@@ -1,5 +1,62 @@
 # Task Log
 
+## 2026-07-03 - Clarify structured test plan npm scripts
+
+### 작업 목적
+
+- example fixture 검증과 실제 `test_plan.generated.json` 검증/렌더링 명령을 분리해 혼동을 줄인다.
+- `ai:build-plan` 이후 generated plan을 검증하고 렌더링하는 표준 명령을 명확히 한다.
+
+### 변경 내용
+
+- `package.json`에 `ai:validate-generated-plan` script를 추가했다.
+- `package.json`에 `ai:render-generated-plan` script를 추가했다.
+- `package.json`에 build, validate, render를 순서대로 실행하는 `ai:plan` script를 추가했다.
+- 기존 `ai:validate-plan`은 `test_plan.example.json` fixture 검증용으로 유지했다.
+- 기존 `ai:generate`, `ai:validate`, `test:generated` 흐름은 변경하지 않았다.
+
+### 확인 결과
+
+- 현재 셸에서 `npm`이 PATH에 없어 `npm run ai:build-plan`, `npm run ai:validate-generated-plan`, `npm run ai:render-generated-plan`, `npm run ai:plan`은 실행하지 못했다.
+- Python 직접 실행 경로는 이전 작업에서 `build -> validate --input test_plan.generated.json -> render --input test_plan.generated.json` 순서로 통과 확인했다.
+
+### 다음 작업
+
+- npm이 사용 가능한 로컬 셸에서 `npm run ai:plan`으로 generated plan 전체 흐름을 확인한다.
+- README 또는 운영 문서 갱신 시 example fixture용 명령과 generated plan용 명령을 분리해서 안내한다.
+
+## 2026-07-03 - Build structured test plan from menu_map
+
+### 작업 목적
+
+- 실제 `menu_map.json`의 `primaryMenuTree`와 `pageProfiles`를 기반으로 structured test plan JSON을 deterministic하게 생성하는 실험용 builder를 추가한다.
+- LLM 호출 없이 `test_plan.generated.json`을 만들고, 기존 validator/renderer 흐름으로 이어질 수 있게 한다.
+- 기존 `ai:generate`, `generated_menu_access.spec.js`, `scout.js` 흐름은 변경하지 않는다.
+
+### 변경 내용
+
+- `tools/ai-generator/build_test_plan.py`를 신규 추가했다.
+- 기본 입력은 `tools/ai-generator/generated/menu_map.json`, 기본 출력은 `tools/ai-generator/generated/test_plan.generated.json`로 설정했다.
+- `primaryMenuTree`의 depth2 parent와 depth3 child를 모두 test case로 변환한다.
+- 각 test case는 `menuPath` 기준으로 `pageProfiles`와 exact match를 수행한다.
+- heading, mainContainer, tabs, TODO 순서로 template을 결정하고, sibling pageProfile selector fallback은 사용하지 않도록 했다.
+- `validate_test_plan.py`에 `--input` 옵션을 추가해 generated plan을 검증할 수 있게 했다.
+- `package.json`에 `ai:build-plan` script를 추가했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/build_test_plan.py` 문법 확인을 통과했다.
+- `python -m py_compile tools/ai-generator/validate_test_plan.py` 문법 확인을 통과했다.
+- `python tools/ai-generator/build_test_plan.py` 실행 결과 `test_plan.generated.json`이 생성되었고 test case 41건을 확인했다.
+- `python tools/ai-generator/validate_test_plan.py --input tools/ai-generator/generated/test_plan.generated.json` 실행 결과 errors 0, warnings 0으로 통과했다.
+- `python tools/ai-generator/render_test_plan.py --input tools/ai-generator/generated/test_plan.generated.json --output tests/generated/generated_from_plan.spec.js` 실행 결과 renderer 출력 생성을 확인했다.
+- 현재 셸에서 `npm`이 PATH에 없어 `npm run ai:build-plan`, `npm run ai:validate-plan`, `npm run ai:render-plan`은 실행하지 못했다.
+
+### 다음 작업
+
+- 실제 `test_plan.generated.json` 기반 renderer 출력 spec을 리뷰하고, template 선택 기준을 보수적으로 조정할지 검토한다.
+- 이후 단계에서 LLM이 JS가 아니라 structured test plan JSON을 생성하도록 `agent_orchestrator.py` 전환 범위를 설계한다.
+
 ## 2026-07-03 - Add deterministic test plan renderer draft
 
 ### 작업 목적

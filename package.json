@@ -7,6 +7,7 @@
     "ai:generate": "python tools/ai-generator/agent_orchestrator.py",
     "ai:validate": "python tools/ai-generator/validate_generated_spec.py",
     "ai:validate-plan": "python tools/ai-generator/validate_test_plan.py",
+    "ai:render-plan": "python tools/ai-generator/render_test_plan.py",
     "codegen": "playwright codegen --channel=chrome",
     "test": "playwright test",
     "test:generated": "playwright test tests/generated",

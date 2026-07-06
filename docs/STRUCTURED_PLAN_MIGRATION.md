@@ -73,9 +73,12 @@ Current plan scripts:
 - `npm run ai:build-plan`
 - `npm run ai:validate-generated-plan`
 - `npm run ai:render-generated-plan`
-- `npm run ai:plan`
 - `npm run ai:generate-plan -- --url https://target.example.com`
 - `npm run ai:generate-llm-plan -- --url https://target.example.com`
+- `npm run ai:plan`
+- `npm run ai:plan:deterministic -- --url https://target.example.com`
+- `npm run ai:plan:llm -- --url https://target.example.com`
+- `npm run ai:plan:compare`
 - `npm run ai:compare-plans`
 
 Current experimental output files:
@@ -86,6 +89,15 @@ Current experimental output files:
 The deterministic `menu_map.json -> test_plan.generated.json -> generated_from_plan.spec.js` path has been verified separately from the existing `ai:generate` path.
 
 `ai:compare-plans` compares `test_plan.generated.json` and `test_plan.llm.json` by `menuPath`. It is a quality review tool, not a pass/fail schema validator. It reports coverage differences, template choices, navigationChange differences, selector kind differences, assertion/page identity differences, and `todoIdentity` distribution so weak LLM plan cases can be reviewed before changing renderer behavior. The report separates raw differences from meaningful quality differences; for example, hash-only URLs and absolute URLs with the same hash route are treated as equivalent for quality review.
+
+Script naming rule:
+
+- `ai:plan` is an alias for the deterministic path.
+- `ai:plan:deterministic` runs the deterministic builder path through `agent_orchestrator.py --generation-mode plan`.
+- `ai:plan:llm` runs the LLM structured plan path through `agent_orchestrator.py --generation-mode llm-plan`.
+- `ai:plan:compare` generates both plan artifacts and compares them, but both deterministic and LLM generation render to the same shadow output file. Use it for plan JSON quality comparison, not for preserving both rendered specs.
+- For single-mode commands, pass the URL with `-- --url https://target.example.com`.
+- For composed commands that invoke multiple npm scripts, prefer `TARGET_URL` so every generation step receives the same target URL.
 
 ## Migration Phases
 

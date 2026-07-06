@@ -201,6 +201,15 @@ Future validators should check:
 - `click.type` and required click fields are valid
 - `todo.reason` exists for `navigation.todoIdentity`
 
+When `validate_test_plan.py` receives `--menu-map`, it also checks primary navigation coverage:
+
+- every parent depth2 `primaryMenuTree` menuPath has a test case
+- every child depth3 `primaryMenuTree` menuPath has a test case
+- no test case uses a menuPath outside `primaryMenuTree`
+- no duplicate `tests[].menuPath` exists
+
+Coverage failures are errors because an incomplete LLM plan must not silently pass into renderer output.
+
 ## Validator Command
 
 The draft validator checks the safe example fixture:
@@ -213,6 +222,12 @@ Equivalent Python command:
 
 ```bash
 python tools/ai-generator/validate_test_plan.py
+```
+
+Validate a generated LLM plan against `menu_map.json` coverage:
+
+```bash
+npm run ai:validate-llm-plan
 ```
 
 Current default input:

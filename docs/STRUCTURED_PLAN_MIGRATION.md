@@ -148,6 +148,7 @@ Behavior:
 - The LLM outputs JSON only.
 - The raw LLM response is stored as `tools/ai-generator/generated/test_plan.llm.raw.txt`.
 - Store LLM output as `tools/ai-generator/generated/test_plan.llm.json`.
+- The LLM prompt includes an `expectedCoverage` checklist derived from `primaryMenuTree` so every parent/child menuPath must be represented exactly once.
 - Validate it before rendering.
 - Validation includes `primaryMenuTree` coverage when `menu_map.json` is available, so missing LLM-generated menuPaths fail before rendering.
 - Do not silently fall back to direct JS generation in this opt-in mode.

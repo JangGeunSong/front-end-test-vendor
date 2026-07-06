@@ -1,5 +1,108 @@
 # Task Log
 
+## 2026-07-06 - Prefer content identity in LLM structured plan prompt
+
+### 작업 목적
+
+- LLM structured test plan이 exact heading이 없다는 이유만으로 `navigation.todoIdentity`를 선택하는 문제를 줄인다.
+- exact matching pageProfile에 신뢰 가능한 content/mainContainer cssPath가 있으면 `navigation.contentIdentity`를 선택하도록 prompt를 보강한다.
+- deterministic plan과 llm-plan의 meaningful quality difference를 줄인다.
+
+### 변경 내용
+
+- `agent_orchestrator.py`의 structured test plan prompt에 template 선택 우선순위를 보강했다.
+- exact heading match가 있으면 `navigation.headingIdentity`를 우선 선택하도록 유지했다.
+- tab-like/ngClick/no-url-change 메뉴에만 `navigation.tabIdentity`를 선택하도록 기준을 좁혔다.
+- 일반 href navigation에서 exact heading이 없고 exact pageProfile에 reliable content/mainContainer cssPath가 있으면 `navigation.contentIdentity`를 선택하도록 명시했다.
+- `navigation.todoIdentity`는 heading, tab, content identity 근거를 모두 확인한 뒤 사용하는 최후 fallback으로 정의했다.
+- `docs/PROMPT_STRATEGY.md`에 동일한 template 선택 규칙을 반영했다.
+- `docs/STRUCTURED_PLAN_MIGRATION.md`에 llm-plan prompt가 contentIdentity를 todoIdentity보다 우선하도록 보강한 내용을 반영했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인을 통과했다.
+- warm cache 상태에서 `npm run ai:generate-llm-plan -- --url https://iotbiz.kt.co.kr` 실행을 통과했다.
+- `npm run ai:validate-llm-plan` 실행 결과 errors 0, warnings 0으로 통과했다.
+- `npm run ai:compare-plans` 실행 결과 deterministic plan 41건, llm-plan 41건, matched menuPaths 41건으로 coverage 차이가 없었다.
+- LLM plan template 분포는 `navigation.headingIdentity` 20건, `navigation.contentIdentity` 11건, `navigation.tabIdentity` 10건으로 deterministic plan과 일치했다.
+- meaningful template mismatch, meaningful selector mismatch, meaningful assertion/page identity mismatch, todo mismatch가 모두 0건으로 정리되었다.
+- LLM plan의 `todoIdentity`는 11건에서 0건으로 줄었다.
+
+### 다음 작업
+
+- renderer 기반 `generated_from_plan.spec.js` 실행을 통해 llm-plan 산출물이 실제 Playwright 실행에서도 안정적인지 확인한다.
+- raw difference 41건은 URL/hash 표현 차이 등 비교 normalization 대상이므로, 실행 영향이 있는지 필요 시 별도로 검토한다.
+
+## 2026-07-06 - Refine structured plan comparison quality signals
+
+### 작업 목적
+
+- deterministic plan과 llm-plan 비교에서 단순 표현 차이가 품질 차이처럼 과장되는 문제를 줄인다.
+- raw difference와 meaningful quality difference를 분리해 실제 후속 작업 판단에 필요한 값이 먼저 보이도록 한다.
+- `todoIdentity`로 내려간 케이스와 실제 template/selector 품질 차이를 더 선명하게 드러낸다.
+
+### 변경 내용
+
+- `compare_test_plans.py`에 URL 비교 normalization을 추가했다.
+- absolute URL과 hash-only URL이 같은 hash route를 가리키면 meaningful mismatch로 보지 않도록 했다.
+- 양쪽 모두 `navigation.tabIdentity`이고 selector kind와 selector 또는 id가 같으면 identity text 차이만으로 meaningful mismatch로 보지 않도록 했다.
+- summary를 raw/meaningful 기준으로 분리했다.
+  - `rawAssertionMismatchCount`
+  - `meaningfulAssertionMismatchCount`
+  - `meaningfulTemplateMismatchCount`
+  - `meaningfulSelectorMismatchCount`
+  - `todoMismatchCount`
+- Markdown report는 meaningful mismatch 중심으로 요약하고, raw-only difference는 별도 섹션에 남기도록 했다.
+- `docs/STRUCTURED_PLAN_MIGRATION.md`에 raw difference와 meaningful quality difference 분리 원칙을 반영했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/compare_test_plans.py` 문법 확인을 통과했다.
+- `npm run ai:compare-plans` 실행을 통과했다.
+- 현재 비교 결과는 deterministic plan 41건, llm-plan 41건, matched menuPaths 41건이다.
+- coverage 차이는 없으며, meaningful template mismatch 11건과 meaningful selector mismatch 11건을 확인했다.
+- raw assertion/page identity mismatch는 41건이지만, URL/hash 정규화와 tabIdentity 비교 완화 후 meaningful assertion/page identity mismatch는 11건으로 정리되었다.
+- deterministic plan의 `todoIdentity`는 0건이고, llm-plan의 `todoIdentity`는 11건이다.
+- `tools/ai-generator/generated/plan_compare_report.json`과 `tools/ai-generator/generated/plan_compare_report.md`가 갱신되는 것을 확인했다.
+
+### 다음 작업
+
+- meaningful mismatch와 `todoIdentity` 케이스를 기준으로 LLM prompt 또는 template 선택 기준을 보강한다.
+- raw-only difference는 실행 안정성에 영향을 주는지 별도 필요 시에만 검토한다.
+
+## 2026-07-06 - Add structured plan comparison tool
+
+### 작업 목적
+
+- deterministic plan과 llm-plan을 `menuPath` 기준으로 비교해 structured test plan 품질 차이를 확인할 수 있게 한다.
+- 테스트 실행 성공 여부와 별개로 template 선택, Page Identity assertion, TODO identity 분포를 검수하는 기반을 만든다.
+- TODO를 자동으로 제거하지 않고, 약한 케이스를 후속 template/prompt 개선 후보로 분류할 수 있게 한다.
+
+### 변경 내용
+
+- `tools/ai-generator/compare_test_plans.py`를 추가했다.
+- 기본 비교 대상은 `tools/ai-generator/generated/test_plan.generated.json`과 `tools/ai-generator/generated/test_plan.llm.json`이다.
+- 비교 항목은 coverage 차이, template 차이, `navigationChange` 차이, selector kind 차이, assertion/Page Identity 차이, `todoIdentity` 발생 여부다.
+- 비교 결과를 콘솔 요약으로 출력하고, 다음 리포트 파일로 저장하도록 했다.
+  - `tools/ai-generator/generated/plan_compare_report.json`
+  - `tools/ai-generator/generated/plan_compare_report.md`
+- `package.json`에 `ai:compare-plans` script를 추가했다.
+- `docs/STRUCTURED_PLAN_MIGRATION.md`에 structured plan comparison 도구의 역할을 추가했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/compare_test_plans.py` 문법 확인을 통과했다.
+- `npm run ai:compare-plans` 실행을 통과했다.
+- 현재 비교 결과는 deterministic plan 41건, llm-plan 41건, matched menuPaths 41건이다.
+- coverage 차이는 없으며, template mismatch 11건과 selector kind mismatch 11건을 확인했다.
+- deterministic plan의 `todoIdentity`는 0건이고, llm-plan의 `todoIdentity`는 11건이다.
+- 비교 리포트가 `tools/ai-generator/generated/plan_compare_report.json`과 `tools/ai-generator/generated/plan_compare_report.md`로 생성되는 것을 확인했다.
+
+### 다음 작업
+
+- compare report에서 반복적으로 나타나는 `todoIdentity` 또는 template mismatch 케이스를 기준으로 LLM prompt와 template 선택 기준을 보강한다.
+- compare 결과를 plan mode 전환 전 품질 검수 기준으로 사용할지 검토한다.
+
 ## 2026-07-06 - Enforce LLM structured plan coverage prompt
 
 ### 작업 목적

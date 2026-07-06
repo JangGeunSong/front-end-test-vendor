@@ -1,5 +1,39 @@
 # Task Log
 
+## 2026-07-06 - Enforce LLM structured plan coverage prompt
+
+### 작업 목적
+
+- LLM structured test plan이 `primaryMenuTree`의 일부 메뉴만 선택적으로 생성하지 않도록 coverage prompt를 강화한다.
+- `primaryMenuTree`의 parent/depth3 child 전체 `menuPath`가 `tests[]`에 정확히 1회씩 포함되도록 LLM 입력 payload에 명시적인 checklist를 추가한다.
+- coverage 누락은 자동 보완하지 않고 기존 `validate_test_plan.py --menu-map` gate에서 차단되도록 유지한다.
+
+### 변경 내용
+
+- `agent_orchestrator.py`에 `expectedCoverage` payload 생성을 추가했다.
+- `expectedCoverage`에는 `parentCount`, `childCount`, `total`, `menuPaths`를 포함하며, 값은 `menu_map.primaryMenuTree` traversal 순서로 계산한다.
+- `llm-plan` generation input에만 `expectedCoverage`를 포함하도록 하여 기존 `spec` mode prompt는 변경하지 않았다.
+- structured test plan prompt에 다음 규칙을 강화했다.
+  - `tests.length`는 `expectedCoverage.total`과 정확히 같아야 한다.
+  - 모든 `tests[].menuPath`는 `expectedCoverage.menuPaths` 중 하나와 exact match해야 한다.
+  - expected checklist에 없는 menuPath를 만들지 않는다.
+  - 누락, 중복, 임의 요약, 중요 메뉴만 선택하는 생성을 금지한다.
+  - 안정적인 page identity 근거가 없어도 menuPath를 생략하지 않고 `navigation.todoIdentity`로 생성한다.
+- `docs/PROMPT_STRATEGY.md`에 llm-plan coverage checklist prompt 전략을 반영했다.
+- `docs/STRUCTURED_PLAN_MIGRATION.md`에 Phase 2 llm-plan이 `expectedCoverage` payload를 사용한다는 내용을 보강했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인을 통과했다.
+- 현재 `menu_map.primaryMenuTree` 기준 expected coverage는 parent 9건, child 32건, total 41건으로 확인했다.
+- warm cache 상태에서 `npm run ai:generate-llm-plan -- --url https://iotbiz.kt.co.kr` 실행 후 `test_plan.llm.json`이 41개 test를 생성하는 것을 확인했다.
+- `npm run ai:validate-llm-plan` 실행 결과 errors 0, warnings 0으로 통과했다.
+
+### 다음 작업
+
+- 필요 시 `generated_from_plan.spec.js`를 렌더링한 뒤 Playwright 실행까지 확인한다.
+- LLM plan coverage는 통과했으므로 다음 단계에서는 template 선택 품질과 실행 안정성을 별도로 점검한다.
+
 ## 2026-07-06 - Validate structured plan menu coverage
 
 ### 작업 목적

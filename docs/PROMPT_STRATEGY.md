@@ -16,6 +16,13 @@
   - `navigation.tabIdentity`
   - `navigation.todoIdentity`
 - Every depth2 parent and every depth3 child in `menuTree` should be represented in `tests`.
+- The `llm-plan` prompt includes `expectedCoverage` as the authoritative coverage checklist.
+- `expectedCoverage.parentCount`, `expectedCoverage.childCount`, `expectedCoverage.total`, and `expectedCoverage.menuPaths` are computed from `primaryMenuTree`; they are not hard-coded.
+- `tests.length` must exactly equal `expectedCoverage.total`.
+- Every `expectedCoverage.menuPaths` item must appear exactly once as a `tests[].menuPath`.
+- Every `tests[].menuPath` must exactly match one item in `expectedCoverage.menuPaths`.
+- The LLM must not summarize menu groups, choose only important-looking menus, or stop after a subset of menu paths.
+- If Page Identity evidence is weak or missing for a menuPath, the LLM must still create a test for that menuPath using `navigation.todoIdentity`.
 - `id`, `ngClick`, and `cssPath` values from `menuTree` must be preserved literally in `click` when present.
 - Depth3 tests must include `click.parentText`.
 - URL/hash assertions should use menu `href` first, then exact matching pageProfile `navigation.hash` when available.

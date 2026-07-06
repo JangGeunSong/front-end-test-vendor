@@ -235,7 +235,7 @@ def analyze_and_generate_code(dom_data):
     
     return generated_code
 
-def build_menu_generation_input(menu_map, generate_all=True, max_parent=3, max_children=3):
+def build_menu_generation_input(menu_map, generate_all=True, max_parent=3, max_children=3, include_expected_coverage=False):
     if generate_all:
         target_menu_tree = menu_map.get("primaryMenuTree", menu_map.get("menuTree", []))
     else:
@@ -245,13 +245,49 @@ def build_menu_generation_input(menu_map, generate_all=True, max_parent=3, max_c
             max_children=max_children
         )
 
-    return {
+    generation_input = {
         "url": menu_map.get("url"),
         "menuTree": target_menu_tree,
         "pageProfiles": build_page_profile_generation_input(
             menu_map.get("pageProfiles", []),
             target_menu_tree
         )
+    }
+
+    if include_expected_coverage:
+        generation_input["expectedCoverage"] = build_expected_coverage(target_menu_tree)
+
+    return generation_input
+
+
+def build_expected_coverage(menu_tree):
+    menu_paths = []
+    parent_count = 0
+    child_count = 0
+
+    for parent in menu_tree:
+        parent_text = parent.get("text", "")
+
+        if not parent_text:
+            continue
+
+        menu_paths.append([parent_text])
+        parent_count += 1
+
+        for child in parent.get("children", []):
+            child_text = child.get("text", "")
+
+            if not child_text:
+                continue
+
+            menu_paths.append([parent_text, child_text])
+            child_count += 1
+
+    return {
+        "parentCount": parent_count,
+        "childCount": child_count,
+        "total": parent_count + child_count,
+        "menuPaths": menu_paths,
     }
 
 
@@ -511,6 +547,7 @@ def build_structured_test_plan_prompt(generation_input):
     [Input]
     The following JSON contains the target URL, primary navigation menu tree, and Level 2 pageProfile candidates.
     Use only this data.
+    expectedCoverage is the authoritative checklist for tests[] coverage.
 
     {json.dumps(generation_input, indent=2, ensure_ascii=False)}
 
@@ -613,8 +650,29 @@ def build_structured_test_plan_prompt(generation_input):
     [Coverage rules]
     - Create tests for every depth2 parent in menuTree.
     - Create tests for every depth3 child in each parent.children.
+    - expectedCoverage.menuPaths contains every menuPath that must appear in tests[].
+    - You must include every expectedCoverage.menuPaths item exactly once in tests[].
+    - Do not omit any expectedCoverage.menuPaths item.
+    - Do not summarize menu groups.
+    - Do not generate only important-looking menus.
+    - Do not stop after a subset of menu paths.
+    - tests.length must exactly equal expectedCoverage.total.
+    - Every tests[].menuPath must exactly match one item in expectedCoverage.menuPaths.
+    - Do not create tests[].menuPath values that are not present in expectedCoverage.menuPaths.
+    - Do not create duplicate tests for the same menuPath.
     - Do not skip a menu because Page Identity evidence is weak.
     - Use navigation.todoIdentity when uncertain.
+    - If stable identity evidence is missing for a menuPath, still create a test for that menuPath using navigation.todoIdentity.
+    - Do not invent selectors just to satisfy coverage.
+    - Coverage is mandatory even when pageProfiles are weak, missing, or ambiguous.
+
+    [Coverage self-check]
+    Before producing the final JSON, internally verify all of the following:
+    - tests.length === expectedCoverage.total
+    - Every expectedCoverage.menuPaths item has exactly one matching tests[].menuPath.
+    - Every tests[].menuPath is present in expectedCoverage.menuPaths.
+    - There are no duplicate tests[].menuPath values.
+    Do not print this self-check. The final response must still be JSON only.
 
     [URL/hash rules]
     - assertions.url.href should use menuTree href when available.
@@ -732,7 +790,11 @@ def analyze_and_generate_menu_test(menu_map, generate_all=True, max_parent=3, ma
 def generate_structured_test_plan_with_llm(menu_map):
     print("LLM이 structured test plan JSON을 생성하고 있습니다...")
 
-    generation_input = build_menu_generation_input(menu_map, generate_all=True)
+    generation_input = build_menu_generation_input(
+        menu_map,
+        generate_all=True,
+        include_expected_coverage=True,
+    )
     prompt = build_structured_test_plan_prompt(generation_input)
 
     try:

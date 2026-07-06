@@ -1,5 +1,39 @@
 # Task Log
 
+## 2026-07-06 - Validate structured plan menu coverage
+
+### 작업 목적
+
+- LLM이 생성한 structured test plan이 `primaryMenuTree`의 parent/depth3 child 메뉴를 누락하지 않았는지 검증한다.
+- LLM plan이 일부 메뉴만 생성해도 renderer/playwright 단계로 조용히 넘어가지 않도록 validator gate를 강화한다.
+- 이번 작업에서는 LLM prompt 품질 개선이나 누락 test 자동 보완은 수행하지 않는다.
+
+### 변경 내용
+
+- `validate_test_plan.py`에 optional `--menu-map` 인자를 추가했다.
+- `--menu-map`이 전달되면 `menu_map.primaryMenuTree` 기준 기대 `menuPath` 목록을 만들고 `tests[].menuPath`와 비교하도록 했다.
+- 누락된 menuPath는 `[E401] missing test case for menuPath` error로 처리한다.
+- `primaryMenuTree`에 없는 menuPath는 `[E402] unknown test case menuPath` error로 처리한다.
+- 중복 menuPath는 `[E403] duplicate test case menuPath` error로 처리한다.
+- `package.json`에 `ai:validate-llm-plan` script를 추가했다.
+- `agent_orchestrator.py`의 `llm-plan` validation 단계에서 `--menu-map tools/ai-generator/generated/menu_map.json`을 함께 넘기도록 했다.
+- `docs/TEST_PLAN_SCHEMA.md`와 `docs/STRUCTURED_PLAN_MIGRATION.md`에 coverage validation gate를 반영했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/validate_test_plan.py` 문법 확인이 통과했다.
+- `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인이 통과했다.
+- `npm run ai:validate-plan` 실행 결과 example fixture 검증은 errors 0, warnings 0으로 통과했다.
+- `npm run ai:validate-generated-plan` 실행 결과 deterministic generated plan 검증은 errors 0, warnings 0으로 통과했다.
+- `npm run ai:validate-llm-plan` 실행 결과 현재 26 tests LLM plan은 coverage error 15건으로 실패했다.
+- 실패 항목은 `모듈/모뎀`, `단말`, `개발 지원`, `검증 지원`, `KT IoT 사업협력센터`, `공유` 하위 일부 depth3 menuPath 누락이었다.
+- LLM plan coverage 실패는 이번 작업의 기대 결과이며, renderer로 넘어가기 전 누락을 차단하는 품질 게이트가 동작함을 확인했다.
+
+### 다음 작업
+
+- LLM structured plan prompt를 보강해 `primaryMenuTree` 전체 parent/depth3 coverage를 생성하도록 한다.
+- 필요하면 LLM raw output과 `E401` 누락 목록을 비교해 어떤 메뉴 그룹에서 누락이 반복되는지 분석한다.
+
 ## 2026-07-06 - Cache collected pageProfiles
 
 ### 작업 목적

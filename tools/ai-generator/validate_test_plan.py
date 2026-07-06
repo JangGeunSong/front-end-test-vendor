@@ -28,6 +28,10 @@ def parse_args():
         default=str(DEFAULT_TEST_PLAN_PATH),
         help="Path to structured test plan JSON."
     )
+    parser.add_argument(
+        "--menu-map",
+        help="Optional path to menu_map.json. When provided, validate tests[].menuPath coverage against primaryMenuTree."
+    )
 
     return parser.parse_args()
 
@@ -44,6 +48,16 @@ def load_json(path):
         return json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
         raise ValueError(f"test plan JSON parse failed: {rel(path)} ({error})") from error
+
+
+def load_menu_map(path):
+    if not path.exists():
+        raise FileNotFoundError(f"menu_map file not found: {rel(path)}")
+
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ValueError(f"menu_map JSON parse failed: {rel(path)} ({error})") from error
 
 
 def is_non_empty_string(value):
@@ -291,7 +305,104 @@ def validate_test_cases(plan, errors, warnings):
         validate_template_specific_fields(test_case, index, errors, warnings)
 
 
-def validate(plan):
+def menu_path_key(menu_path):
+    if not is_string_array(menu_path):
+        return None
+
+    return tuple(menu_path)
+
+
+def collect_expected_menu_paths(menu_map):
+    expected = []
+
+    if not isinstance(menu_map, dict):
+        return expected
+
+    menu_tree = menu_map.get("primaryMenuTree", menu_map.get("menuTree", []))
+    if not isinstance(menu_tree, list):
+        return expected
+
+    for parent in menu_tree:
+        if not isinstance(parent, dict):
+            continue
+
+        parent_text = parent.get("text")
+        if not is_non_empty_string(parent_text):
+            continue
+
+        expected.append((parent_text,))
+
+        children = parent.get("children", [])
+        if not isinstance(children, list):
+            continue
+
+        for child in children:
+            if not isinstance(child, dict):
+                continue
+
+            child_text = child.get("text")
+            if is_non_empty_string(child_text):
+                expected.append((parent_text, child_text))
+
+    return expected
+
+
+def format_menu_path(menu_path):
+    return json.dumps(list(menu_path), ensure_ascii=False)
+
+
+def validate_menu_coverage(plan, menu_map, errors):
+    expected_paths = collect_expected_menu_paths(menu_map)
+    expected_set = set(expected_paths)
+    actual_paths = []
+    actual_indexes = {}
+
+    tests = plan.get("tests") if isinstance(plan, dict) else None
+    if not isinstance(tests, list):
+        return
+
+    for index, test_case in enumerate(tests):
+        if not isinstance(test_case, dict):
+            continue
+
+        key = menu_path_key(test_case.get("menuPath"))
+        if key is None:
+            continue
+
+        actual_paths.append(key)
+        actual_indexes.setdefault(key, []).append(index)
+
+    actual_set = set(actual_paths)
+
+    for menu_path in expected_paths:
+        if menu_path not in actual_set:
+            add_error(
+                errors,
+                "E401",
+                f"missing test case for menuPath: {format_menu_path(menu_path)}",
+                "$.coverage",
+            )
+
+    for menu_path in sorted(actual_set - expected_set):
+        first_index = actual_indexes.get(menu_path, ["?"])[0]
+        add_error(
+            errors,
+            "E402",
+            f"unknown test case menuPath: {format_menu_path(menu_path)}",
+            f"$.tests[{first_index}].menuPath",
+        )
+
+    for menu_path, indexes in actual_indexes.items():
+        if len(indexes) > 1:
+            add_error(
+                errors,
+                "E403",
+                f"duplicate test case menuPath: {format_menu_path(menu_path)} at indexes {indexes}",
+                "$.coverage",
+            )
+
+
+def validate(plan, menu_map=None):
     errors = []
     warnings = []
 
@@ -299,12 +410,17 @@ def validate(plan):
     if isinstance(plan, dict):
         validate_test_cases(plan, errors, warnings)
 
+        if menu_map is not None:
+            validate_menu_coverage(plan, menu_map, errors)
+
     return errors, warnings
 
 
-def print_report(path, errors, warnings):
+def print_report(path, errors, warnings, menu_map_path=None):
     print("Structured Test Plan Validation")
     print(f"- plan: {rel(path)}")
+    if menu_map_path is not None:
+        print(f"- menu_map: {rel(menu_map_path)}")
     print()
 
     print("Errors:")
@@ -338,9 +454,12 @@ def print_report(path, errors, warnings):
 def main():
     args = parse_args()
     path = Path(args.input)
+    menu_map_path = Path(args.menu_map) if args.menu_map else None
 
     if not path.is_absolute():
         path = ROOT_DIR / path
+    if menu_map_path is not None and not menu_map_path.is_absolute():
+        menu_map_path = ROOT_DIR / menu_map_path
 
     try:
         plan = load_json(path)
@@ -351,8 +470,20 @@ def main():
         print(f"Error: {error}")
         return 1
 
-    errors, warnings = validate(plan)
-    print_report(path, errors, warnings)
+    menu_map = None
+    if menu_map_path is not None:
+        try:
+            menu_map = load_menu_map(menu_map_path)
+        except (FileNotFoundError, ValueError) as error:
+            print("Structured Test Plan Validation")
+            print(f"- plan: {rel(path)}")
+            print(f"- menu_map: {rel(menu_map_path)}")
+            print()
+            print(f"Error: {error}")
+            return 1
+
+    errors, warnings = validate(plan, menu_map=menu_map)
+    print_report(path, errors, warnings, menu_map_path=menu_map_path)
 
     return 1 if errors else 0
 

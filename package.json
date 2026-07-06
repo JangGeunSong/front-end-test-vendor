@@ -11,6 +11,7 @@
     "ai:validate-plan": "python tools/ai-generator/validate_test_plan.py",
     "ai:build-plan": "python tools/ai-generator/build_test_plan.py",
     "ai:validate-generated-plan": "python tools/ai-generator/validate_test_plan.py --input tools/ai-generator/generated/test_plan.generated.json",
+    "ai:validate-llm-plan": "python tools/ai-generator/validate_test_plan.py --input tools/ai-generator/generated/test_plan.llm.json --menu-map tools/ai-generator/generated/menu_map.json",
     "ai:render-plan": "python tools/ai-generator/render_test_plan.py",
     "ai:render-generated-plan": "python tools/ai-generator/render_test_plan.py --input tools/ai-generator/generated/test_plan.generated.json --output tests/generated/generated_from_plan.spec.js",
     "ai:plan": "npm run ai:build-plan && npm run ai:validate-generated-plan && npm run ai:render-generated-plan",

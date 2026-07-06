@@ -1602,6 +1602,8 @@ def run_llm_plan_generation_pipeline(target_url, use_profile_cache=True, clear_p
             str(VALIDATE_TEST_PLAN_PATH),
             "--input",
             str(TEST_PLAN_LLM_PATH),
+            "--menu-map",
+            str(MENU_MAP_PATH),
         ]
     )
     run_subprocess_stage(

@@ -30,7 +30,20 @@
 - Sibling pageProfile selector fallback is forbidden.
 - Selectors must not be shortened, merged, synthesized, or converted into selector lists.
 - Heading identity should use `exact: true` by default and only when the heading is stable for the current menuPath.
-- If Page Identity evidence is weak or ambiguous, choose `navigation.todoIdentity`.
+- Template selection priority for `llm-plan` is:
+  1. `navigation.headingIdentity` when a stable visible heading exactly matches the menuPath leaf.
+  2. `navigation.tabIdentity` when the menu itself is tab-like, `ngClick`-based, href-empty, or no-url-change and the exact matching pageProfile has tab evidence.
+  3. `navigation.contentIdentity` when exact heading is unavailable but the exact matching pageProfile has a reliable content/mainContainer cssPath.
+  4. `navigation.todoIdentity` only when no reliable heading, tab, or content identity evidence exists.
+- Do not choose `navigation.tabIdentity` for normal href navigation only because the pageProfile contains tab elements.
+- For depth2 parent tests, prefer `navigation.headingIdentity` when the heading exactly matches the parent text, even if tab elements exist on the page.
+- For normal href navigation with URL/hash changes, prefer `navigation.contentIdentity` over `navigation.tabIdentity` when exact heading is unavailable.
+- If click href exists, `ngClick` is empty, and reliable content/mainContainer cssPath exists in the exact matching pageProfile, `navigation.contentIdentity` is the required choice.
+- `navigation.tabIdentity` should still include `assertions.url.href` whenever menu href or exact pageProfile hash is available.
+- Exact heading absence alone is not enough reason to choose `navigation.todoIdentity`.
+- If the exact matching pageProfile has a specific content/mainContainer cssPath comparable to deterministic builder output, the LLM should prefer `navigation.contentIdentity` over `navigation.todoIdentity`.
+- `navigation.contentIdentity` must use a selector from the exact matching pageProfile and `sourceMenuPath` must exactly equal `menuPath`.
+- If Page Identity evidence is weak or ambiguous after checking heading, tab, and content evidence, choose `navigation.todoIdentity`.
 - For `navigation.tabIdentity`, `navigationChange` is required and must be exactly one of `"expected"`, `"none"`, or `"unknown"`.
 - Do not use booleans, `null`, `"true"`, `"false"`, `"yes"`, `"no"`, `"same"`, `"changed"`, `"no-change"`, `"none expected"`, or any other value for `navigationChange`.
 - Use `"expected"` when URL/hash changes after click.

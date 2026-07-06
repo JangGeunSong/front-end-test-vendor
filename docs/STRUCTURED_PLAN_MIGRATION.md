@@ -76,6 +76,7 @@ Current plan scripts:
 - `npm run ai:plan`
 - `npm run ai:generate-plan -- --url https://target.example.com`
 - `npm run ai:generate-llm-plan -- --url https://target.example.com`
+- `npm run ai:compare-plans`
 
 Current experimental output files:
 
@@ -83,6 +84,8 @@ Current experimental output files:
 - `tests/generated/generated_from_plan.spec.js`
 
 The deterministic `menu_map.json -> test_plan.generated.json -> generated_from_plan.spec.js` path has been verified separately from the existing `ai:generate` path.
+
+`ai:compare-plans` compares `test_plan.generated.json` and `test_plan.llm.json` by `menuPath`. It is a quality review tool, not a pass/fail schema validator. It reports coverage differences, template choices, navigationChange differences, selector kind differences, assertion/page identity differences, and `todoIdentity` distribution so weak LLM plan cases can be reviewed before changing renderer behavior. The report separates raw differences from meaningful quality differences; for example, hash-only URLs and absolute URLs with the same hash route are treated as equivalent for quality review.
 
 ## Migration Phases
 
@@ -149,6 +152,7 @@ Behavior:
 - The raw LLM response is stored as `tools/ai-generator/generated/test_plan.llm.raw.txt`.
 - Store LLM output as `tools/ai-generator/generated/test_plan.llm.json`.
 - The LLM prompt includes an `expectedCoverage` checklist derived from `primaryMenuTree` so every parent/child menuPath must be represented exactly once.
+- The LLM prompt should prefer `contentIdentity` over `todoIdentity` when the exact matching pageProfile has a reliable content/mainContainer cssPath but no exact heading match.
 - Validate it before rendering.
 - Validation includes `primaryMenuTree` coverage when `menu_map.json` is available, so missing LLM-generated menuPaths fail before rendering.
 - Do not silently fall back to direct JS generation in this opt-in mode.

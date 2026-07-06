@@ -624,6 +624,9 @@ def build_structured_test_plan_prompt(generation_input):
     - Requires assertions.identity.sourceMenuPath.
     - selector must be a cssPath from the pageProfile whose menuPath exactly matches this test menuPath.
     - sourceMenuPath must exactly equal menuPath.
+    - Use this when heading does not exactly match the menuPath leaf but the exact matching pageProfile has a reliable mainContainer/content cssPath.
+    - Do not downgrade to navigation.todoIdentity merely because exact heading identity is unavailable.
+    - If the exact matching pageProfile has a specific content/mainContainer cssPath comparable to the deterministic builder output, prefer navigation.contentIdentity over navigation.todoIdentity.
 
     navigation.tabIdentity:
     - Requires assertions.identity.type = "tab".
@@ -639,13 +642,33 @@ def build_structured_test_plan_prompt(generation_input):
     - If URL/hash does not change because the menu is tab-like/ngClick, use "none".
     - If uncertain, use "unknown".
     - Requires at least one of assertions.identity.selector, assertions.identity.id, assertions.identity.text.
-    - Use this for ngClick/tab-like navigation where URL/hash may not change.
-    - If a URL/hash is available, include assertions.url.href.
+    - Use this only for real tab-like navigation: click.ngClick exists, href is empty, href is unchanged from the parent route, or URL/hash may not change.
+    - Do not use navigation.tabIdentity for a normal href navigation only because the pageProfile contains tab elements.
+    - If click.href exists, click.ngClick is empty, and the exact matching pageProfile has a reliable content/mainContainer cssPath, choose navigation.contentIdentity instead of navigation.tabIdentity.
+    - For depth2 parent tests, prefer navigation.headingIdentity when the heading exactly matches the parent text, even if tab elements exist on the page.
+    - If a URL/hash is available from menuTree href or exact matching pageProfile navigation.hash, include assertions.url.href even when navigationChange is "none".
 
     navigation.todoIdentity:
     - Requires assertions.url.href when available.
     - Requires todo.reason.
-    - Use this when stable identity evidence is weak or ambiguous.
+    - Use this only after checking headingIdentity, tabIdentity, and contentIdentity evidence.
+    - Exact heading absence alone is not enough reason to choose todoIdentity.
+    - Use this only when the exact matching pageProfile has no reliable heading, tab selector/id, or specific content/mainContainer cssPath.
+
+    [Template selection priority]
+    For each expectedCoverage menuPath, choose the strongest safe template in this order:
+    1. navigation.headingIdentity when a stable visible heading exactly matches the menuPath leaf.
+    2. navigation.tabIdentity when the menu itself is tab-like/ngClick/no-url-change and the exact matching pageProfile has a tab selector, tab id, or stable tab text.
+    3. navigation.contentIdentity when exact heading is unavailable but the exact matching pageProfile has a reliable content/mainContainer cssPath.
+    4. navigation.todoIdentity only when none of the above identity evidence exists.
+    For normal href navigation with URL/hash changes, prefer navigation.contentIdentity over navigation.tabIdentity when no exact heading is available.
+    If click.href exists, click.ngClick is empty, and reliable content/mainContainer cssPath exists, navigation.contentIdentity is the required choice.
+    Do not classify a menu as tabIdentity merely because tabs exist somewhere in its pageProfile.
+    Do not choose navigation.todoIdentity only because heading exact match is missing.
+    Do not invent selectors to avoid todoIdentity.
+    Do not use sibling pageProfile selectors to avoid todoIdentity.
+    For contentIdentity, the selector must be one cssPath collected in the exact matching pageProfile and sourceMenuPath must exactly equal menuPath.
+    Avoid overly broad selectors, but do not reject a specific content/mainContainer cssPath just because it is not a heading.
 
     [Coverage rules]
     - Create tests for every depth2 parent in menuTree.
@@ -677,6 +700,7 @@ def build_structured_test_plan_prompt(generation_input):
     [URL/hash rules]
     - assertions.url.href should use menuTree href when available.
     - If menuTree href is empty, use the exact matching pageProfile navigation.hash when available.
+    - Include assertions.url.href for navigation.tabIdentity whenever a href or hash is available; do not omit href only because navigationChange is "none".
     - Do not invent routes.
 
     [Selector and identity rules]
@@ -685,7 +709,8 @@ def build_structured_test_plan_prompt(generation_input):
     - Do not shorten, merge, synthesize, or generalize cssPath selectors.
     - Do not use selector lists such as "selector1, selector2".
     - Do not use button text, product/model names, notice titles, FAQ questions, list data, or operational data as strong identity assertions.
-    - If heading/mainContainer/tab evidence is ambiguous, use navigation.todoIdentity.
+    - If exact heading evidence is missing, check exact pageProfile tab and content/mainContainer cssPath evidence before using navigation.todoIdentity.
+    - If heading/mainContainer/tab evidence is ambiguous or missing, use navigation.todoIdentity.
 
     [Safety rules]
     - This plan is for Level 1 Navigation Smoke and Level 2 Page Identity only.

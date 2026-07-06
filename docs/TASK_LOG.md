@@ -1,5 +1,63 @@
 # Task Log
 
+## 2026-07-06 - Document structured plan command usage in README
+
+### 작업 목적
+
+- `package.json` scripts만 보고는 deterministic plan 경로와 LLM structured plan 경로의 사용법을 이해하기 어려운 문제를 줄인다.
+- 사람이 실행 목적에 따라 어떤 명령을 써야 하는지 README에서 바로 확인할 수 있게 한다.
+
+### 변경 내용
+
+- `README.md`에 structured plan 실행 흐름 섹션을 추가했다.
+- 기존 안정 경로, deterministic structured plan 경로, LLM structured plan 경로, plan 비교 경로를 구분해 설명했다.
+- `ai:plan`, `ai:plan:deterministic`, `ai:plan:llm`, `ai:plan:compare`, `ai:compare-plans`의 역할과 주의사항을 정리했다.
+- deterministic/LLM render가 `tests/generated/generated_from_plan.spec.js`를 공유한다는 점을 명시했다.
+- composite script에서는 `TARGET_URL` 사용을 권장한다는 내용을 추가했다.
+- README 명령어 요약 표에 structured plan 관련 명령을 추가했다.
+
+### 확인 결과
+
+- 문서 작업만 수행했으며 테스트 실행은 하지 않았다.
+- README에서 기존 generated spec 실행 흐름과 structured plan 실행 흐름이 구분되도록 정리했다.
+
+### 다음 작업
+
+- plan mode가 기본 경로로 전환될 때 README의 기본 실행 흐름을 다시 갱신한다.
+- 필요 시 README의 명령어 요약을 운영자용 quick start와 개발자용 advanced flow로 더 분리한다.
+
+## 2026-07-06 - Clarify structured plan npm scripts
+
+### 작업 목적
+
+- deterministic plan 경로와 llm-plan 경로가 섞여 보이는 `package.json` scripts를 사용 시나리오별로 정리한다.
+- 같은 shadow output file인 `tests/generated/generated_from_plan.spec.js`를 어떤 경로가 마지막으로 렌더링했는지 혼동하지 않도록 한다.
+- `ai:plan`은 deterministic 기본 경로로 유지하고, LLM 경로는 `ai:plan:llm`으로 명시하도록 한다.
+
+### 변경 내용
+
+- `package.json`에 `ai:render-llm-plan`을 추가했다.
+- `ai:plan`을 `ai:plan:deterministic` alias로 변경했다.
+- `ai:plan:deterministic`을 deterministic builder path 실행용 script로 추가했다.
+- `ai:plan:llm`을 LLM structured plan path 실행용 script로 추가했다.
+- `ai:plan:compare`를 deterministic/LLM plan artifact 생성, 검증, 비교용 script로 추가했다.
+- `ai:test:deterministic`과 `ai:test:llm`을 plan 생성 후 generated test 실행용 script로 추가했다.
+- `docs/STRUCTURED_PLAN_MIGRATION.md`에 script naming rule과 URL 전달 주의사항을 반영했다.
+
+### 확인 결과
+
+- `package.json` JSON parse 확인을 통과했다.
+- `npm run ai:plan:deterministic -- --url https://iotbiz.kt.co.kr` 실행을 통과했다.
+- `npm run ai:plan:llm -- --url https://iotbiz.kt.co.kr` 실행을 통과했다.
+- `npm run ai:compare-plans` 실행을 통과했다.
+- compare 결과는 deterministic plan 41건, llm-plan 41건, matched menuPaths 41건으로 coverage 차이가 없었다.
+- `npm run test:generated` 실행 결과 41 passed로 통과했다.
+
+### 다음 작업
+
+- composite script에서 여러 generation step에 같은 URL을 넘길 때는 `TARGET_URL` 사용을 권장한다.
+- `generated_from_plan.spec.js`는 deterministic/LLM render가 공유하는 shadow output이므로, 비교 목적 script와 실행 목적 script를 구분해서 사용한다.
+
 ## 2026-07-06 - Prefer content identity in LLM structured plan prompt
 
 ### 작업 목적

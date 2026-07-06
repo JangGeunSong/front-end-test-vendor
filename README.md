@@ -128,6 +128,70 @@ visual debug에서는 다음을 눈으로 확인합니다.
 - 중복 메뉴가 올바른 parent 아래에서 클릭되는지
 - Page Identity assertion 또는 highlight 대상이 의도한 본문 영역인지
 
+## structured plan 실행 흐름
+
+현재 프로젝트에는 기존 AI generated spec 경로와 structured test plan 경로가 함께 있습니다.
+
+- 기존 안정 경로: `ai:generate` → `ai:validate` → `test:generated`
+- deterministic plan 경로: `ai:plan:deterministic`
+- LLM structured plan 경로: `ai:plan:llm`
+- deterministic plan과 LLM plan 품질 비교: `ai:compare-plans`
+
+| 기존 plan 비교 | `npm run ai:compare-plans` |
+| plan 재생성 후 비교 | `$env:TARGET_URL="https://target.example.com"; npm run ai:plan:compare` |
+
+structured plan 경로는 `menu_map.json`과 `pageProfiles`를 바탕으로 test plan JSON을 만들고, validator와 deterministic renderer를 거쳐 `tests/generated/generated_from_plan.spec.js`를 생성합니다.
+
+### 어떤 명령을 쓰면 되는가
+
+일반적인 안정 경로가 필요하면 기존 generated spec 경로를 사용합니다.
+
+```powershell
+npm run ai:generate -- --url https://target.example.com
+npm run ai:validate
+npm run test:generated
+```
+
+deterministic structured plan 산출물을 만들고 실행하려면 다음을 사용합니다.
+
+```powershell
+npm run ai:plan:deterministic -- --url https://target.example.com
+npm run test:generated
+```
+
+LLM이 Playwright JS가 아니라 structured test plan JSON만 생성하도록 실험하려면 다음을 사용합니다.
+
+```powershell
+npm run ai:plan:llm -- --url https://target.example.com
+npm run test:generated
+```
+
+deterministic plan과 LLM plan의 품질 차이를 비교하려면 다음을 사용합니다.
+
+```powershell
+npm run ai:compare-plans
+```
+
+비교 리포트는 다음 위치에 생성됩니다.
+
+- `tools/ai-generator/generated/plan_compare_report.json`
+- `tools/ai-generator/generated/plan_compare_report.md`
+
+### plan scripts 주의사항
+
+- `ai:plan`은 `ai:plan:deterministic`의 alias입니다.
+- LLM structured plan 경로는 반드시 `ai:plan:llm`으로 명시해서 실행합니다.
+- `ai:plan:deterministic`과 `ai:plan:llm`은 둘 다 `tests/generated/generated_from_plan.spec.js`를 생성합니다. 마지막에 실행한 경로의 결과가 남습니다.
+- `ai:plan:compare`는 deterministic plan과 LLM plan을 모두 생성한 뒤 비교합니다. 두 경로가 같은 shadow output file을 쓰므로, 이 명령은 rendered spec 보존용이 아니라 plan 품질 비교용으로 봅니다.
+- 단일 명령에는 `-- --url https://target.example.com`을 사용할 수 있습니다.
+- 여러 npm script를 이어서 실행하는 composite 흐름에서는 같은 URL을 모든 단계에 전달하기 위해 `TARGET_URL` 환경변수 사용을 권장합니다.
+
+PowerShell 예시:
+
+```powershell
+$env:TARGET_URL="https://target.example.com"; npm run ai:plan:compare
+```
+
 ## 수동 테스트 녹화
 
 Playwright codegen으로 사람이 직접 테스트 초안을 녹화할 수 있습니다.
@@ -175,6 +239,9 @@ Playwright report에서 실행 결과, trace, screenshot 등 디버깅 정보를
 | 수동 테스트 녹화 | `npm run codegen -- -o tests/my_new_test.spec.js` |
 | AI generated spec 생성 | `npm run ai:generate` |
 | generated spec 정적 검수 | `npm run ai:validate` |
+| deterministic structured plan 생성/렌더 | `npm run ai:plan:deterministic -- --url https://target.example.com` |
+| LLM structured plan 생성/렌더 | `npm run ai:plan:llm -- --url https://target.example.com` |
+| deterministic/LLM plan 비교 | `npm run ai:compare-plans` |
 | generated 테스트 실행 | `npm run test:generated` |
 | generated visual debug 실행 | `npm run test:generated:visual` |
 | smoke 테스트 실행 | `npm run test:smoke` |

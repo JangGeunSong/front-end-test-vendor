@@ -1,10 +1,12 @@
 import argparse
+import hashlib
 import copy
 import subprocess
 import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -22,6 +24,7 @@ TEST_PLAN_LLM_RAW_PATH = GENERATED_DIR / "test_plan.llm.raw.txt"
 TEST_PLAN_LLM_ORIGINAL_PATH = GENERATED_DIR / "test_plan.llm.original.json"
 TEST_PLAN_LLM_PATH = GENERATED_DIR / "test_plan.llm.json"
 PLAN_RENDER_OUTPUT_PATH = TESTS_GENERATED_DIR / "generated_from_plan.spec.js"
+PAGE_PROFILE_CACHE_PATH = GENERATED_DIR / "page_profile_cache.json"
 VALID_NAVIGATION_CHANGES = {"expected", "none", "unknown"}
 
 PRIMARY_MENU_REGIONS = {"header", "nav"}
@@ -98,6 +101,16 @@ def parse_args():
         choices=("spec", "plan", "llm-plan"),
         default="spec",
         help="Generation mode. 'spec' keeps direct LLM Playwright spec generation. 'plan' runs deterministic structured plan shadow output. 'llm-plan' asks the LLM for structured test plan JSON and renders it."
+    )
+    parser.add_argument(
+        "--no-profile-cache",
+        action="store_true",
+        help="Disable pageProfile cache and collect all primary navigation pageProfiles."
+    )
+    parser.add_argument(
+        "--clear-profile-cache",
+        action="store_true",
+        help="Delete pageProfile cache before collection."
     )
 
     return parser.parse_args()
@@ -1286,7 +1299,189 @@ def count_tree_children(menu_tree):
     return sum(len(item.get("children", [])) for item in menu_tree)
 
 
-def build_and_save_menu_map(target_url):
+def make_page_profile_cache_key(target_url, menu_path, menu):
+    key_data = {
+        "targetUrl": target_url,
+        "menuPath": menu_path,
+        "href": menu.get("href", ""),
+        "ngClick": menu.get("ngClick", ""),
+        "cssPath": menu.get("cssPath", ""),
+    }
+    serialized = json.dumps(key_data, ensure_ascii=False, sort_keys=True)
+
+    return hashlib.sha1(serialized.encode("utf-8")).hexdigest(), key_data
+
+
+def collect_page_profile_targets(primary_menu_tree, target_url):
+    targets = []
+
+    for parent in primary_menu_tree:
+        parent_text = parent.get("text", "")
+        if not parent_text:
+            continue
+
+        parent_path = [parent_text]
+        parent_cache_key, parent_key_data = make_page_profile_cache_key(target_url, parent_path, parent)
+        targets.append({
+            "menuPath": parent_path,
+            "menu": parent,
+            "parentText": None,
+            "cacheKey": parent_cache_key,
+            "keyData": parent_key_data,
+        })
+
+        for child in parent.get("children", []):
+            child_text = child.get("text", "")
+            if not child_text:
+                continue
+
+            child_path = [parent_text, child_text]
+            child_cache_key, child_key_data = make_page_profile_cache_key(target_url, child_path, child)
+            targets.append({
+                "menuPath": child_path,
+                "menu": child,
+                "parentText": parent_text,
+                "cacheKey": child_cache_key,
+                "keyData": child_key_data,
+            })
+
+    return targets
+
+
+def load_page_profile_cache(clear_cache=False):
+    if clear_cache and PAGE_PROFILE_CACHE_PATH.exists():
+        PAGE_PROFILE_CACHE_PATH.unlink()
+        print(f"pageProfile cache cleared: {PAGE_PROFILE_CACHE_PATH}")
+
+    if not PAGE_PROFILE_CACHE_PATH.exists():
+        return {"version": 1, "entries": {}}
+
+    try:
+        with open(PAGE_PROFILE_CACHE_PATH, "r", encoding="utf-8") as f:
+            cache = json.load(f)
+    except (OSError, json.JSONDecodeError) as error:
+        print(f"Warning: pageProfile cache load failed, using empty cache: {error}")
+        return {"version": 1, "entries": {}}
+
+    if not isinstance(cache, dict) or not isinstance(cache.get("entries"), dict):
+        print("Warning: pageProfile cache shape is invalid, using empty cache.")
+        return {"version": 1, "entries": {}}
+
+    return cache
+
+
+def save_page_profile_cache(cache):
+    cache["version"] = 1
+    cache["updatedAt"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    save_json_to_path(cache, PAGE_PROFILE_CACHE_PATH)
+
+
+def profile_cache_entry_matches(entry, target):
+    if not isinstance(entry, dict):
+        return False
+
+    if entry.get("keyData") != target.get("keyData"):
+        return False
+
+    profile = entry.get("profile")
+    return isinstance(profile, dict) and bool(profile.get("pageProfile"))
+
+
+def build_profile_collection_tree(primary_menu_tree, missed_targets):
+    missed_paths = {tuple(target.get("menuPath", [])) for target in missed_targets}
+    collection_tree = []
+
+    for parent in primary_menu_tree:
+        parent_text = parent.get("text", "")
+        if not parent_text:
+            continue
+
+        parent_path = (parent_text,)
+        missed_children = [
+            child
+            for child in parent.get("children", [])
+            if (parent_text, child.get("text", "")) in missed_paths
+        ]
+
+        if parent_path in missed_paths or missed_children:
+            collection_tree.append({
+                **parent,
+                "children": missed_children,
+            })
+
+    return collection_tree
+
+
+def collect_page_profiles_with_cache(target_url, primary_menu_tree, use_cache=True, clear_cache=False):
+    started_at = time.perf_counter()
+    targets = collect_page_profile_targets(primary_menu_tree, target_url)
+
+    if not use_cache and clear_cache and PAGE_PROFILE_CACHE_PATH.exists():
+        PAGE_PROFILE_CACHE_PATH.unlink()
+        print(f"pageProfile cache cleared: {PAGE_PROFILE_CACHE_PATH}")
+
+    cache = load_page_profile_cache(clear_cache=clear_cache) if use_cache else {"version": 1, "entries": {}}
+    entries = cache.setdefault("entries", {})
+    profile_by_cache_key = {}
+    missed_targets = []
+
+    for target in targets:
+        entry = entries.get(target["cacheKey"])
+
+        if use_cache and profile_cache_entry_matches(entry, target):
+            profile_by_cache_key[target["cacheKey"]] = entry["profile"]
+        else:
+            missed_targets.append(target)
+
+    collection_tree = build_profile_collection_tree(primary_menu_tree, missed_targets)
+    collected_profiles = []
+
+    if missed_targets:
+        collected_profiles = run_page_profile_scout(target_url, collection_tree)
+
+    collected_by_path = {
+        tuple(profile.get("menuPath", [])): profile
+        for profile in collected_profiles
+        if isinstance(profile, dict)
+    }
+
+    collected_count = 0
+    for target in missed_targets:
+        profile = collected_by_path.get(tuple(target["menuPath"]))
+
+        if not profile:
+            continue
+
+        profile_by_cache_key[target["cacheKey"]] = profile
+        collected_count += 1
+
+        if use_cache:
+            entries[target["cacheKey"]] = {
+                "keyData": target["keyData"],
+                "profile": profile,
+                "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            }
+
+    page_profiles = [
+        profile_by_cache_key[target["cacheKey"]]
+        for target in targets
+        if target["cacheKey"] in profile_by_cache_key
+    ]
+
+    elapsed_seconds = time.perf_counter() - started_at
+    print(f"pageProfile targets: {len(targets)}")
+    print(f"cache hits: {len(targets) - len(missed_targets)}")
+    print(f"cache misses: {len(missed_targets)}")
+    print(f"collected: {collected_count}")
+    print(f"elapsed seconds: {elapsed_seconds:.1f}")
+
+    if use_cache:
+        save_page_profile_cache(cache)
+
+    return page_profiles
+
+
+def build_and_save_menu_map(target_url, use_profile_cache=True, clear_profile_cache=False):
     print("running scout")
     dom_map = run_scout(target_url)
     print(dom_map)
@@ -1297,7 +1492,12 @@ def build_and_save_menu_map(target_url):
     projections = project_menu_candidates(menu_candidates)
     primary_menu_tree, unresolved_primary = build_primary_menu_tree(projections.get("primaryMenus", []))
     projections["unresolvedPrimaryNavigationCandidates"] = unresolved_primary
-    page_profiles = run_page_profile_scout(target_url, primary_menu_tree)
+    page_profiles = collect_page_profiles_with_cache(
+        target_url,
+        primary_menu_tree,
+        use_cache=use_profile_cache,
+        clear_cache=clear_profile_cache,
+    )
     dom_map["pageProfiles"] = page_profiles
 
     menu_map = build_menu_map(
@@ -1315,9 +1515,13 @@ def build_and_save_menu_map(target_url):
     return menu_map
 
 
-def run_generation_pipeline(target_url):
+def run_generation_pipeline(target_url, use_profile_cache=True, clear_profile_cache=False):
     configure_llm()
-    menu_map = build_and_save_menu_map(target_url)
+    menu_map = build_and_save_menu_map(
+        target_url,
+        use_profile_cache=use_profile_cache,
+        clear_profile_cache=clear_profile_cache,
+    )
 
     # code = analyze_and_generate_code(dom_map)
     # code = analyze_and_generate_menu_test(menu_map)
@@ -1337,8 +1541,12 @@ def run_subprocess_stage(stage_name, command):
         raise RuntimeError(f"{stage_name} failed")
 
 
-def run_plan_generation_pipeline(target_url):
-    build_and_save_menu_map(target_url)
+def run_plan_generation_pipeline(target_url, use_profile_cache=True, clear_profile_cache=False):
+    build_and_save_menu_map(
+        target_url,
+        use_profile_cache=use_profile_cache,
+        clear_profile_cache=clear_profile_cache,
+    )
 
     run_subprocess_stage(
         "building structured test plan",
@@ -1374,9 +1582,13 @@ def run_plan_generation_pipeline(target_url):
     print(f"rendered output: {PLAN_RENDER_OUTPUT_PATH}")
 
 
-def run_llm_plan_generation_pipeline(target_url):
+def run_llm_plan_generation_pipeline(target_url, use_profile_cache=True, clear_profile_cache=False):
     configure_llm()
-    menu_map = build_and_save_menu_map(target_url)
+    menu_map = build_and_save_menu_map(
+        target_url,
+        use_profile_cache=use_profile_cache,
+        clear_profile_cache=clear_profile_cache,
+    )
 
     print("generating structured test plan with LLM")
     generate_structured_test_plan_with_llm(menu_map)
@@ -1409,15 +1621,29 @@ def run_llm_plan_generation_pipeline(target_url):
 if __name__ == "__main__":
     args = parse_args()
     target_url = resolve_target_url(args)
+    use_profile_cache = not args.no_profile_cache
     print(f"generation mode: {args.generation_mode}")
+    print(f"pageProfile cache: {'enabled' if use_profile_cache else 'disabled'}")
 
     try:
         if args.generation_mode == "llm-plan":
-            run_llm_plan_generation_pipeline(target_url)
+            run_llm_plan_generation_pipeline(
+                target_url,
+                use_profile_cache=use_profile_cache,
+                clear_profile_cache=args.clear_profile_cache,
+            )
         elif args.generation_mode == "plan":
-            run_plan_generation_pipeline(target_url)
+            run_plan_generation_pipeline(
+                target_url,
+                use_profile_cache=use_profile_cache,
+                clear_profile_cache=args.clear_profile_cache,
+            )
         else:
-            run_generation_pipeline(target_url)
+            run_generation_pipeline(
+                target_url,
+                use_profile_cache=use_profile_cache,
+                clear_profile_cache=args.clear_profile_cache,
+            )
     except RuntimeError as error:
         print(f"ERROR: {error}")
         raise SystemExit(1) from error

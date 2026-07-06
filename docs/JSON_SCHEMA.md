@@ -88,6 +88,42 @@ Each item in `menus` should include projection metadata when available:
 
 `pageProfiles` should be collected for `primaryMenuTree` targets, not for every broad discovery candidate. The `menuPath` field must match a parent path such as `["Parent"]` or a child path such as `["Parent", "Child"]` so `agent_orchestrator.py` can attach Level 2 Page Identity evidence to the generated menu step.
 
+### page_profile_cache.json
+
+`page_profile_cache.json` is a generated artifact used to avoid re-clicking every primary navigation menu on repeated runs.
+
+Typical shape:
+
+```json
+{
+  "version": 1,
+  "updatedAt": "",
+  "entries": {
+    "<cacheKey>": {
+      "keyData": {
+        "targetUrl": "",
+        "menuPath": [],
+        "href": "",
+        "ngClick": "",
+        "cssPath": ""
+      },
+      "profile": {},
+      "updatedAt": ""
+    }
+  }
+}
+```
+
+Cache key inputs:
+
+- `targetUrl`
+- `menuPath`
+- `href`
+- `ngClick`
+- `cssPath`
+
+A cache entry is valid only when the key data matches exactly and a `profile.pageProfile` object exists. Corrupted or invalid cache files should be ignored with a warning and rebuilt from new collection results.
+
 ### menuTree
 
 `menuTree` describes depth2 and depth3 menu relationships.

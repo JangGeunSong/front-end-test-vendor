@@ -1,5 +1,50 @@
 # Task Log
 
+## 2026-07-06 - Cache collected pageProfiles
+
+### 작업 목적
+
+- primary navigation pageProfiles 수집이 매번 전체 메뉴를 클릭하면서 10분 이상 걸리는 병목을 줄인다.
+- 반복 실행 시 동일 target URL과 동일 메뉴 식별 정보의 pageProfile을 cache에서 재사용한다.
+- scout.js의 DOM 수집/클릭 로직과 structured plan builder/validator/renderer는 변경하지 않는다.
+
+### 변경 내용
+
+- `agent_orchestrator.py`에 `tools/ai-generator/generated/page_profile_cache.json` 기반 pageProfile cache를 추가했다.
+- cache key는 `targetUrl`, `menuPath`, `href`, `ngClick`, `cssPath`를 기준으로 생성하도록 했다.
+- cache hit profile과 이번 실행에서 새로 수집한 profile을 primaryMenuTree 순서로 병합해 `menu_map.pageProfiles`에 저장하도록 했다.
+- cache miss인 menuPath만 scout.js pageProfile 수집 대상으로 넘기도록 했다.
+- `--no-profile-cache` 옵션을 추가해 기존처럼 전체 pageProfile 수집을 강제할 수 있게 했다.
+- `--clear-profile-cache` 옵션을 추가해 실행 전 cache 삭제 후 재수집할 수 있게 했다.
+- cache 파일 파싱 실패나 shape 오류는 경고 후 empty cache로 계속 진행하도록 했다.
+- `docs/JSON_SCHEMA.md`에 `page_profile_cache.json` 구조를 추가했고, `docs/DATA_FLOW.md`에 pageProfile cache 흐름을 반영했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인이 통과했다.
+- cold cache 실행: `npm run ai:generate-plan -- --url https://iotbiz.kt.co.kr --clear-profile-cache`
+  - pageProfile targets: 41
+  - cache hits: 0
+  - cache misses: 41
+  - collected: 41
+  - elapsed seconds: 459.8
+- warm cache 실행: `npm run ai:generate-plan -- --url https://iotbiz.kt.co.kr`
+  - pageProfile targets: 41
+  - cache hits: 41
+  - cache misses: 0
+  - collected: 0
+  - elapsed seconds: 0.0
+  - 전체 명령 wall time은 약 12.7초였다.
+- warm cache 실행 후 `menu_map.pageProfiles` 개수는 41건으로 유지되는 것을 확인했다.
+- `npm run ai:validate-generated-plan` 실행 결과 errors 0, warnings 0으로 통과했다.
+- `npm run ai:render-generated-plan` 실행 결과 `tests/generated/generated_from_plan.spec.js` 생성이 통과했다.
+
+### 다음 작업
+
+- cache hit 상태에서 `llm-plan` 실행 시간을 확인한다.
+- target URL 또는 메뉴 식별 정보가 바뀌었을 때 cache miss가 의도대로 발생하는지 추가 확인한다.
+- 필요하면 cache stale 정책이나 cache inspect 명령을 별도 작업으로 검토한다.
+
 ## 2026-07-03 - Normalize LLM plan navigationChange values
 
 ### 작업 목적

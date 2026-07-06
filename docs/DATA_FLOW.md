@@ -90,6 +90,8 @@ Level 1/2 generated spec은 `primaryMenuTree`만 사용한다. main CTA, footer 
 
 Level 2 `pageProfiles`도 `primaryMenuTree` 기준으로 별도 수집한다. broad discovery에서 발견된 전체 후보를 그대로 클릭하지 않고, generated spec 대상인 parent/child menuPath와 일치하는 profile만 LLM 입력으로 전달한다.
 
+반복 실행 시 `agent_orchestrator.py`는 `tools/ai-generator/generated/page_profile_cache.json`을 사용해 이미 수집된 pageProfile을 재사용할 수 있다. cache key는 target URL, menuPath, href, ngClick, cssPath를 기준으로 하며, cache miss인 메뉴만 scout.js pageProfile 수집 대상으로 전달한다. 최종 `menu_map.pageProfiles`는 cache hit profile과 이번 실행에서 새로 수집한 profile을 primaryMenuTree 순서로 병합한다.
+
 ### 5. agent_orchestrator.py
 
 `agent_orchestrator.py`는 생성 파이프라인을 조율한다.

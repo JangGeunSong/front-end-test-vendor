@@ -37,6 +37,11 @@ def parse_args():
         default=str(DEFAULT_MARKDOWN_REPORT_PATH),
         help="Path to write Markdown comparison report."
     )
+    parser.add_argument(
+        "--fail-on-meaningful-mismatch",
+        action="store_true",
+        help="Exit with code 1 when coverage is missing or meaningful quality mismatches exist."
+    )
 
     return parser.parse_args()
 
@@ -506,6 +511,46 @@ def print_console_report(report, json_output, markdown_output):
     print(f"- markdown: {rel(markdown_output)}")
 
 
+def gate_failures(report):
+    summary = report["summary"]
+    failures = []
+
+    if summary["missingOnlyInDeterministic"]:
+        failures.append(
+            f"missing menuPaths in LLM plan: {summary['missingOnlyInDeterministic']}"
+        )
+    if summary["missingOnlyInLlm"]:
+        failures.append(
+            f"unknown menuPaths only in LLM plan: {summary['missingOnlyInLlm']}"
+        )
+    if summary["meaningfulTemplateMismatchCount"]:
+        failures.append(
+            f"meaningful template mismatches: {summary['meaningfulTemplateMismatchCount']}"
+        )
+    if summary["meaningfulSelectorMismatchCount"]:
+        failures.append(
+            f"meaningful selector mismatches: {summary['meaningfulSelectorMismatchCount']}"
+        )
+    if summary["meaningfulAssertionMismatchCount"]:
+        failures.append(
+            f"meaningful assertion/page identity mismatches: {summary['meaningfulAssertionMismatchCount']}"
+        )
+
+    return failures
+
+
+def print_gate_report(failures):
+    print()
+    print("Quality gate:")
+    if not failures:
+        print("- passed")
+        return
+
+    print("- failed")
+    for failure in failures:
+        print(f"- {failure}")
+
+
 def main():
     args = parse_args()
     deterministic_path = resolve_path(args.deterministic)
@@ -526,8 +571,12 @@ def main():
     write_json_report(report, json_output)
     write_markdown_report(report, markdown_output)
     print_console_report(report, json_output, markdown_output)
+    failures = gate_failures(report) if args.fail_on_meaningful_mismatch else []
 
-    return 0
+    if args.fail_on_meaningful_mismatch:
+        print_gate_report(failures)
+
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":

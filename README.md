@@ -172,6 +172,14 @@ deterministic plan과 LLM plan의 품질 차이를 비교하려면 다음을 사
 npm run ai:compare-plans
 ```
 
+품질 차이가 있으면 명령 자체를 실패시키고 싶을 때는 gate 명령을 사용합니다.
+
+```powershell
+npm run ai:compare-plans:gate
+```
+
+`ai:compare-plans:gate`는 coverage 누락 또는 meaningful template/selector/assertion mismatch가 있으면 exit code 1로 종료합니다. 단순 URL 표현 차이처럼 raw-only difference로 분류된 항목은 실패 조건이 아닙니다.
+
 비교 리포트는 다음 위치에 생성됩니다.
 
 - `tools/ai-generator/generated/plan_compare_report.json`
@@ -242,6 +250,7 @@ Playwright report에서 실행 결과, trace, screenshot 등 디버깅 정보를
 | deterministic structured plan 생성/렌더 | `npm run ai:plan:deterministic -- --url https://target.example.com` |
 | LLM structured plan 생성/렌더 | `npm run ai:plan:llm -- --url https://target.example.com` |
 | deterministic/LLM plan 비교 | `npm run ai:compare-plans` |
+| deterministic/LLM plan 품질 게이트 | `npm run ai:compare-plans:gate` |
 | generated 테스트 실행 | `npm run test:generated` |
 | generated visual debug 실행 | `npm run test:generated:visual` |
 | smoke 테스트 실행 | `npm run test:smoke` |

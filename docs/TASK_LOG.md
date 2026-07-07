@@ -1,5 +1,40 @@
 # Task Log
 
+## 2026-07-07 - Add structured plan comparison quality gate
+
+### 작업 목적
+
+- `ai:compare-plans`를 단순 리포트 도구로 유지하면서, 필요 시 품질 게이트로 사용할 수 있는 opt-in 모드를 추가한다.
+- deterministic plan과 llm-plan 사이에 coverage 누락 또는 meaningful quality mismatch가 있으면 CI/검증 단계에서 실패시킬 수 있게 한다.
+
+### 변경 내용
+
+- `compare_test_plans.py`에 `--fail-on-meaningful-mismatch` 옵션을 추가했다.
+- 기본 실행은 기존처럼 리포트를 생성하고 exit code 0을 유지한다.
+- gate 옵션이 켜진 경우 다음 조건에서 exit code 1로 종료하도록 했다.
+  - deterministic plan에만 있는 menuPath
+  - LLM plan에만 있는 menuPath
+  - meaningful template mismatch
+  - meaningful selector mismatch
+  - meaningful assertion/page identity mismatch
+- `package.json`에 `ai:compare-plans:gate` script를 추가했다.
+- `README.md`에 리포트용 compare 명령과 품질 게이트용 compare 명령의 차이를 기록했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/compare_test_plans.py` 문법 확인을 통과했다.
+- `npm run ai:compare-plans` 실행 결과 기존처럼 리포트 생성용으로 동작하고 exit code 0으로 종료되는 것을 확인했다.
+- 현재 artifact 기준 compare 결과는 deterministic plan 41건, llm-plan 41건, matched menuPaths 41건이다.
+- coverage 누락, meaningful template mismatch, meaningful selector mismatch는 0건이었다.
+- meaningful assertion/page identity mismatch 8건이 확인되었다.
+- `npm run ai:compare-plans:gate` 실행 결과 meaningful assertion/page identity mismatch 8건 때문에 exit code 1로 실패하는 것을 확인했다.
+- gate 실패 항목은 LLM plan이 exact content selector보다 한 단계 넓은 parent selector를 선택한 케이스였다.
+
+### 다음 작업
+
+- CI 또는 사전 검수 흐름에 `npm run ai:compare-plans:gate`를 연결할지 검토한다.
+- 현재 gate 실패 항목은 `plan_compare_report.md`를 기준으로 LLM prompt의 content selector 선택 규칙을 보강한다.
+
 ## 2026-07-06 - Document structured plan command usage in README
 
 ### 작업 목적

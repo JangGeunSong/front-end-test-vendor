@@ -176,7 +176,7 @@ def validate_click(test_case, index, errors):
         if not is_non_empty_string(click.get("text")):
             add_error(errors, "E204", "depth3 click requires text", f"{path}.text")
 
-    for optional_key in ("id", "ngClick", "cssPath"):
+    for optional_key in ("id", "ngClick", "cssPath", "openTriggerCssPath", "hoverTargetCssPath"):
         if optional_key in click and not isinstance(click.get(optional_key), str):
             add_error(errors, "E205", f"{optional_key} must be a string when present", f"{path}.{optional_key}")
 

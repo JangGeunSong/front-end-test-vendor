@@ -1,15 +1,75 @@
-async function openDepth1ByIndex(page, depth1Index) {
-  const depth1 = page.locator('nav > ul > li').nth(depth1Index);
+function inferOpenTriggerCssPath(options = {}) {
+  const cssPath = options.cssPath || '';
+  const match = String(cssPath).match(/navigation-panel-(\d+)/);
 
-  await depth1.waitFor({ state: 'visible', timeout: 5000 });
+  if (!match) {
+    return '';
+  }
 
-  const box = await depth1.boundingBox();
+  const index = Number(match[1]) + 1;
+  return `nav#desktop-navigation > ul.navigation-list > li:nth-of-type(${index})`;
+}
+
+async function locatorExists(locator) {
+  try {
+    return await locator.count() > 0;
+  } catch {
+    return false;
+  }
+}
+
+async function hoverMenuTarget(page, target, label) {
+  await target.waitFor({ state: 'visible', timeout: 5000 });
+
+  const box = await target.boundingBox();
   if (!box) {
-    throw new Error(`depth1 index ${depth1Index} has no bounding box`);
+    throw new Error(`menu opener "${label}" has no bounding box`);
   }
 
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(300);
+
+  try {
+    await target.hover({ timeout: 1000 });
+  } catch {
+    // Mouse movement above is the primary open action; hover() is best-effort.
+  }
+
+  await page.waitForTimeout(300);
+}
+
+async function openNavigationByOptions(page, options = {}) {
+  const selectors = [
+    options.openTriggerCssPath,
+    options.hoverTargetCssPath,
+    inferOpenTriggerCssPath(options),
+    options.cssPath
+  ].filter(Boolean);
+
+  for (const selector of selectors) {
+    const target = page.locator(selector).first();
+
+    if (await locatorExists(target)) {
+      try {
+        await hoverMenuTarget(page, target, selector);
+        return true;
+      } catch {
+        // Some plans only have the final menu item's cssPath. If that item is
+        // present but hidden, keep looking and allow the depth1 fallback to run.
+      }
+    }
+  }
+
+  return false;
+}
+
+async function openDepth1ByIndex(page, depth1Index, options = {}) {
+  if (await openNavigationByOptions(page, options)) {
+    return;
+  }
+
+  const depth1 = page.locator('nav > ul > li').nth(depth1Index);
+  await hoverMenuTarget(page, depth1, `depth1 index ${depth1Index}`);
 }
 
 async function highlightVisibleMenu(target, page, label = '') {
@@ -73,40 +133,72 @@ function escapeCssAttributeValue(value) {
   return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
-async function clickVisibleMenuByText(page, text) {
-  const target = page.locator('nav').getByText(text, { exact: true }).first();
+async function clickVisibleMenuByText(page, text, options = {}) {
+  await openNavigationByOptions(page, options);
+
+  if (options.cssPath) {
+    const cssPathTarget = page.locator(options.cssPath).first();
+
+    if (await locatorExists(cssPathTarget)) {
+      await clickMenuTarget(page, cssPathTarget, text);
+      return;
+    }
+  }
+
+  const navigation = page.locator('nav');
+  if (await locatorExists(navigation)) {
+    const menuTarget = navigation.getByText(text, { exact: true }).first();
+
+    if (await locatorExists(menuTarget)) {
+      await clickMenuTarget(page, menuTarget, text);
+      return;
+    }
+  }
+
+  const target = page.getByText(text, { exact: true }).first();
 
   await clickMenuTarget(page, target, text);
 }
 
 async function clickVisibleSubMenuByText(page, parentText, childText, options = {}) {
+  await openNavigationByOptions(page, options);
+
   const navigation = page.locator('nav');
   const label = `${parentText} > ${childText}`;
 
   if (options.id) {
     const escapedId = escapeCssAttributeValue(options.id);
-    const target = navigation.locator(`[id="${escapedId}"]`).first();
+    const target = page.locator(`[id="${escapedId}"]`).first();
 
-    if (await target.count() > 0) {
+    if (await locatorExists(target)) {
       await clickMenuTarget(page, target, label);
       return;
     }
   }
 
   if (options.cssPath) {
-    const target = navigation.locator(options.cssPath).first();
+    const target = page.locator(options.cssPath).first();
 
-    if (await target.count() > 0) {
+    if (await locatorExists(target)) {
       await clickMenuTarget(page, target, label);
       return;
     }
   }
 
-  const parent = navigation
-    .locator('.depth2 > li')
-    .filter({ has: page.getByText(parentText, { exact: true }) })
-    .first();
-  const target = parent.getByText(childText, { exact: true }).first();
+  if (await locatorExists(navigation)) {
+    const parent = navigation
+      .locator('.depth2 > li')
+      .filter({ has: page.getByText(parentText, { exact: true }) })
+      .first();
+    const target = parent.getByText(childText, { exact: true }).first();
+
+    if (await locatorExists(target)) {
+      await clickMenuTarget(page, target, label);
+      return;
+    }
+  }
+
+  const target = page.getByText(childText, { exact: true }).first();
 
   await clickMenuTarget(page, target, label);
 }

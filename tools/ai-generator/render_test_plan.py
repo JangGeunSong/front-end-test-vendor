@@ -59,7 +59,21 @@ def get_identity(test_case):
 def render_options_object(click):
     options = []
 
-    for key in ("id", "ngClick", "cssPath"):
+    for key in ("id", "ngClick", "cssPath", "openTriggerCssPath", "hoverTargetCssPath"):
+        value = click.get(key)
+        if isinstance(value, str) and value:
+            options.append(f"{key}: {js_string(value)}")
+
+    if not options:
+        return ""
+
+    return ", { " + ", ".join(options) + " }"
+
+
+def render_open_options_object(click):
+    options = []
+
+    for key in ("openTriggerCssPath", "hoverTargetCssPath", "cssPath"):
         value = click.get(key)
         if isinstance(value, str) and value:
             options.append(f"{key}: {js_string(value)}")
@@ -72,9 +86,11 @@ def render_options_object(click):
 
 def render_open_depth1(test_case):
     depth1_index = test_case.get("depth1Index")
+    click = test_case.get("click") or {}
+    options = render_open_options_object(click)
 
     if isinstance(depth1_index, (int, float)) and not isinstance(depth1_index, bool):
-        return f"await openDepth1ByIndex(page, {int(depth1_index)});"
+        return f"await openDepth1ByIndex(page, {int(depth1_index)}{options});"
 
     return "// TODO: depth1Index is unknown; confirm navigation open target before enabling this step."
 
@@ -86,7 +102,8 @@ def render_click(test_case):
     lines = [render_open_depth1(test_case)]
 
     if click_type == "depth2":
-        lines.append(f"await clickVisibleMenuByText(page, {js_string(click['text'])});")
+        options = render_options_object(click)
+        lines.append(f"await clickVisibleMenuByText(page, {js_string(click['text'])}{options});")
     elif click_type == "depth3":
         options = render_options_object(click)
         lines.append(

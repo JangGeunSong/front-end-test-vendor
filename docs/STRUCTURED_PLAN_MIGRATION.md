@@ -6,6 +6,8 @@ This document describes how `agent_orchestrator.py` can move from direct LLM-gen
 
 This is a migration design only. Current `ai:generate` behavior and `tests/generated/generated_menu_access.spec.js` generation remain unchanged.
 
+The product direction is AI-assisted but deterministic-controlled test generation. The LLM proposes structured test intent; validators and renderers own executable Playwright behavior.
+
 ## Current Structure
 
 Current generation flow:
@@ -88,6 +90,8 @@ Current experimental output files:
 - `tests/generated/generated_from_plan.spec.js`
 
 The deterministic `menu_map.json -> test_plan.generated.json -> generated_from_plan.spec.js` path has been verified separately from the existing `ai:generate` path.
+
+The LLM structured plan path is also available as an opt-in workflow. It keeps the LLM away from free-form JavaScript and asks it to produce schema-bound JSON only. The generated plan is validated for schema and primary navigation coverage before deterministic rendering.
 
 `ai:compare-plans` compares `test_plan.generated.json` and `test_plan.llm.json` by `menuPath`. It is a quality review tool, not a pass/fail schema validator. It reports coverage differences, template choices, navigationChange differences, selector kind differences, assertion/page identity differences, and `todoIdentity` distribution so weak LLM plan cases can be reviewed before changing renderer behavior. The report separates raw differences from meaningful quality differences; for example, hash-only URLs and absolute URLs with the same hash route are treated as equivalent for quality review.
 

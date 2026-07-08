@@ -18,6 +18,7 @@ The LLM should choose a template and fill fields. It should not generate Playwri
 - URL assertion formatting is owned by the renderer.
 - Renderer code owns helper imports, `page.goto`, loops, regex escaping, `expect`, and visual debug highlights.
 - Risky actions such as save, delete, register, update, approve, send, upload, and submit are not represented by these navigation templates.
+- `click.openTriggerCssPath` and `click.hoverTargetCssPath` are optional. When present, the renderer passes them to the navigation helper so the generated spec can open the correct navigation panel without relying only on a fixed `depth1Index` selector.
 
 ## navigation.urlOnly
 
@@ -184,6 +185,6 @@ The deterministic renderer should own:
 - `highlightPageIdentity`
 - loop format for grouped children
 - TODO comment format
+- Generic navigation open behavior using `click.openTriggerCssPath`, `click.hoverTargetCssPath`, or a safe fallback based on `depth1Index`.
 
 The renderer should reject unsupported templates instead of inventing behavior.
-

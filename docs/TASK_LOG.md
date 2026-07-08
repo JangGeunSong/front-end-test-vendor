@@ -1,5 +1,72 @@
 # Task Log
 
+## 2026-07-08 - Use planned open trigger for generic navigation
+
+### 작업 목적
+
+- structured plan renderer 산출물이 특정 사이트 전용 `.menuContainer .depth1 > li` selector에만 의존하지 않도록 개선한다.
+- `test_plan`에 포함된 `openTriggerCssPath`, `hoverTargetCssPath`, `cssPath`를 navigation open 단계에서 우선 활용해 URL-first cross-site 실행 안정성을 높인다.
+
+### 변경 내용
+
+- `utils/gnb.js`에 plan 기반 navigation open helper를 추가했다.
+  - `openTriggerCssPath`, `hoverTargetCssPath`, Kakao PC `mainMenu-N` 기반 추론 selector, `cssPath` 순서로 open 후보를 시도한다.
+  - 후보 selector가 DOM에는 있지만 hidden인 경우 실패로 끝내지 않고 다음 후보 또는 기존 `depth1Index` fallback으로 내려가도록 했다.
+  - 기존 `.menuContainer .depth1 > li` fallback은 유지해 기존 KT IoT 계열 generated test 동작을 보존했다.
+- `clickVisibleMenuByText`, `clickVisibleSubMenuByText`가 plan options를 받아 generic open 후 cssPath/id/text 기반 클릭을 수행하도록 보강했다.
+- `render_test_plan.py`가 `click.openTriggerCssPath`와 `click.hoverTargetCssPath`를 generated spec 호출 options에 포함하도록 수정했다.
+- `validate_test_plan.py`에서 `click.openTriggerCssPath`, `click.hoverTargetCssPath`를 optional string field로 허용했다.
+- `docs/TEST_TEMPLATE_CATALOG.md`에 renderer가 plan 기반 open trigger를 우선 사용한다는 규칙을 추가했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/render_test_plan.py tools/ai-generator/validate_test_plan.py` 통과.
+- `node -c utils/gnb.js` 통과.
+- `npm run ai:plan:llm -- --url https://www.kakaocorp.com` 실행 후 `npm run ai:validate-llm-plan` 통과.
+- Kakao 대상 `npm run test:generated` 결과 17 passed 확인.
+- `npm run ai:plan:llm -- --url https://iotbiz.kt.co.kr` 실행 후 `npm run ai:validate-llm-plan` 통과.
+- KT IoT 대상 `npx playwright test tests/generated --reporter=dot` 결과 41 passed 확인.
+
+### 다음 작업
+
+- 여러 사이트에서 `openTriggerCssPath`와 `hoverTargetCssPath`가 충분히 수집되는지 추가 샘플로 확인한다.
+- generated artifact와 cache 파일은 검증 산출물이므로 커밋 대상에서 제외한다.
+
+## 2026-07-08 - Exclude utility and mobile navigation from primary projection
+
+### 작업 목적
+
+- broad scout discovery 결과에서 overlay close/open control, header utility link, mobile-only duplicate navigation이 `primaryMenuTree`에 섞이는 문제를 줄인다.
+- Level 1/2 structured plan 대상은 primary desktop/header navigation 중심으로 projection하고, utility/mobile 후보는 non-primary 후보로 보존한다.
+
+### 변경 내용
+
+- `agent_orchestrator.py`에 utility/overlay control 분류 규칙을 추가했다.
+  - `닫기`, `열기`, search/language/dark-mode 성격의 button/control
+  - `btn_close`, `btn_search`, `btn_language`, `btn_mode`, `wrap_util`, `area_util`, `group_relation`, `list_relation` selector signal
+- PC/desktop navigation 후보가 존재하면 `gnbContentMO` 등 mobile navigation 후보를 `mobileNavigationFallback`으로 분류해 `primaryMenuTree`에서 제외하도록 했다.
+- PC top-level menu button과 expanded panel child를 `nav ... li:nth-of-type(N)` / `mainMenu-N` DOM 관계로 연결하도록 보강했다.
+- child가 expanded panel에 속할 때는 child 자체 index가 아니라 parent의 `depth1Index`를 open index로 사용하도록 했다.
+- top-level direct nav link가 마지막 parent의 child로 잘못 붙지 않도록 `topLevelDirectLink` 후보로 분리했다.
+- LLM structured plan normalization에서 `navigation.todoIdentity`의 `todo.reason`이 누락된 경우 기본 reason을 채우도록 했다. Validator 자체는 strict하게 유지했다.
+- `docs/DATA_FLOW.md`에 utility/mobile navigation projection 제외 원칙을 기록했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인을 통과했다.
+- `npm run ai:plan:llm -- --url https://www.kakaocorp.com` 실행 결과 LLM plan 생성, validation, render가 정상 완료되었다.
+- 카카오 대상 `menu_map.primaryMenuTree`는 parent 5개, child 12개로 구성되었다.
+- `메인 메뉴 닫기`는 `utilityLink`로 분류되어 primary parent에서 제외되었다.
+- `gnbContentMO` mobile navigation 후보는 `mobileNavigationFallback`으로 분류되어 primary tree에서 제외되었다.
+- `인재영입 새창열림`과 top-level direct link가 primary child로 붙지 않는 것을 확인했다.
+- `npm run ai:validate-llm-plan` 결과 errors 0, warnings 0을 확인했다.
+- `npm run test:generated`는 17개 테스트 모두 실패했다. 실패 원인은 `utils/gnb.js`의 기존 `openDepth1ByIndex`가 `.menuContainer .depth1 > li` 전용 selector를 사용하기 때문이며, 카카오 DOM에는 해당 selector가 없어 timeout이 발생했다.
+
+### 다음 작업
+
+- URL-first 범용 실행을 위해 `openDepth1ByIndex` 또는 renderer가 target별 `openTriggerCssPath`/generic nav selector를 사용할 수 있도록 별도 개선한다.
+- 이번 작업 범위에서는 scout.js, renderer, generated spec 구조를 수정하지 않았으므로 primary projection 개선과 generic GNB open helper 개선을 분리해 진행한다.
+
 ## 2026-07-08 - Tighten LLM content identity selector prompt
 
 ### 작업 목적

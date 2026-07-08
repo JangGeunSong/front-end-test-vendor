@@ -86,6 +86,8 @@ scout는 가능한 경우 `hoverTargetCssPath`와 `openTriggerCssPath`도 함께
 
 `agent_orchestrator.py`는 각 후보에 `candidateKind`/`navigationRole`을 부여해 생성 목적별 projection을 만든다. `navigationTrigger`, `logoHome`, `footerLink`, `contentCta`, `quickLink`, `utilityLink`는 primary navigation parent가 될 수 없다.
 
+Primary navigation projection은 overlay open/close control, search/language/dark-mode 같은 header utility control, relation/external utility link, mobile-only navigation duplicate를 Level 1/2 generated spec 대상에서 제외한다. PC/desktop navigation 후보가 함께 수집된 경우 mobile navigation 후보는 fallback 후보로만 보존하고 `primaryMenuTree`에서는 제외한다. PC navigation의 top-level button과 expanded panel child는 DOM 구조(`nav ... li:nth-of-type(N)`와 `mainMenu-N`)를 기반으로 연결하며, utility/close/open 후보 아래에는 child를 붙이지 않는다.
+
 Level 1/2 generated spec은 `primaryMenuTree`만 사용한다. main CTA, footer link, quick link는 추후 Level 3/link profile 확장 후보로 보존한다. parent-child 관계가 불확실한 후보는 generic menu trigger 아래에 몰아넣지 않고 `unresolvedPrimaryNavigationCandidates`로 남긴다.
 
 Level 2 `pageProfiles`도 `primaryMenuTree` 기준으로 별도 수집한다. broad discovery에서 발견된 전체 후보를 그대로 클릭하지 않고, generated spec 대상인 parent/child menuPath와 일치하는 profile만 LLM 입력으로 전달한다.

@@ -70,6 +70,41 @@ BRAND_HOME_HINTS = (
     "utility",
     "main-logo",
     "site-logo",
+    "doc-title",
+)
+UTILITY_CONTROL_TEXT_KEYWORDS = (
+    "닫기",
+    "열기",
+    "close",
+    "open",
+    "search",
+    "검색",
+    "language",
+    "영어",
+    "다크모드",
+    "dark",
+    "mode",
+)
+UTILITY_CONTROL_SELECTOR_KEYWORDS = (
+    "btn_close",
+    "btn_search",
+    "btn_language",
+    "btn_mode",
+    "wrap_util",
+    "area_util",
+    "group_relation",
+    "list_relation",
+)
+MOBILE_NAV_SELECTOR_KEYWORDS = (
+    "gnbcontentmo",
+    "mobile",
+    "mo_header",
+    "m_header",
+)
+DESKTOP_NAV_SELECTOR_KEYWORDS = (
+    "gnbcontentpc",
+    "pc_header",
+    "desktop",
 )
 
 # 1. LLM 설정 (API 키는 환경변수나 별도 파일 권장)
@@ -793,6 +828,20 @@ def normalize_llm_test_plan(plan):
         if not isinstance(test_case, dict):
             continue
 
+        if test_case.get("template") == "navigation.todoIdentity":
+            todo = test_case.get("todo")
+            if not isinstance(todo, dict):
+                todo = {}
+                test_case["todo"] = todo
+
+            if not normalize_text(todo.get("reason", "")):
+                reason = "No stable page identity signal was selected by the LLM."
+                print(
+                    f"Repaired todo.reason for $.tests[{index}]: "
+                    f"{json.dumps(todo.get('reason'), ensure_ascii=False)} -> {json.dumps(reason)}"
+                )
+                todo["reason"] = reason
+
         if test_case.get("template") != "navigation.tabIdentity":
             continue
 
@@ -977,6 +1026,79 @@ def has_keyword(value, keywords):
     return any(keyword in normalized for keyword in keywords)
 
 
+def combined_candidate_text(menu):
+    return " ".join([
+        str(menu.get("text", "")),
+        str(menu.get("className", "")),
+        str(menu.get("id", "")),
+        str(menu.get("role", "")),
+        str(menu.get("title", "")),
+        str(menu.get("cssPath", "")),
+    ])
+
+
+def is_mobile_navigation_candidate(menu):
+    return has_keyword(combined_candidate_text(menu), MOBILE_NAV_SELECTOR_KEYWORDS)
+
+
+def is_desktop_navigation_candidate(menu):
+    return has_keyword(combined_candidate_text(menu), DESKTOP_NAV_SELECTOR_KEYWORDS)
+
+
+def has_desktop_navigation_candidates(candidates):
+    return any(is_desktop_navigation_candidate(candidate) for candidate in candidates)
+
+
+def is_utility_or_overlay_control(menu):
+    tag_name = lower_text(menu.get("tagName", ""))
+    role = lower_text(menu.get("role", ""))
+    text = lower_text(menu.get("text", ""))
+    combined = combined_candidate_text(menu)
+    is_control = tag_name == "button" or role == "button" or not menu.get("href")
+
+    if is_control and has_keyword(text, UTILITY_CONTROL_TEXT_KEYWORDS):
+        return True
+
+    if has_keyword(combined, UTILITY_CONTROL_SELECTOR_KEYWORDS):
+        return True
+
+    return False
+
+
+def get_main_menu_panel_index(css_path):
+    match = re.search(r"mainMenu-(\d+)", str(css_path or ""))
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def get_nav_list_item_index(css_path):
+    match = re.search(r"nav#[^ >]+[^>]*>\s*ul\.[^>]+>\s*li:nth-of-type\((\d+)\)", str(css_path or ""))
+    if not match:
+        return None
+    return int(match.group(1)) - 1
+
+
+def belongs_to_expanded_panel(child, parent):
+    parent_nav_index = get_nav_list_item_index(parent.get("cssPath", ""))
+    child_panel_index = get_main_menu_panel_index(child.get("cssPath", ""))
+    return parent_nav_index is not None and child_panel_index is not None and parent_nav_index == child_panel_index
+
+
+def is_top_level_nav_direct_link(menu):
+    css_path = str(menu.get("cssPath", ""))
+    class_name = lower_text(menu.get("className", ""))
+    tag_name = lower_text(menu.get("tagName", ""))
+
+    return (
+        tag_name == "a" and
+        bool(menu.get("href")) and
+        "item_menu" in class_name and
+        get_nav_list_item_index(css_path) is not None and
+        get_main_menu_panel_index(css_path) is None
+    )
+
+
 def same_navigation_group(left, right):
     left_group = left.get("navigationGroupIndex")
     right_group = right.get("navigationGroupIndex")
@@ -1028,12 +1150,28 @@ def is_navigation_trigger(menu):
     tag_name = lower_text(menu.get("tagName", ""))
     role = lower_text(menu.get("role", ""))
     text = lower_text(menu.get("text", ""))
+    class_name = lower_text(menu.get("className", ""))
+
+    if "item_menu" in class_name:
+        return False
 
     return (
         menu.get("semanticRegion") in PRIMARY_MENU_REGIONS and
         not menu.get("href") and
         (tag_name == "button" or role == "button") and
-        (text in MENU_TRIGGER_TEXTS or has_keyword(menu.get("className", ""), ("menu", "hamburger", "trigger", "toggle")))
+        (
+            text in MENU_TRIGGER_TEXTS or
+            has_keyword(class_name, ("menubutton", "btn_menu", "menu-button", "hamburger", "trigger", "toggle"))
+        )
+    )
+
+
+def has_structural_child_candidate(menu, candidates):
+    return any(
+        candidate is not menu and
+        normalize_text(candidate.get("text", "")) != normalize_text(menu.get("text", "")) and
+        belongs_to_expanded_panel(candidate, menu)
+        for candidate in candidates
     )
 
 
@@ -1058,6 +1196,15 @@ def has_group_child_text(menu, candidates):
 
 
 def classify_candidate_kind(menu, all_candidates):
+    if is_utility_or_overlay_control(menu):
+        return "utilityLink"
+
+    if is_mobile_navigation_candidate(menu) and has_desktop_navigation_candidates(all_candidates):
+        return "mobileNavigationFallback"
+
+    if is_top_level_nav_direct_link(menu) and not has_structural_child_candidate(menu, all_candidates):
+        return "topLevelDirectLink"
+
     if is_navigation_trigger(menu):
         return "navigationTrigger"
 
@@ -1082,7 +1229,7 @@ def classify_candidate_kind(menu, all_candidates):
     if is_text_too_long_for_primary(menu.get("text", "")):
         return "unknown"
 
-    if has_group_child_text(menu, all_candidates):
+    if has_group_child_text(menu, all_candidates) or has_structural_child_candidate(menu, all_candidates):
         return "primaryNavigation"
 
     if menu.get("menuDepth") in (2, 3) and (
@@ -1103,7 +1250,23 @@ def is_primary_navigation_candidate(menu):
     if menu.get("menuDepth") not in (2, 3):
         return False
 
+    if is_utility_or_overlay_control(menu):
+        return False
+
+    if is_mobile_navigation_candidate(menu):
+        return False
+
+    if is_top_level_nav_direct_link(menu) and not has_structural_child_candidate(menu, []):
+        return False
+
     if menu.get("depth1Index") is None and menu.get("navigationGroupIndex") is None:
+        return False
+
+    if (
+        menu.get("candidateKind") == "primaryNavigation" and
+        menu.get("depth1Index") is None and
+        not (menu.get("href") and menu.get("isVisible") and menu.get("confidence") == "high")
+    ):
         return False
 
     text = menu.get("text", "")
@@ -1193,6 +1356,10 @@ def get_non_primary_reason(menu):
     candidate_kind = menu.get("candidateKind")
     if candidate_kind and candidate_kind not in ("primaryNavigation", "primaryNavigationItem"):
         return f"candidate-kind:{candidate_kind}"
+    if is_utility_or_overlay_control(menu):
+        return "utility-or-overlay-control"
+    if is_mobile_navigation_candidate(menu):
+        return "mobile-navigation-fallback"
     if menu.get("semanticRegion") not in PRIMARY_MENU_REGIONS:
         return f"non-primary-region:{menu.get('semanticRegion', 'unknown')}"
     if menu.get("menuDepth") not in (2, 3):
@@ -1251,9 +1418,7 @@ def build_primary_menu_tree(primary_menus):
             if normalize_text(child.get("text", "")) == normalize_text(parent.get("text", "")):
                 continue
 
-            child_depth1_index = child.get("depth1Index")
-            if child_depth1_index is None:
-                child_depth1_index = parent.get("depth1Index")
+            child_depth1_index = get_child_open_depth1_index(child, parent)
 
             parent_node["children"].append({
                 **child,
@@ -1318,13 +1483,9 @@ def build_menu_tree(menu_candidates):
 
         elif depth == 3:
             if current_depth2 is not None and belongs_to_parent_group(menu, current_depth2):
-                child_depth1_index = menu.get("depth1Index")
-                if child_depth1_index is None:
-                    child_depth1_index = current_depth2.get("depth1Index")
-
                 current_depth2["children"].append({
                     **menu,
-                    "depth1Index": child_depth1_index
+                    "depth1Index": get_child_open_depth1_index(menu, current_depth2)
                 })
             else:
                 tree.append({
@@ -1344,6 +1505,9 @@ def build_menu_tree(menu_candidates):
 
 
 def belongs_to_parent_group(child, parent):
+    if belongs_to_expanded_panel(child, parent):
+        return True
+
     child_group = child.get("navigationGroupIndex")
     parent_group = parent.get("navigationGroupIndex")
 
@@ -1357,6 +1521,17 @@ def belongs_to_parent_group(child, parent):
         return child_depth1 == parent_depth1
 
     return False
+
+
+def get_child_open_depth1_index(child, parent):
+    if belongs_to_expanded_panel(child, parent):
+        return parent.get("depth1Index")
+
+    child_depth1_index = child.get("depth1Index")
+    if child_depth1_index is not None:
+        return child_depth1_index
+
+    return parent.get("depth1Index")
 
 def extract_page_profiles(dom_data):
     if isinstance(dom_data, dict):

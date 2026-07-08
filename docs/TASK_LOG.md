@@ -1,5 +1,71 @@
 # Task Log
 
+## 2026-07-08 - Ensure unique rendered Playwright test titles
+
+### 작업 목적
+
+- 서로 다른 parent 아래 동일한 child text가 있을 때 renderer 산출물이 중복 Playwright test title을 만들어 실행 전 중단되는 문제를 방지한다.
+- `test_case.title`이 중복되더라도 최종 실행 title은 `menuPath` 전체를 기준으로 유니크하게 만들도록 한다.
+
+### 변경 내용
+
+- `render_test_plan.py`에서 최종 test title을 `Navigation: parent > child` 형태의 full `menuPath` 기반으로 생성하도록 변경했다.
+- 렌더링 중 동일 title이 다시 발생하면 `#2`, `#3` suffix를 붙이는 uniqueness guard를 추가했다.
+- `validate_test_plan.py`는 `tests[].title` 중복을 error가 아닌 warning으로 표시하도록 했다. 실제 실행 안정성은 renderer가 보장한다.
+- `docs/TEST_TEMPLATE_CATALOG.md`와 `docs/STRUCTURED_PLAN_MIGRATION.md`에 renderer가 LLM title을 그대로 신뢰하지 않고 최종 Playwright title uniqueness를 보장한다는 원칙을 기록했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/render_test_plan.py` 통과.
+- `python -m py_compile tools/ai-generator/validate_test_plan.py` 통과.
+- KT IoT 대상 `npm run ai:plan:llm -- --url https://iotbiz.kt.co.kr` 실행 후 `npm run ai:validate-llm-plan` 통과.
+- KT IoT 대상 `npm run test:generated` 결과 41 passed 확인.
+  - 동일 child text가 `Navigation: 모듈/모뎀 > NB-IoT`, `Navigation: 단말 > NB-IoT`처럼 full menuPath 기반 title로 구분되어 duplicate title 중단이 사라졌다.
+- Playwright 공식 사이트 대상 `npm run ai:plan:llm -- --url https://playwright.dev` 실행 후 `npm run test:generated` 결과 8 passed 확인.
+- Kakao 대상 `npm run ai:plan:llm -- --url https://www.kakaocorp.com` 실행 후 `npm run test:generated` 결과 17 passed 확인.
+
+### 다음 작업
+
+- LLM이 생성하는 `tests[].title`은 사람이 읽기 좋은 보조 정보로 두고, 실행 안정성은 renderer의 full menuPath 기반 title 생성 규칙으로 유지한다.
+
+## 2026-07-08 - Include direct top-level nav links in primary projection
+
+### 작업 목적
+
+- Docusaurus/문서형 사이트처럼 top-level nav link가 dropdown 없이 바로 이동 대상인 경우 `depth1Index`가 null이라는 이유만으로 `primaryMenuTree`가 비는 문제를 보완한다.
+- Playwright 공식 사이트에서 Docs, MCP, CLI, API 같은 direct nav link를 Level 1/2 primary navigation 대상으로 projection할 수 있게 한다.
+
+### 변경 내용
+
+- `agent_orchestrator.py`에 `primaryNavigationDirect` 분류를 추가했다.
+  - header/nav 영역, high confidence, visible, href/text가 있는 direct nav link는 `depth1Index`가 null이어도 primary parent 후보로 승격할 수 있다.
+  - brand/logo home, skip link, search, theme toggle, GitHub/Discord/social utility, external utility, hero CTA/card link는 primary 대상에서 제외한다.
+- Docusaurus 계열 `navbar__item`, `navbar__link` 같은 top-level nav signal을 generic direct nav 후보로 처리했다.
+- dropdown parent와 child의 cssPath DOM 관계를 이용해 child를 parent 아래로 연결하고, child open trigger로 parent dropdown cssPath를 보존하도록 했다.
+- menu 후보가 수집되었지만 `primaryMenuTree`가 비는 경우 `projectionDiagnostics`에 warning을 남기도록 했다.
+- LLM structured plan normalization에서 exact `menuPath`에 해당하는 `openTriggerCssPath`/`hoverTargetCssPath`를 menu_map에서 보강하고, `href: "#"` URL assertion은 `/`로 보수 보정하도록 했다.
+- `docs/DATA_FLOW.md`에 direct top-level nav link와 dropdown projection 원칙을 기록했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/agent_orchestrator.py` 통과.
+- Playwright 공식 사이트 대상 `npm run ai:plan:llm -- --url https://playwright.dev` 실행 결과 `primaryMenuTree`가 parent 5개, child 3개로 구성되었다.
+  - primary parent: Docs, MCP, CLI, API, Node.js
+  - dropdown child: Python, Java, .NET
+  - Search/GitHub/Discord/theme toggle/brand/hero CTA는 primary 대상에서 제외되었다.
+- Playwright 공식 사이트 대상 `npm run ai:validate-llm-plan` 통과.
+- Playwright 공식 사이트 대상 `npm run test:generated` 결과 8 passed 확인.
+- Kakao 대상 회귀 확인에서 `primaryMenuTree` parent 5개, child 12개를 유지했고 `npm run test:generated` 결과 17 passed 확인.
+- KT 대상 `npm run ai:plan:llm -- --url https://iotbiz.kt.co.kr` 실행 결과 parent 9개, child 32개, validation/render 완료를 확인했다.
+- KT 대상 `npm run test:generated`는 브라우저 실행 전 renderer 산출물의 중복 test title에서 중단되었다.
+  - 예: 서로 다른 parent 아래의 `NB-IoT`, `eMTC`, `LTE-M`, `LTE`, `5G`가 동일 test title로 생성됨.
+  - 이번 projection 보강과 별개인 renderer title 고유성 이슈로 분리한다.
+
+### 다음 작업
+
+- `render_test_plan.py`가 동일 child text를 가진 depth3 테스트에 parent path를 포함한 고유 title을 만들도록 별도 개선한다.
+- 추가 문서형 사이트에서 `primaryNavigationDirect`가 utility/social/header CTA를 과하게 포함하지 않는지 샘플을 늘려 확인한다.
+
 ## 2026-07-08 - Ignore generated test artifacts
 
 ### 작업 목적

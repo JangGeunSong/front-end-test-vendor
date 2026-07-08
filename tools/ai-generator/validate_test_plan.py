@@ -297,12 +297,26 @@ def validate_test_cases(plan, errors, warnings):
         return
 
     seen_ids = set()
+    seen_titles = {}
     for index, test_case in enumerate(tests):
         if not validate_common_test_fields(test_case, index, seen_ids, errors):
             continue
 
+        title = test_case.get("title")
+        if is_non_empty_string(title):
+            seen_titles.setdefault(title, []).append(index)
+
         validate_click(test_case, index, errors)
         validate_template_specific_fields(test_case, index, errors, warnings)
+
+    for title, indexes in seen_titles.items():
+        if len(indexes) > 1:
+            add_warning(
+                warnings,
+                "W101",
+                f"duplicate title {title!r} at indexes {indexes}; renderer will generate unique Playwright titles from menuPath",
+                "$.tests",
+            )
 
 
 def menu_path_key(menu_path):

@@ -182,6 +182,28 @@ def render_todo_identity(test_case):
     return f"// TODO: {reason}"
 
 
+def get_menu_path_title(test_case):
+    menu_path = test_case.get("menuPath")
+
+    if isinstance(menu_path, list):
+        parts = [str(item).strip() for item in menu_path if str(item).strip()]
+        if parts:
+            return "Navigation: " + " > ".join(parts)
+
+    return str(test_case.get("title") or test_case.get("id") or "Untitled navigation test")
+
+
+def get_unique_test_title(test_case, seen_titles):
+    title = get_menu_path_title(test_case)
+
+    if title not in seen_titles:
+        seen_titles[title] = 1
+        return title
+
+    seen_titles[title] += 1
+    return f"{title} #{seen_titles[title]}"
+
+
 def render_test_body(test_case):
     template = test_case["template"]
     lines = [render_click(test_case)]
@@ -208,8 +230,7 @@ def render_test_body(test_case):
     return "\n".join(line for line in lines if line)
 
 
-def render_test_case(test_case):
-    title = test_case["title"]
+def render_test_case(test_case, title):
     body = render_test_body(test_case)
 
     return "\n".join([
@@ -227,7 +248,11 @@ def render_spec(plan):
     if unsupported:
         raise ValueError(f"Unsupported template(s): {', '.join(str(item) for item in unsupported)}")
 
-    rendered_tests = "\n\n".join(render_test_case(test_case) for test_case in tests)
+    seen_titles = {}
+    rendered_tests = "\n\n".join(
+        render_test_case(test_case, get_unique_test_title(test_case, seen_titles))
+        for test_case in tests
+    )
 
     return f"""const {{ test, expect }} = require('@playwright/test');
 const {{ openDepth1ByIndex, clickVisibleMenuByText, clickVisibleSubMenuByText }} = require('../../utils/gnb');

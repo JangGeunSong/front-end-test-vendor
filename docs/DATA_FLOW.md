@@ -88,6 +88,10 @@ scout는 가능한 경우 `hoverTargetCssPath`와 `openTriggerCssPath`도 함께
 
 Primary navigation projection은 overlay open/close control, search/language/dark-mode 같은 header utility control, relation/external utility link, mobile-only navigation duplicate를 Level 1/2 generated spec 대상에서 제외한다. PC/desktop navigation 후보가 함께 수집된 경우 mobile navigation 후보는 fallback 후보로만 보존하고 `primaryMenuTree`에서는 제외한다. PC navigation의 top-level button과 expanded panel child는 DOM 구조(`nav ... li:nth-of-type(N)`와 `mainMenu-N`)를 기반으로 연결하며, utility/close/open 후보 아래에는 child를 붙이지 않는다.
 
+Docusaurus나 문서 사이트처럼 dropdown open trigger 없이 top-level nav link가 바로 이동 대상인 경우도 지원한다. `semanticRegion`이 header/nav이고, visible/high confidence이며, href와 text가 있는 direct nav link는 `depth1Index`가 null이어도 `primaryNavigationDirect` 후보로 승격할 수 있다. 단 brand home/logo, skip link, search, theme toggle, GitHub/Discord/social utility, footer/main/hero CTA/card link는 primary 대상에서 제외한다.
+
+Dropdown navigation은 parent container와 child cssPath의 DOM 관계를 기반으로 parent-child를 추론한다. dropdown child에는 가능하면 parent dropdown cssPath를 `openTriggerCssPath`/`hoverTargetCssPath`로 보존해 renderer와 helper가 fixed selector가 아닌 수집된 open trigger를 사용할 수 있게 한다. menu 후보가 수집되었는데도 `primaryMenuTree`가 비어 있으면 `projectionDiagnostics`에 warning을 남겨 projection rule을 점검할 수 있게 한다.
+
 Level 1/2 generated spec은 `primaryMenuTree`만 사용한다. main CTA, footer link, quick link는 추후 Level 3/link profile 확장 후보로 보존한다. parent-child 관계가 불확실한 후보는 generic menu trigger 아래에 몰아넣지 않고 `unresolvedPrimaryNavigationCandidates`로 남긴다.
 
 Level 2 `pageProfiles`도 `primaryMenuTree` 기준으로 별도 수집한다. broad discovery에서 발견된 전체 후보를 그대로 클릭하지 않고, generated spec 대상인 parent/child menuPath와 일치하는 profile만 LLM 입력으로 전달한다.

@@ -627,6 +627,11 @@ def build_structured_test_plan_prompt(generation_input):
     - Use this when heading does not exactly match the menuPath leaf but the exact matching pageProfile has a reliable mainContainer/content cssPath.
     - Do not downgrade to navigation.todoIdentity merely because exact heading identity is unavailable.
     - If the exact matching pageProfile has a specific content/mainContainer cssPath comparable to the deterministic builder output, prefer navigation.contentIdentity over navigation.todoIdentity.
+    - When multiple exact pageProfile content/mainContainer cssPaths exist, choose the most specific current-page content container.
+    - Prefer deeper selectors that include current content body segments such as "div.subContent", "div.content", or a route/page-specific content block.
+    - Do not choose a broad parent shell such as "main", "main.subContainer", or "section" when the same exact pageProfile also contains a more specific child content selector.
+    - If one collected cssPath is a parent prefix of another collected cssPath in the same exact pageProfile, prefer the deeper child cssPath when it is stable.
+    - Do not shorten a collected content selector such as "... > div.subContent:nth-of-type(2)" to its parent "main.subContainer".
 
     navigation.tabIdentity:
     - Requires assertions.identity.type = "tab".
@@ -669,6 +674,11 @@ def build_structured_test_plan_prompt(generation_input):
     Do not use sibling pageProfile selectors to avoid todoIdentity.
     For contentIdentity, the selector must be one cssPath collected in the exact matching pageProfile and sourceMenuPath must exactly equal menuPath.
     Avoid overly broad selectors, but do not reject a specific content/mainContainer cssPath just because it is not a heading.
+    Content selector specificity order:
+    1. Exact pageProfile current content/subContent cssPath such as "div.subContent", "div.content", or a route/page-specific content body.
+    2. Exact pageProfile specific child mainContainer cssPath below the outer main/section shell.
+    3. Exact pageProfile broad main/section shell only when no deeper current-page content selector exists.
+    4. navigation.todoIdentity when only a broad layout shell exists and it is not page-identifying.
 
     [Coverage rules]
     - Create tests for every depth2 parent in menuTree.
@@ -708,6 +718,9 @@ def build_structured_test_plan_prompt(generation_input):
     - Sibling pageProfile selector fallback is forbidden.
     - Do not shorten, merge, synthesize, or generalize cssPath selectors.
     - Do not use selector lists such as "selector1, selector2".
+    - For contentIdentity, prefer the deepest stable content cssPath in the exact pageProfile.
+    - Do not replace a specific collected selector with its broader parent container.
+    - Broad layout containers such as "main", "main.subContainer", and "section" are last-resort identity selectors only.
     - Do not use button text, product/model names, notice titles, FAQ questions, list data, or operational data as strong identity assertions.
     - If exact heading evidence is missing, check exact pageProfile tab and content/mainContainer cssPath evidence before using navigation.todoIdentity.
     - If heading/mainContainer/tab evidence is ambiguous or missing, use navigation.todoIdentity.

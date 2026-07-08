@@ -43,6 +43,11 @@
 - Exact heading absence alone is not enough reason to choose `navigation.todoIdentity`.
 - If the exact matching pageProfile has a specific content/mainContainer cssPath comparable to deterministic builder output, the LLM should prefer `navigation.contentIdentity` over `navigation.todoIdentity`.
 - `navigation.contentIdentity` must use a selector from the exact matching pageProfile and `sourceMenuPath` must exactly equal `menuPath`.
+- `navigation.contentIdentity` should choose the most specific current-page content selector in the exact pageProfile.
+- Prefer deeper content body selectors such as `div.subContent`, `div.content`, route-specific content blocks, or child mainContainer selectors over broad parent shells.
+- Broad selectors such as `main`, `main.subContainer`, and `section` are last-resort identity selectors only when no deeper current-page content selector exists.
+- If one collected cssPath is a parent prefix of another collected cssPath in the same exact pageProfile, prefer the deeper child cssPath when stable.
+- The LLM must not shorten a collected selector like `... > div.subContent:nth-of-type(2)` to a broader parent such as `main.subContainer`.
 - If Page Identity evidence is weak or ambiguous after checking heading, tab, and content evidence, choose `navigation.todoIdentity`.
 - For `navigation.tabIdentity`, `navigationChange` is required and must be exactly one of `"expected"`, `"none"`, or `"unknown"`.
 - Do not use booleans, `null`, `"true"`, `"false"`, `"yes"`, `"no"`, `"same"`, `"changed"`, `"no-change"`, `"none expected"`, or any other value for `navigationChange`.

@@ -1,5 +1,34 @@
 # Task Log
 
+## 2026-07-08 - Tighten LLM content identity selector prompt
+
+### 작업 목적
+
+- `ai:compare-plans:gate`에서 LLM plan이 deterministic plan보다 넓은 parent content selector를 선택해 meaningful assertion/page identity mismatch 8건이 발생하는 문제를 줄인다.
+- LLM structured test plan prompt가 exact pageProfile 안에서 가장 구체적인 current-page content selector를 선택하도록 보강한다.
+
+### 변경 내용
+
+- `agent_orchestrator.py`의 LLM structured test plan prompt에 `navigation.contentIdentity` selector specificity 규칙을 추가했다.
+- 같은 exact pageProfile 안에서 broad parent shell보다 `div.subContent`, `div.content` 등 더 깊은 current content selector를 우선하도록 명시했다.
+- `main`, `main.subContainer`, `section` 같은 넓은 parent selector는 더 구체적인 child content selector가 없을 때만 마지막 후보로 사용하도록 했다.
+- `docs/PROMPT_STRATEGY.md`에 동일한 content selector 선택 규칙을 기록했다.
+- `docs/STRUCTURED_PLAN_MIGRATION.md`에 llm-plan Phase 2의 content selector specificity 원칙을 보완했다.
+
+### 확인 결과
+
+- `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인을 통과했다.
+- `npm run ai:plan:llm -- --url https://iotbiz.kt.co.kr` 실행 결과 LLM plan 생성, validation, render가 정상 완료되었다.
+- pageProfile cache는 targets 41, hits 41, misses 0으로 동작했다.
+- `npm run ai:validate-llm-plan` 결과 errors 0, warnings 0을 확인했다.
+- `npm run ai:compare-plans` 결과 deterministic/LLM 모두 41 tests, matched menuPaths 41, meaningful template/selector/assertion mismatch 0을 확인했다.
+- `npm run ai:compare-plans:gate` 결과 quality gate passed를 확인했다.
+
+### 다음 작업
+
+- LLM plan prompt가 다른 target URL에서도 broad parent selector 대신 구체적인 current content selector를 안정적으로 선택하는지 추가 샘플로 확인한다.
+- raw assertion mismatch 41건은 hash-only URL과 absolute URL 표현 차이 등 의미 없는 차이로 분류되고 있으므로, 필요 시 report 가독성만 별도로 다듬는다.
+
 ## 2026-07-07 - Add structured plan comparison quality gate
 
 ### 작업 목적

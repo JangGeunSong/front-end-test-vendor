@@ -1,5 +1,37 @@
 # Task Log
 
+## 2026-07-08 - Clarify product direction and cross-site validation
+
+### 작업 목적
+
+- 프로젝트를 단순 LLM Playwright 코드 생성 도구가 아니라 URL-first WEB test generation AX pipeline으로 문서화한다.
+- structured plan, validator, deterministic renderer, human-in-the-loop 검수 흐름을 현재 구현 상태에 맞게 정리한다.
+- cross-site 검증 결과를 특정 회사/서비스명이 아니라 site type 기준으로 기록한다.
+
+### 변경 내용
+
+- `README.md`에 프로젝트 포지셔닝 섹션을 추가했다.
+  - AI-assisted but deterministic-controlled 구조를 설명했다.
+  - LLM은 structured test plan 판단을 담당하고, Playwright code shape는 renderer가 소유한다는 점을 명시했다.
+  - 현재 지원 범위와 비지원 범위를 분리했다.
+- `docs/PRODUCT_DIRECTION.md`를 추가했다.
+  - AX 관점, 목표 사용자, 제품 철학, 현재 지원 범위, 기술적 제품 방향을 정리했다.
+- `docs/CROSS_SITE_VALIDATION.md`를 추가했다.
+  - Business/complex GNB, Corporate PC/MO overlay GNB, Docs/Docusaurus direct nav site 유형별 검증 결과를 기록했다.
+  - utility/mobile exclusion, direct top-level nav, generic navigation open, duplicate title uniqueness를 일반화 규칙으로 정리했다.
+- `docs/DATA_FLOW.md`의 현재 흐름을 structured plan 중심으로 보강했다.
+- `docs/STRUCTURED_PLAN_MIGRATION.md`에 AI-assisted but deterministic-controlled 방향과 LLM structured plan opt-in 경로를 보강했다.
+
+### 확인 결과
+
+- 문서 변경만 수행했다.
+- 코드, generated artifact, package scripts, test files는 수정하지 않았다.
+
+### 다음 작업
+
+- cross-site validation matrix에 새로운 site type을 추가할 때는 특정 서비스명 대신 구조 유형과 일반화 규칙 중심으로 기록한다.
+- 제품 방향 문서는 구현 상태가 바뀔 때마다 current scope와 future work를 함께 갱신한다.
+
 ## 2026-07-08 - Ensure unique rendered Playwright test titles
 
 ### 작업 목적

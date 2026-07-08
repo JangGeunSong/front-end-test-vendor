@@ -12,13 +12,16 @@ target URL
   -> tools/ai-generator/generated/scout_result.json
   -> tools/ai-generator/generated/menu_map.json
   -> tools/ai-generator/agent_orchestrator.py
-  -> LLM generated Playwright spec
-  -> tests/generated/generated_menu_access.spec.js
-  -> npm run ai:validate
+  -> LLM structured test plan JSON
+  -> tools/ai-generator/validate_test_plan.py
+  -> tools/ai-generator/render_test_plan.py
+  -> tests/generated/generated_from_plan.spec.js
   -> npm run test:generated
   -> npm run test:generated:visual
   -> smoke/regression promotion review
 ```
+
+기존 direct generated spec 경로도 유지되지만, 현재 제품 방향은 structured test plan JSON과 deterministic renderer를 중심으로 한다. LLM은 Playwright JavaScript를 직접 작성하지 않고, validator가 검증할 수 있는 test plan field를 채운다.
 
 ## Step Details
 

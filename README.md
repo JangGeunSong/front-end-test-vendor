@@ -4,6 +4,23 @@
 
 이 프로젝트는 특정 사이트 전용 테스트 코드 저장소가 아니라, 대상 URL의 UI 구조를 수집하고 그 결과를 바탕으로 사람이 검토할 수 있는 Playwright 테스트 초안을 생성하는 도구입니다.
 
+## 프로젝트 포지셔닝
+
+이 프로젝트는 단순히 LLM에게 Playwright 코드를 통째로 생성시키는 도구가 아닙니다. 목표는 URL-first WEB test generation AX pipeline입니다.
+
+핵심 구조는 **AI-assisted but deterministic-controlled** 방식입니다.
+
+- `scout.js`가 실제 브라우저로 대상 URL의 rendered DOM과 navigation/page identity 후보를 수집합니다.
+- `agent_orchestrator.py`가 수집 결과를 `menu_map.json`과 `primaryMenuTree`로 projection합니다.
+- LLM은 Playwright JavaScript를 직접 작성하지 않고 structured test plan JSON의 template과 근거를 판단합니다.
+- `validate_test_plan.py`가 schema, coverage, 중복, optional field를 검증합니다.
+- `render_test_plan.py`가 검증된 structured plan을 deterministic Playwright spec으로 렌더링합니다.
+- 사람은 생성된 테스트와 근거를 검토한 뒤 smoke/regression 승격 여부를 판단합니다.
+
+즉, LLM의 역할은 “코드 작성자”가 아니라 “테스트 계획 후보 제안자”에 가깝습니다. Playwright code shape, URL assertion, click helper, page identity assertion, title uniqueness는 renderer와 validator가 통제합니다.
+
+자세한 제품 방향은 `docs/PRODUCT_DIRECTION.md`, 사이트 유형별 검증 결과는 `docs/CROSS_SITE_VALIDATION.md`를 참고합니다.
+
 ## 현재 구현 상태
 
 현재 구현 범위는 다음과 같습니다.
@@ -19,8 +36,23 @@
 - **Generated Spec Validation Gate**
   - AI가 생성한 `tests/generated/generated_menu_access.spec.js`를 실행 전에 정적으로 검수
   - selector 임의 생성, menuTree coverage 누락, depth3 클릭 규칙 위반 등을 리포트
+- **Structured Test Plan Pipeline**
+  - LLM structured plan JSON 생성
+  - schema/coverage validation
+  - deterministic Playwright spec rendering
+  - plan 비교 및 quality gate
 
 Level 3 Safe Interaction Test와 Level 4 Business Scenario Test는 향후 확장 단계입니다.
+
+현재 지원하지 않는 범위도 명확히 구분합니다.
+
+- 로그인/인증 세션 자동 처리
+- 등록/수정/삭제/결제 같은 데이터 변경 action
+- 완전한 business scenario 자동 생성
+- 모든 사이트 100% 무보정 지원
+- visual regression
+- self-healing selector
+- full test management dashboard
 
 ## 실행 환경
 

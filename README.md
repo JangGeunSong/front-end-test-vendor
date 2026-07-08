@@ -185,6 +185,25 @@ npm run ai:compare-plans:gate
 - `tools/ai-generator/generated/plan_compare_report.json`
 - `tools/ai-generator/generated/plan_compare_report.md`
 
+### generated artifact 관리
+
+다음 파일과 디렉터리는 실행 산출물이므로 기본적으로 커밋하지 않습니다.
+
+- `tests/generated/`
+- `test-results/`
+- `playwright-report/`
+- `tools/ai-generator/generated/*.json`
+- `tools/ai-generator/generated/*.txt`
+
+단, `tools/ai-generator/generated/test_plan.example.json`은 structured test plan schema 설명과 renderer/validator 개발용 fixture이므로 repository에 보존합니다.
+
+다른 target URL을 테스트할 때는 기존 generated spec을 재사용하지 않고 다시 생성합니다.
+
+```powershell
+npm run ai:plan:llm -- --url https://target.example.com
+npm run test:generated
+```
+
 ### plan scripts 주의사항
 
 - `ai:plan`은 `ai:plan:deterministic`의 alias입니다.

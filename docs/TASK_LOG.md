@@ -1,5 +1,28 @@
 # Task Log
 
+## 2026-07-08 - Ignore generated test artifacts
+
+### 작업 목적
+
+- `ai:plan:llm`, `test:generated` 실행 후 생성되는 테스트 산출물이 Git 작업 diff에 계속 섞이는 문제를 줄인다.
+- source/docs와 generated artifact를 명확히 구분해 review와 commit 범위를 판단하기 쉽게 한다.
+
+### 변경 내용
+
+- `.gitignore`에 `tests/generated/`를 추가해 renderer/generated spec 산출물을 ignore하도록 했다.
+- 기존 ignore 대상인 `test-results/`, `playwright-report/`, `tools/ai-generator/generated/*` 정책을 유지하면서 `*.json`, `*.txt`, `primary_menu_tree_for_profiles.json` 산출물 ignore 의도를 명시했다.
+- `tools/ai-generator/generated/test_plan.example.json`은 schema/renderer/validator fixture이므로 ignore 예외로 유지했다.
+- `README.md`에 generated artifact 관리 원칙과 fixture 예외를 기록했다.
+
+### 확인 결과
+
+- 현재 Git에 추적 중인 `tools/ai-generator/generated` 산출물은 `test_plan.example.json`뿐임을 확인했다.
+- `tests/generated/generated_from_plan.spec.js`, `tools/ai-generator/generated/test_plan.llm.json`, `test-results/`, `playwright-report/`가 ignore 대상임을 확인했다.
+
+### 다음 작업
+
+- 이미 추적된 generated artifact가 추가로 발견되면 삭제하지 말고 별도 판단 후 `git rm --cached` 여부를 결정한다.
+
 ## 2026-07-08 - Use planned open trigger for generic navigation
 
 ### 작업 목적

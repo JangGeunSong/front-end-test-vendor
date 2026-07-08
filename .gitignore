@@ -4,6 +4,7 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.local-browsers
+tests/generated/
 
 # 하지만 node_modules 본체는 포함시킨다! (Vendor 방식 핵심)
 !node_modules/
@@ -14,4 +15,7 @@ playwright/.local-browsers
 venv/
 
 tools/ai-generator/generated/*
+tools/ai-generator/generated/*.json
+tools/ai-generator/generated/*.txt
+tools/ai-generator/generated/primary_menu_tree_for_profiles.json
 !tools/ai-generator/generated/test_plan.example.json

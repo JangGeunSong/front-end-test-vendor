@@ -56,6 +56,7 @@ Core rule:
 - The LLM chooses templates and fills structured fields.
 - The deterministic renderer owns Playwright code shape.
 - URL helpers, click helpers, assertions, loop structure, and TODO format are fixed by code.
+- Final Playwright test titles are also owned by the renderer. The renderer uses full `menuPath` values to avoid duplicate titles when the same child text appears under different parents.
 
 ## Available Foundation
 

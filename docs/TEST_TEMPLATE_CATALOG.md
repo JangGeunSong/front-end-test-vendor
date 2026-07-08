@@ -186,5 +186,6 @@ The deterministic renderer should own:
 - loop format for grouped children
 - TODO comment format
 - Generic navigation open behavior using `click.openTriggerCssPath`, `click.hoverTargetCssPath`, or a safe fallback based on `depth1Index`.
+- Final Playwright test title generation. The renderer must not rely on LLM-provided `title` being unique; it should prefer the full `menuPath` and add a suffix if a duplicate still occurs.
 
 The renderer should reject unsupported templates instead of inventing behavior.

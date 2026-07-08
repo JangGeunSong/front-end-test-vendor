@@ -165,6 +165,7 @@ Behavior:
 - Store LLM output as `tools/ai-generator/generated/test_plan.llm.json`.
 - The LLM prompt includes an `expectedCoverage` checklist derived from `primaryMenuTree` so every parent/child menuPath must be represented exactly once.
 - The LLM prompt should prefer `contentIdentity` over `todoIdentity` when the exact matching pageProfile has a reliable content/mainContainer cssPath but no exact heading match.
+- For `contentIdentity`, the LLM prompt should prefer the most specific current-page content cssPath in the exact pageProfile. Broad parent shells such as `main`, `main.subContainer`, and `section` should be used only when no deeper content/subContent selector exists.
 - Validate it before rendering.
 - Validation includes `primaryMenuTree` coverage when `menu_map.json` is available, so missing LLM-generated menuPaths fail before rendering.
 - Do not silently fall back to direct JS generation in this opt-in mode.

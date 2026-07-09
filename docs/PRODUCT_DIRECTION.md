@@ -77,6 +77,8 @@ AX pipeline 흐름:
 - structured plan validator와 compare gate 강화
 - renderer output 안정성 강화
 - cross-site validation matrix 확대
+- Analysis Review Report 설계 구체화: `docs/ANALYSIS_REVIEW_REPORT.md`
+- Safe Interaction Strategy 구체화: `docs/SAFE_INTERACTION_STRATEGY.md`
 
 중기 방향:
 

@@ -54,6 +54,13 @@ Level 3 Safe Interaction Test와 Level 4 Business Scenario Test는 향후 확장
 - self-healing selector
 - full test management dashboard
 
+## 다음 로드맵
+
+다음 개발 단계는 generated 결과를 사용자가 더 쉽게 검수할 수 있게 만드는 방향입니다.
+
+- Analysis Review Report 설계: `docs/ANALYSIS_REVIEW_REPORT.md`
+- Safe Interaction Test 전략: `docs/SAFE_INTERACTION_STRATEGY.md`
+
 ## 실행 환경
 
 아래 버전은 현재 검증한 개발 환경 기준입니다. 다른 버전에서도 동작할 수 있지만 문제가 발생하면 먼저 이 기준과 차이를 확인합니다.

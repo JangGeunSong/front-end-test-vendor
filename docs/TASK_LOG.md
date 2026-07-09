@@ -1,5 +1,36 @@
 # Task Log
 
+## 2026-07-09 - Define review report and safe interaction strategy
+
+### 작업 목적
+
+- product direction과 cross-site validation 문서화 이후 다음 개발 단계인 Level 2.5 Analysis Review Report와 Level 3 Safe Interaction Strategy를 구체화한다.
+- CLI/JSON 중심 결과를 사용자가 검수 가능한 review artifact로 전환하기 위한 문서 기준을 만든다.
+- 데이터 변경 action을 자동 실행하지 않는 안전한 interaction 확장 원칙을 정리한다.
+
+### 변경 내용
+
+- `docs/ANALYSIS_REVIEW_REPORT.md`를 추가했다.
+  - Summary, Generated Navigation Tests, Page Identity Assertions, Excluded Utility Controls, Non-primary Navigation Candidates, Safe/Unsafe Interaction Candidates, Unresolved Candidates, Recommended Next Actions 섹션을 정의했다.
+  - 단순 pass/fail이 아니라 evidence-based review artifact로 설계해야 한다는 원칙을 기록했다.
+  - 초기 MVP는 Markdown/JSON report이며 웹 UI와 review memory는 future work로 분리했다.
+- `docs/SAFE_INTERACTION_STRATEGY.md`를 추가했다.
+  - Level 3 목표를 business scenario 자동화가 아니라 page-level safe interaction smoke test로 정의했다.
+  - safe 후보, unsafe 기본 제외 action, classification signal, structured interaction plan 방향, proposed template을 정리했다.
+  - unknown/risky action은 자동 실행하지 않고 report에서 검수 대상으로 남긴다는 human-in-the-loop 원칙을 기록했다.
+- `README.md`에는 다음 로드맵 링크만 짧게 추가했다.
+- `docs/PRODUCT_DIRECTION.md`에는 단기 방향 링크만 추가했다.
+
+### 확인 결과
+
+- 문서 변경만 수행했다.
+- source code, package scripts, generated artifact, test files는 수정하지 않았다.
+
+### 다음 작업
+
+- Analysis Review Report MVP를 구현할 때는 먼저 JSON/Markdown 산출물 생성부터 시작한다.
+- Safe Interaction은 후보 분류와 report 표시를 먼저 구현하고, 실제 Playwright 실행은 별도 단계로 분리한다.
+
 ## 2026-07-08 - Clarify product direction and cross-site validation
 
 ### 작업 목적

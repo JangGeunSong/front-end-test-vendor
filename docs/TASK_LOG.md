@@ -1,5 +1,34 @@
 # Task Log
 
+## 2026-07-13 - Establish agentic coding context and rules
+
+### 작업 목적
+
+- repository-aware agentic coding 방식으로 작업을 운영하기 위해 최상위 agent 운영 규칙과 압축 프로젝트 context를 정리한다.
+- 매 작업 프롬프트에 프로젝트 설명을 반복하지 않고, `AGENTS.md`, `docs/PROJECT_OVERVIEW.md`, 작업별 task packet으로 필요한 문맥을 연결할 수 있게 한다.
+
+### 변경 내용
+
+- root `AGENTS.md`를 현재 URL-first WEB test generation AX pipeline에 맞는 최상위 agent operation guide로 개편했다.
+  - architecture rules, document reading order, source of truth priority, change rules, generated artifact policy, AI/data policy, validation cost policy, stop condition을 정리했다.
+- `docs/PROJECT_OVERVIEW.md`를 새 agent와 새 세션이 빠르게 읽을 수 있는 압축 context 문서로 갱신했다.
+  - 현재 구현 상태, 주요 모듈, data flow, 지원/비지원 범위, 검증된 site type, next milestones, documentation map을 정리했다.
+- `docs/AGENT_TASK_TEMPLATE.md`를 신규 추가했다.
+  - 작업별 prompt template과 Analysis Review Report JSON MVP sample task packet을 포함했다.
+- `README.md` 참고 문서 목록에 `AGENTS.md`, `docs/PROJECT_OVERVIEW.md`, `docs/AGENT_TASK_TEMPLATE.md` entry point를 추가했다.
+- `.agents/` 디렉터리를 점검했다.
+  - 현재 내부 파일이 없어 root `AGENTS.md`와 충돌하거나 중복되는 규칙은 없었다.
+
+### 확인 결과
+
+- source code, package scripts, generated artifact, test files는 수정하지 않았다.
+- `docs/ARCHITECTURE.md`는 현재 빈 파일임을 확인했다. 이번 작업에서는 수정하지 않고, 실제 구조 확인은 `docs/MODULE_MAP.md`와 `docs/DATA_FLOW.md`를 우선하도록 문서화했다.
+
+### 다음 작업
+
+- 다음 agentic task는 `docs/AGENT_TASK_TEMPLATE.md`를 사용해 Analysis Review Report JSON MVP 구현으로 시작한다.
+- 향후 `docs/ARCHITECTURE.md`를 채울 경우 `MODULE_MAP.md`와 `DATA_FLOW.md`의 내용을 중복하지 않고 architecture decision 중심으로 정리한다.
+
 ## 2026-07-09 - Define review report and safe interaction strategy
 
 ### 작업 목적

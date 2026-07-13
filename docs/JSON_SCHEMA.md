@@ -4,9 +4,14 @@
 
 This document describes the JSON data used by the Playwright AI test generation pipeline.
 
-The current implementation is `Level 1 Navigation Smoke Test MVP`. Level 1 data is used to generate GNB navigation tests that verify menu hover/click, URL/hash movement, and basic page access.
+The current implementation includes:
 
-Level 2 and Level 3 structures in this document are candidate schemas for future work. They are not implemented yet.
+- `Level 1 Navigation Smoke Test`
+- `Level 2 Page Identity Test MVP`, including `pageProfile` collection and cache
+- structured test plan artifacts and deterministic Playwright rendering
+- `Analysis Review Report JSON MVP`
+
+The `Level 3 interactionProfile` and Safe Interaction execution remain planned work. This document distinguishes current pipeline schemas from future candidate schemas.
 
 ## Data Policy
 
@@ -16,7 +21,7 @@ Level 2 and Level 3 structures in this document are candidate schemas for future
 - Do not store full DOM HTML when a smaller structured summary is enough.
 - External AI prompts should use only approved sample, anonymized, or non-sensitive structure data.
 
-## Current Level 1 Data
+## Current Level 1/2 Pipeline Data
 
 ### scout_result.json
 
@@ -190,11 +195,11 @@ Current Level 1 tests focus on:
 
 Current Level 1 tests do not verify page identity using page internals such as headings, representative text, table structure, form structure, or search results.
 
-## Level 2 pageProfile Candidate
+## Level 2 pageProfile (Implemented MVP)
 
 ### Purpose
 
-`pageProfile` is a candidate data structure for future Level 2 Page Identity Test generation.
+`pageProfile` is the current MVP data structure used for Level 2 Page Identity Test generation.
 
 `pageProfile` is not full test automation data.
 
@@ -204,7 +209,7 @@ Current Level 1 tests do not verify page identity using page internals such as h
 
 Level 2 should use `pageProfile` only for Page Identity verification. It should not infer complete business correctness from this data.
 
-### Candidate JSON
+### Current MVP JSON
 
 ```json
 {
@@ -288,7 +293,7 @@ Do not use the following as standalone page identity signals:
 
 `representativeTexts` alone can be weak or ambiguous. Level 2 Page Identity Test generation should combine multiple stable signals when possible.
 
-## Level 3 interactionProfile Candidate
+## Level 3 interactionProfile (Planned Candidate)
 
 ### Purpose
 
@@ -405,7 +410,32 @@ Legacy cautions:
 
 ## Future Schema Work
 
-- Align this document with actual `scout.js` output before implementing Level 2.
-- Add `pageProfile` to `docs/JSON_SCHEMA.md` only after confirming the exact collection shape.
+- Keep the documented `scout_result`, `menu_map`, and `pageProfile` structures aligned with their producers and consumers as the implemented Level 1/2 pipeline evolves.
+- Define the `interactionProfile` producer, consumer, validation rules, and safety classification contract before implementing Level 3 execution.
 - Review `agent_orchestrator.py` when JSON structure changes.
-- Update prompt strategy when generated tests start using `pageProfile` or `interactionProfile`.
+- Update prompt strategy when generated tests start using `interactionProfile`.
+
+## Analysis Review Report JSON
+
+`tools/ai-generator/generated/analysis_review_report.json`은 기존 discovery, projection, structured plan artifact를 사람이 검수할 수 있도록 재구성한 generated artifact다. 이 report는 scout를 다시 실행하거나 외부 LLM을 호출하지 않고 다음 입력만 읽어 생성한다.
+
+- `tools/ai-generator/generated/scout_result.json`
+- `tools/ai-generator/generated/menu_map.json`
+- `tools/ai-generator/generated/test_plan.llm.json`
+
+주요 top-level 필드:
+
+- `version`: report 계약 버전
+- `sources`: report 생성에 사용한 artifact 경로
+- `summary`: test, primary navigation, pageProfile, 제외 및 unresolved 후보 count
+- `generatedNavigationTests`: structured plan과 primary menu evidence를 결합한 navigation test 검수 항목
+- `pageIdentityAssertions`: 각 `menuPath`의 identity assertion 또는 TODO 상태
+- `excludedUtilityControls`: primary navigation에서 제외된 utility/control 후보
+- `nonPrimaryNavigationCandidates`: utility 이외의 non-primary 후보
+- `safeInteractionCandidates`: 향후 Level 3 검수를 위한 safe 후보. 현재 분류 데이터가 없으면 빈 배열
+- `unsafeActionCandidates`: 향후 Level 3 검수를 위한 unsafe 후보. 현재 분류 데이터가 없으면 빈 배열
+- `unresolvedCandidates`: projection이 안전하게 분류하지 못한 후보
+- `recommendedNextActions`: human review를 위한 다음 작업
+- `warnings`: optional 입력 누락이나 아직 제공되지 않는 분류 데이터 안내
+
+배열 순서는 입력 artifact의 deterministic 순서를 유지한다. report에는 생성 시각을 넣지 않으므로 동일 입력으로 반복 생성하면 동일한 JSON을 얻는다. 현재 artifact에 없는 safe/unsafe interaction 의미를 임의 추론하지 않으며, 빈 section과 warning으로 표현한다.

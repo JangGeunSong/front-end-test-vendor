@@ -1,5 +1,36 @@
 # Task Log
 
+## 2026-07-13 - Add Analysis Review Report JSON MVP
+
+### 작업 목적
+
+- 기존 scout, menu map, structured test plan artifact를 사람이 검수할 수 있는 단일 JSON report로 재구성한다.
+- 테스트 생성 결과뿐 아니라 Page Identity 근거, 제외 후보, non-primary 후보, unresolved 후보와 다음 검수 작업을 함께 제공한다.
+
+### 변경 내용
+
+- `tools/ai-generator/build_analysis_review_report.py`를 추가했다.
+  - 기존 `scout_result.json`, `menu_map.json`, `test_plan.llm.json`만 읽어 `analysis_review_report.json`을 생성한다.
+  - Summary, Generated Navigation Tests, Page Identity Assertions, Excluded Utility Controls, Non-primary Navigation Candidates, Safe/Unsafe Interaction Candidates, Unresolved Candidates, Recommended Next Actions를 구성한다.
+  - 필수 파일 누락과 malformed JSON은 명확히 실패하고, optional field 누락은 warning과 빈 section으로 처리한다.
+  - 생성 시각을 넣지 않고 입력 순서를 유지해 동일 입력에서 deterministic output을 만든다.
+- `docs/JSON_SCHEMA.md`에 Analysis Review Report JSON의 입력, top-level section, ordering과 warning 정책을 기록했다.
+- `docs/JSON_SCHEMA.md`의 구현 상태를 현재 pipeline에 맞게 정정했다.
+  - Level 1, Level 2 Page Identity MVP, structured plan/report artifact는 현재 구현으로 구분하고, Level 3 interactionProfile과 Safe Interaction 실행만 planned candidate로 남겼다.
+- `docs/PROJECT_OVERVIEW.md`의 구현 완료 목록과 Immediate Next Milestones를 Analysis Review Report JSON MVP 완료 상태에 맞게 동기화했다.
+- 현재 artifact에는 safe/unsafe interaction 분류가 없으므로 이를 임의 추론하지 않고 빈 배열, warning, recommended action으로 남기도록 했다.
+
+### 확인 결과
+
+- Python 문법 확인과 기존 artifact 기반 report 생성을 수행했다.
+- generated test count, primary navigation count, JSON parse, 동일 입력 재생성 결과를 확인했다.
+- scout 재실행, pageProfile 재수집, 외부 LLM API 호출, 전체 사이트 회귀는 수행하지 않았다.
+
+### 다음 작업
+
+- 생성된 report JSON의 검수 정보가 충분한지 확인한 뒤 Markdown Review Report를 별도 단계로 구현한다.
+- Safe Interaction candidate classification을 추가할 때 report의 빈 safe/unsafe section을 실제 분류 결과와 연결한다.
+
 ## 2026-07-13 - Establish agentic coding context and rules
 
 ### 작업 목적

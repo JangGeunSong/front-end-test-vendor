@@ -43,6 +43,7 @@
 - deterministic Playwright rendering
 - deterministic plan과 LLM plan compare quality gate
 - generic `openTriggerCssPath`/`hoverTargetCssPath` navigation open
+- Analysis Review Report JSON MVP
 - generated artifact ignore 정책
 
 현재 개발 단계는 CLI/JSON 중심 결과를 사람이 검수 가능한 제품 표면으로 전환하는 단계다.
@@ -132,11 +133,13 @@ target URL
 
 ## Immediate Next Milestones
 
-1. Level 2.5 Analysis Review Report JSON MVP
-2. Markdown Review Report
-3. Safe Interaction candidate classification
-4. structured interaction plan
-5. Level 3 Safe Interaction execution
+다음 항목은 아직 구현되지 않은 future work다.
+
+1. Markdown Review Report
+2. Safe Interaction candidate classification
+3. structured interaction plan
+4. Level 3 Safe Interaction execution
+5. review/approval UI 또는 workspace 확장
 
 ## Validation Strategy
 

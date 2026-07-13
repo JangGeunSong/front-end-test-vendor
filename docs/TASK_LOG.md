@@ -1,5 +1,33 @@
 # Task Log
 
+## 2026-07-13 - Add Analysis Review Report Markdown MVP
+
+### 작업 목적
+
+- Analysis Review Report JSON을 사람이 직접 JSON을 열지 않고 검수할 수 있는 deterministic Markdown report로 렌더링한다.
+- warning, recommended action, summary와 약한 Page Identity 근거를 빠르게 확인할 수 있게 한다.
+
+### 변경 내용
+
+- `tools/ai-generator/render_analysis_review_report.py`를 추가했다.
+  - 기존 `analysis_review_report.json`만 입력으로 사용해 `analysis_review_report.md`를 생성한다.
+  - 모든 report section을 heading, table, list로 표현하고 빈 section은 `No candidates.`로 유지한다.
+  - warning과 recommended action을 상단에 배치하고, 긴 selector/evidence는 접을 수 있는 상세 영역으로 분리했다.
+  - 생성 시각을 넣지 않아 동일 JSON 입력에서 동일 Markdown 결과를 생성한다.
+- `docs/ANALYSIS_REVIEW_REPORT.md`에 JSON/Markdown MVP 구현 상태와 렌더링 원칙을 반영했다.
+- `docs/PROJECT_OVERVIEW.md`의 구현 완료 목록과 Immediate Next Milestones를 Markdown MVP 완료 상태에 맞게 동기화했다.
+
+### 확인 결과
+
+- Python 문법 확인과 기존 report JSON 기반 Markdown 생성을 수행했다.
+- 주요 section heading, summary count, 빈 safe/unsafe section 표시, 동일 입력 재생성 결과를 확인했다.
+- 사이트 재분석, Playwright 실행, 외부 LLM API 호출은 수행하지 않았다.
+
+### 다음 작업
+
+- Safe Interaction candidate classification을 Analysis Review Report의 빈 safe/unsafe section과 연결한다.
+- report 검수 흐름이 안정화되면 review/approval UI 또는 workspace 확장을 검토한다.
+
 ## 2026-07-13 - Add Analysis Review Report JSON MVP
 
 ### 작업 목적

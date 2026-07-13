@@ -23,6 +23,14 @@ Analysis Review Report는 generated test, 제외된 후보, unresolved 후보, s
 
 이 파일들은 실행 산출물이므로 generated artifact로 취급한다. 기본적으로 git commit 대상이 아니다.
 
+현재 구현 상태:
+
+- JSON report builder 구현 완료
+- JSON report를 입력으로 사용하는 deterministic Markdown renderer 구현 완료
+- Markdown report는 warning과 recommended action을 상단에 배치하고, 긴 selector/evidence는 접을 수 있는 상세 영역으로 분리한다.
+- 빈 후보 section은 숨기지 않고 `No candidates.`로 표시한다.
+- JSON/Markdown report 모두 생성 시각을 포함하지 않아 동일 입력에서 동일한 결과를 생성한다.
+
 ## Report Sections
 
 ### Summary
@@ -214,7 +222,7 @@ Analysis Review Report는 단순 pass/fail report가 아니다.
 
 ## MVP Scope
 
-초기 MVP:
+초기 MVP 구현 완료:
 
 - Markdown report 생성
 - JSON report 생성
@@ -222,6 +230,8 @@ Analysis Review Report는 단순 pass/fail report가 아니다.
 - page identity assertion 요약
 - excluded/non-primary/unresolved 후보 요약
 - safe/unsafe interaction 후보 분류 결과 표시
+
+현재 safe/unsafe interaction 분류 데이터가 없으면 report section은 빈 상태로 표시하며, renderer가 이를 임의로 추론하지 않는다.
 
 MVP에서 하지 않는 것:
 

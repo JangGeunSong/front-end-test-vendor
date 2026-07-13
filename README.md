@@ -318,6 +318,9 @@ Playwright report에서 실행 결과, trace, screenshot 등 디버깅 정보를
 
 ## 참고 문서
 
+- agent 작업 규칙: `AGENTS.md`
+- 압축 프로젝트 context: `docs/PROJECT_OVERVIEW.md`
+- agent task 작성 template: `docs/AGENT_TASK_TEMPLATE.md`
 - 테스트 수준과 승격 기준: `docs/TEST_LEVELS.md`
 - 테스트 생성 규칙: `docs/TEST_GENERATION_RULES.md`
 - Playwright 작성 규칙: `docs/PLAYWRIGHT_CONVENTION.md`

@@ -1,5 +1,35 @@
 # Task Log
 
+## 2026-07-13 - Add Safe Interaction candidate classification MVP
+
+### 작업 목적
+
+- 기존 generated artifact의 action 후보를 safe, unsafe, unknown으로 보수적으로 분류해 Level 3 실행 전 사람이 검수할 수 있게 한다.
+- 분류 결과를 Analysis Review Report JSON/Markdown의 safe, unsafe, unresolved section과 summary에 연결한다.
+
+### 변경 내용
+
+- `tools/ai-generator/classify_interaction_candidates.py`를 추가했다.
+  - scout element, pageProfile tab/button/form/control, non-primary action 후보를 구조화하고 deterministic하게 중복 제거한다.
+  - unsafe 신호를 우선 적용하고, selector와 role/type/ARIA state 근거가 충분한 read-only/reversible 후보만 safe로 분류한다.
+  - 근거가 부족하거나 보이지 않는 후보는 unknown으로 유지하며 자동 실행 대상으로 취급하지 않는다.
+- 중립 fixture `tools/ai-generator/fixtures/interaction_candidates.fixture.json`을 추가했다.
+  - tab, accordion, dialog control, submit, save/delete/upload/login/signup/payment/send/approve, personal information, generic/충돌 후보를 검증한다.
+- `build_analysis_review_report.py`가 classifier 결과를 safe/unsafe/unresolved section과 summary count, recommended action에 연결하도록 했다.
+- `render_analysis_review_report.py`가 classification, subtype, risk, ARIA, candidate source와 evidence를 상세 영역에 표시하도록 했다.
+- Safe Interaction, Analysis Review Report, JSON schema, data flow, project overview 문서를 현재 분류 MVP 상태에 맞게 갱신했다.
+
+### 확인 결과
+
+- Python 문법과 fixture 검증을 수행했다.
+- 기존 artifact 기반 JSON/Markdown report 재생성, count 일치, deterministic hash, 빈 후보 및 malformed JSON 처리를 확인했다.
+- 사이트 재분석, scout/pageProfile 재수집, Playwright 실행, 외부 LLM API 호출은 수행하지 않았다.
+
+### 다음 작업
+
+- 사람이 승인한 safe 후보만 표현할 수 있는 structured interaction plan 계약을 정의한다.
+- 실제 Level 3 실행은 interaction plan validator와 deterministic renderer 설계 이후 별도 작업으로 진행한다.
+
 ## 2026-07-13 - Add Analysis Review Report Markdown MVP
 
 ### 작업 목적

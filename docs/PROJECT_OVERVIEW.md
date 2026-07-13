@@ -45,9 +45,10 @@
 - generic `openTriggerCssPath`/`hoverTargetCssPath` navigation open
 - Analysis Review Report JSON MVP
 - Analysis Review Report Markdown MVP
+- deterministic Safe Interaction candidate classification MVP
 - generated artifact ignore 정책
 
-현재 개발 단계는 CLI/JSON 중심 결과를 사람이 검수 가능한 제품 표면으로 전환하는 단계다.
+현재 개발 단계는 CLI/JSON/Markdown 중심 결과를 사람이 검수하고 승인할 수 있는 제품 표면으로 전환하는 단계다. interaction 후보 분류는 구현되었지만 실제 Level 3 실행은 아직 future work다.
 
 ## Current Architecture
 
@@ -85,6 +86,9 @@ target URL
 - `tools/ai-generator/validate_test_plan.py`: structured test plan schema와 coverage를 검증한다.
 - `tools/ai-generator/render_test_plan.py`: structured test plan을 Playwright spec으로 렌더링한다.
 - `tools/ai-generator/compare_test_plans.py`: deterministic plan과 LLM plan의 meaningful quality difference를 비교한다.
+- `tools/ai-generator/classify_interaction_candidates.py`: 기존 artifact의 action 후보를 safe, unsafe, unknown으로 분류한다.
+- `tools/ai-generator/build_analysis_review_report.py`: navigation, Page Identity, interaction 분류 evidence를 JSON review artifact로 구성한다.
+- `tools/ai-generator/render_analysis_review_report.py`: Analysis Review Report JSON을 사람이 읽을 수 있는 Markdown으로 렌더링한다.
 - `utils/gnb.js`: plan 기반 navigation open/click helper를 제공한다.
 - `utils/highlight.js`: visual debug highlight를 담당한다.
 
@@ -98,6 +102,8 @@ target URL
 - generated spec 실행
 - cross-site primary navigation projection
 - plan comparison quality gate
+- Analysis Review Report JSON/Markdown
+- safe/unsafe/unknown interaction candidate classification and report integration
 
 ## Current Unsupported Scope
 
@@ -136,10 +142,9 @@ target URL
 
 다음 항목은 아직 구현되지 않은 future work다.
 
-1. Safe Interaction candidate classification
-2. structured interaction plan
-3. Level 3 Safe Interaction execution
-4. review/approval UI 또는 workspace 확장
+1. structured interaction plan
+2. Level 3 Safe Interaction execution
+3. review/approval UI 또는 workspace 확장
 
 ## Validation Strategy
 

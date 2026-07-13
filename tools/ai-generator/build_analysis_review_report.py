@@ -3,6 +3,8 @@ import json
 import sys
 from pathlib import Path
 
+from classify_interaction_candidates import classify_interaction_candidates
+
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 GENERATED_DIR = ROOT_DIR / "tools" / "ai-generator" / "generated"
@@ -300,6 +302,7 @@ def unresolved_candidates(unresolved):
         output.append(
             {
                 "text": compact_string(candidate.get("text")),
+                "candidateSubtype": "navigation",
                 "candidateKind": compact_string(candidate.get("candidateKind")) or "unknown",
                 "semanticRegion": compact_string(candidate.get("semanticRegion")) or "unknown",
                 "reason": compact_string(candidate.get("excludeReason"))
@@ -313,14 +316,34 @@ def unresolved_candidates(unresolved):
     return output
 
 
-def recommended_actions(identity_assertions, excluded, non_primary, unresolved):
-    actions = [
+def recommended_actions(
+    identity_assertions,
+    excluded,
+    non_primary,
+    navigation_unresolved,
+    safe_interactions,
+    unsafe_actions,
+    unknown_interactions,
+):
+    actions = []
+    if unsafe_actions:
+        critical_count = sum(1 for item in unsafe_actions if item.get("riskLevel") == "critical")
+        actions.append(
+            {
+                "action": "Review unsafe actions before any Level 3 automation.",
+                "reason": "These candidates can submit data, change state, expose sensitive data, or cause external side effects.",
+                "relatedCount": len(unsafe_actions),
+                "criticalCount": critical_count,
+            }
+        )
+
+    actions.append(
         {
             "action": "Run visual debug for generated navigation tests.",
             "reason": "Navigation and Page Identity evidence still require human confirmation before promotion.",
             "relatedCount": len(identity_assertions),
         }
-    ]
+    )
 
     weak_identities = [item for item in identity_assertions if item["identityType"] in {"none", "todo"}]
     if weak_identities:
@@ -347,21 +370,30 @@ def recommended_actions(identity_assertions, excluded, non_primary, unresolved):
                 "relatedCount": len(non_primary),
             }
         )
-    if unresolved:
+    if safe_interactions:
+        actions.append(
+            {
+                "action": "Review safe interaction candidates for explicit approval.",
+                "reason": "Classification marks candidates as potentially reversible, but does not authorize execution.",
+                "relatedCount": len(safe_interactions),
+            }
+        )
+    if unknown_interactions:
+        actions.append(
+            {
+                "action": "Review unknown interaction candidates.",
+                "reason": "Current artifacts do not provide enough behavior evidence for automatic execution.",
+                "relatedCount": len(unknown_interactions),
+            }
+        )
+    if navigation_unresolved:
         actions.append(
             {
                 "action": "Resolve ambiguous navigation candidates.",
                 "reason": "The current projection could not classify or attach these candidates safely.",
-                "relatedCount": len(unresolved),
+                "relatedCount": len(navigation_unresolved),
             }
         )
-    actions.append(
-        {
-            "action": "Add safe and unsafe interaction classification before Level 3 execution.",
-            "reason": "Current artifacts do not provide a reviewed interaction safety classification.",
-            "relatedCount": 0,
-        }
-    )
     return actions
 
 
@@ -411,11 +443,20 @@ def build_report(scout_result, menu_map, test_plan, warnings, source_paths=None)
     identities = page_identity_assertions(plan_tests, profile_index)
     excluded = excluded_utility_controls(non_primary)
     other_non_primary = non_primary_candidates(non_primary)
-    unresolved_output = unresolved_candidates(unresolved)
-    actions = recommended_actions(identities, excluded, other_non_primary, unresolved_output)
-
-    warnings.append(
-        "Safe/unsafe interaction classification is not available in current artifacts; both sections are empty."
+    navigation_unresolved = unresolved_candidates(unresolved)
+    interaction_result = classify_interaction_candidates(scout_result, menu_map)
+    safe_interactions = interaction_result["safeInteractionCandidates"]
+    unsafe_actions = interaction_result["unsafeActionCandidates"]
+    unknown_interactions = interaction_result["unknownInteractionCandidates"]
+    unresolved_output = navigation_unresolved + unknown_interactions
+    actions = recommended_actions(
+        identities,
+        excluded,
+        other_non_primary,
+        navigation_unresolved,
+        safe_interactions,
+        unsafe_actions,
+        unknown_interactions,
     )
     target_url = (
         compact_string(test_plan.get("targetUrl"))
@@ -440,8 +481,8 @@ def build_report(scout_result, menu_map, test_plan, warnings, source_paths=None)
             "primaryNavigationCount": len(primary_items),
             "pageProfileCount": len(profiles),
             "excludedCandidateCount": len(non_primary),
-            "safeInteractionCandidateCount": 0,
-            "unsafeActionCandidateCount": 0,
+            "safeInteractionCandidateCount": len(safe_interactions),
+            "unsafeActionCandidateCount": len(unsafe_actions),
             "unresolvedCandidateCount": len(unresolved_output),
             "recommendedActionCount": len(actions),
         },
@@ -449,8 +490,8 @@ def build_report(scout_result, menu_map, test_plan, warnings, source_paths=None)
         "pageIdentityAssertions": identities,
         "excludedUtilityControls": excluded,
         "nonPrimaryNavigationCandidates": other_non_primary,
-        "safeInteractionCandidates": [],
-        "unsafeActionCandidates": [],
+        "safeInteractionCandidates": safe_interactions,
+        "unsafeActionCandidates": unsafe_actions,
         "unresolvedCandidates": unresolved_output,
         "recommendedNextActions": actions,
         "warnings": warnings,

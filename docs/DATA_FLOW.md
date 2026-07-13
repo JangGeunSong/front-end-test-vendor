@@ -23,6 +23,20 @@ target URL
 
 기존 direct generated spec 경로도 유지되지만, 현재 제품 방향은 structured test plan JSON과 deterministic renderer를 중심으로 한다. LLM은 Playwright JavaScript를 직접 작성하지 않고, validator가 검증할 수 있는 test plan field를 채운다.
 
+Analysis Review Report 경로는 기존 artifact만 재사용한다.
+
+```text
+scout_result.json + menu_map.json + test_plan.llm.json
+  -> classify_interaction_candidates.py
+  -> build_analysis_review_report.py
+  -> analysis_review_report.json
+  -> render_analysis_review_report.py
+  -> analysis_review_report.md
+  -> human review
+```
+
+classifier는 browser interaction을 실행하지 않는다. selector, role/type, ARIA state, form association, page context 같은 기존 evidence로 safe/unsafe/unknown 후보를 분류하며, unknown은 자동 실행 대상이 아니다.
+
 ## Step Details
 
 ### 1. Target URL

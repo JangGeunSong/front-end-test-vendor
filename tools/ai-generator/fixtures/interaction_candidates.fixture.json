@@ -1,0 +1,177 @@
+{
+  "scoutResult": {
+    "elements": [
+      {
+        "text": "Overview",
+        "tagName": "LI",
+        "role": "tab",
+        "ariaSelected": "false",
+        "cssPath": "main [role='tab']:nth-of-type(1)",
+        "isVisible": true
+      },
+      {
+        "text": "Details",
+        "tagName": "BUTTON",
+        "role": "button",
+        "ariaExpanded": "false",
+        "className": "accordion-trigger",
+        "cssPath": "main button.accordion-trigger",
+        "isVisible": true
+      },
+      {
+        "text": "Open dialog",
+        "tagName": "BUTTON",
+        "role": "button",
+        "ariaHaspopup": "dialog",
+        "ariaControls": "sample-dialog",
+        "cssPath": "main button.open-dialog",
+        "isVisible": true
+      },
+      {
+        "text": "Close dialog",
+        "tagName": "BUTTON",
+        "type": "button",
+        "className": "modal-close",
+        "ariaControls": "sample-dialog",
+        "cssPath": "div[role='dialog'] button.modal-close",
+        "isVisible": true
+      },
+      {
+        "text": "Submit request",
+        "tagName": "BUTTON",
+        "type": "submit",
+        "formAssociation": "form#request",
+        "cssPath": "form button[type='submit']",
+        "isVisible": true
+      },
+      {
+        "text": "Save changes",
+        "tagName": "BUTTON",
+        "role": "button",
+        "type": "button",
+        "cssPath": "form button.save",
+        "isVisible": true
+      },
+      {
+        "text": "Delete item",
+        "tagName": "BUTTON",
+        "role": "button",
+        "cssPath": "main button.delete",
+        "isVisible": true
+      },
+      {
+        "text": "Upload file",
+        "tagName": "INPUT",
+        "type": "file",
+        "cssPath": "form input[type='file']",
+        "isVisible": true
+      },
+      {
+        "text": "Login",
+        "tagName": "BUTTON",
+        "role": "button",
+        "cssPath": "form button.login",
+        "isVisible": true
+      },
+      {
+        "text": "Sign up",
+        "tagName": "BUTTON",
+        "role": "button",
+        "cssPath": "form button.signup",
+        "isVisible": true
+      },
+      {
+        "text": "Proceed to payment",
+        "tagName": "BUTTON",
+        "role": "button",
+        "cssPath": "main button.payment",
+        "isVisible": true
+      },
+      {
+        "text": "Send message",
+        "tagName": "BUTTON",
+        "role": "button",
+        "cssPath": "form button.send",
+        "isVisible": true
+      },
+      {
+        "text": "Approve request",
+        "tagName": "BUTTON",
+        "role": "button",
+        "cssPath": "main button.approve",
+        "isVisible": true
+      },
+      {
+        "text": "Email",
+        "tagName": "INPUT",
+        "type": "email",
+        "cssPath": "form input[type='email']",
+        "isVisible": true
+      },
+      {
+        "text": "More options",
+        "tagName": "BUTTON",
+        "type": "button",
+        "cssPath": "main button.more-options",
+        "isVisible": true
+      },
+      {
+        "text": "",
+        "tagName": "BUTTON",
+        "type": "button",
+        "cssPath": "main button.generic-control",
+        "isVisible": true
+      },
+      {
+        "text": "Conflicting tab",
+        "tagName": "BUTTON",
+        "role": "tab",
+        "type": "button",
+        "formAssociation": "form#settings",
+        "cssPath": "form#settings button[role='tab']",
+        "isVisible": true
+      }
+    ]
+  },
+  "menuMap": {
+    "pageProfiles": []
+  },
+  "expected": {
+    "safeTexts": [
+      "Overview",
+      "Details",
+      "Open dialog",
+      "Close dialog"
+    ],
+    "unsafeTexts": [
+      "Submit request",
+      "Save changes",
+      "Delete item",
+      "Upload file",
+      "Login",
+      "Sign up",
+      "Proceed to payment",
+      "Send message",
+      "Approve request",
+      "Email"
+    ],
+    "unknownTexts": [
+      "More options",
+      "Conflicting tab"
+    ],
+    "mustNotBeSafe": [
+      "Submit request",
+      "Save changes",
+      "Delete item",
+      "Upload file",
+      "Login",
+      "Sign up",
+      "Proceed to payment",
+      "Send message",
+      "Approve request",
+      "Email",
+      "More options",
+      "Conflicting tab"
+    ]
+  }
+}

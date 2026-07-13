@@ -27,6 +27,7 @@ Analysis Review Report는 generated test, 제외된 후보, unresolved 후보, s
 
 - JSON report builder 구현 완료
 - JSON report를 입력으로 사용하는 deterministic Markdown renderer 구현 완료
+- deterministic safe/unsafe/unknown interaction candidate classifier 연결 완료
 - Markdown report는 warning과 recommended action을 상단에 배치하고, 긴 selector/evidence는 접을 수 있는 상세 영역으로 분리한다.
 - 빈 후보 section은 숨기지 않고 `No candidates.`로 표시한다.
 - JSON/Markdown report 모두 생성 시각을 포함하지 않아 동일 입력에서 동일한 결과를 생성한다.
@@ -231,7 +232,7 @@ Analysis Review Report는 단순 pass/fail report가 아니다.
 - excluded/non-primary/unresolved 후보 요약
 - safe/unsafe interaction 후보 분류 결과 표시
 
-현재 safe/unsafe interaction 분류 데이터가 없으면 report section은 빈 상태로 표시하며, renderer가 이를 임의로 추론하지 않는다.
+현재 artifact에서 구조 근거가 확인된 후보만 safe/unsafe로 분류한다. 근거가 부족한 action 후보는 `candidateSubtype: interaction`인 unresolved 후보로 표시하고 자동 실행 대상으로 취급하지 않는다. 해당 분류가 0건인 section도 Markdown에서 숨기지 않는다.
 
 MVP에서 하지 않는 것:
 

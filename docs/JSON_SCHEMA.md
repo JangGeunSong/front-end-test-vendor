@@ -10,8 +10,9 @@ The current implementation includes:
 - `Level 2 Page Identity Test MVP`, including `pageProfile` collection and cache
 - structured test plan artifacts and deterministic Playwright rendering
 - `Analysis Review Report JSON MVP`
+- deterministic Safe Interaction candidate classification MVP
 
-The `Level 3 interactionProfile` and Safe Interaction execution remain planned work. This document distinguishes current pipeline schemas from future candidate schemas.
+The `Level 3 interactionProfile`, structured interaction plan, and Safe Interaction execution remain planned work. This document distinguishes current pipeline schemas from future candidate schemas.
 
 ## Data Policy
 
@@ -293,6 +294,38 @@ Do not use the following as standalone page identity signals:
 
 `representativeTexts` alone can be weak or ambiguous. Level 2 Page Identity Test generation should combine multiple stable signals when possible.
 
+## Safe Interaction Classification (Implemented MVP)
+
+`tools/ai-generator/classify_interaction_candidates.py`는 기존 `scout_result.json`, `menu_map.json`, `pageProfiles`의 action 후보를 읽어 다음 분류를 생성한다.
+
+- `safeInteractionCandidates`: read-only 또는 reversible 가능성이 구조 신호로 확인된 후보
+- `unsafeActionCandidates`: submit, data change, authentication, payment, upload, external side effect 위험 후보
+- `unknownInteractionCandidates`: 실행 결과나 안전성을 현재 artifact만으로 판단할 수 없는 후보
+
+공통 evidence 필드:
+
+- `text`
+- `selector`
+- `role`
+- `type`
+- `tagName`
+- `href`
+- `semanticRegion`
+- `pageContext`
+- `formAssociation`
+- `surroundingText`
+- `ariaAttributes`
+- `candidateSource`, `candidateSources`
+- `classification`
+- `reason`
+- `confidence`
+- `evidence`
+- `suggestedAction`
+
+safe 후보는 `interactionKind`를 포함한다. unsafe 후보는 `actionKind`와 `riskLevel`을 포함한다. unknown 후보는 Analysis Review Report에서 `candidateSubtype: interaction`인 `unresolvedCandidates`로 병합된다. 기존 navigation unresolved 후보는 `candidateSubtype: navigation`으로 구분한다.
+
+분류는 실행 승인이 아니다. safe 후보도 사람이 검수하기 전에는 Level 3 자동 실행 대상으로 사용하지 않는다.
+
 ## Level 3 interactionProfile (Planned Candidate)
 
 ### Purpose
@@ -411,7 +444,7 @@ Legacy cautions:
 ## Future Schema Work
 
 - Keep the documented `scout_result`, `menu_map`, and `pageProfile` structures aligned with their producers and consumers as the implemented Level 1/2 pipeline evolves.
-- Define the `interactionProfile` producer, consumer, validation rules, and safety classification contract before implementing Level 3 execution.
+- Define the `interactionProfile` producer, consumer, validation rules, and structured interaction plan contract before implementing Level 3 execution.
 - Review `agent_orchestrator.py` when JSON structure changes.
 - Update prompt strategy when generated tests start using `interactionProfile`.
 
@@ -432,10 +465,10 @@ Legacy cautions:
 - `pageIdentityAssertions`: 각 `menuPath`의 identity assertion 또는 TODO 상태
 - `excludedUtilityControls`: primary navigation에서 제외된 utility/control 후보
 - `nonPrimaryNavigationCandidates`: utility 이외의 non-primary 후보
-- `safeInteractionCandidates`: 향후 Level 3 검수를 위한 safe 후보. 현재 분류 데이터가 없으면 빈 배열
-- `unsafeActionCandidates`: 향후 Level 3 검수를 위한 unsafe 후보. 현재 분류 데이터가 없으면 빈 배열
-- `unresolvedCandidates`: projection이 안전하게 분류하지 못한 후보
+- `safeInteractionCandidates`: 구조 신호가 충분한 read-only/reversible 후보. 실행 전 사람 승인이 필요함
+- `unsafeActionCandidates`: 데이터 변경 또는 외부 부작용 위험 때문에 자동 실행에서 제외된 후보
+- `unresolvedCandidates`: navigation projection unresolved와 interaction unknown 후보. `candidateSubtype`으로 구분
 - `recommendedNextActions`: human review를 위한 다음 작업
 - `warnings`: optional 입력 누락이나 아직 제공되지 않는 분류 데이터 안내
 
-배열 순서는 입력 artifact의 deterministic 순서를 유지한다. report에는 생성 시각을 넣지 않으므로 동일 입력으로 반복 생성하면 동일한 JSON을 얻는다. 현재 artifact에 없는 safe/unsafe interaction 의미를 임의 추론하지 않으며, 빈 section과 warning으로 표현한다.
+배열 순서는 입력 artifact의 deterministic 순서를 유지한다. report에는 생성 시각을 넣지 않으므로 동일 입력으로 반복 생성하면 동일한 JSON을 얻는다. 구조 근거가 부족한 interaction 의미는 임의 추론하지 않고 unknown/unresolved로 유지하며, 후보가 없는 section도 빈 배열로 보존한다.

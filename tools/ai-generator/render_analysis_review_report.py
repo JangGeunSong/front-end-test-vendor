@@ -134,6 +134,13 @@ def append_list(lines, label, values):
     lines.extend(f"  - {item}" for item in items)
 
 
+def append_mapping(lines, label, value):
+    if not isinstance(value, dict) or not value:
+        return
+    lines.append(f"- {label}:")
+    lines.extend(f"  - {key}: {compact_string(item)}" for key, item in value.items())
+
+
 def close_detail(lines):
     lines.extend(["", "</details>", ""])
 
@@ -160,10 +167,11 @@ def render_recommended_actions(report):
                 index,
                 item.get("action"),
                 item.get("relatedCount"),
+                item.get("criticalCount"),
                 item.get("reason"),
             ]
         )
-    lines.extend(render_table(["#", "Action", "Related", "Reason"], rows))
+    lines.extend(render_table(["#", "Action", "Related", "Critical", "Reason"], rows))
     lines.append("")
     return lines
 
@@ -297,15 +305,22 @@ def render_candidate_section(report, key, heading, mode):
     for index, item in enumerate(items, 1):
         lines.extend([detail_summary(index, item.get("text") or "(no text)"), ""])
         append_value(lines, "Href", item.get("href"))
+        append_value(lines, "Classification", item.get("classification"))
+        append_value(lines, "Candidate subtype", item.get("candidateSubtype"))
         append_value(lines, "Navigation role", item.get("navigationRole"))
         append_value(lines, "Interaction kind", item.get("interactionKind"))
         append_value(lines, "Action kind", item.get("actionKind"))
+        append_value(lines, "Risk level", item.get("riskLevel"))
         append_value(lines, "Role", item.get("role"))
         append_value(lines, "Type", item.get("type"))
+        append_value(lines, "Confidence", item.get("confidence"))
+        append_value(lines, "Reason", item.get("reason"))
         append_value(lines, "Page context", item.get("pageContext"))
         append_value(lines, "Form association", item.get("formAssociation"))
         append_value(lines, "Surrounding text", item.get("surroundingText"))
+        append_mapping(lines, "ARIA attributes", item.get("ariaAttributes"))
         append_code_value(lines, "Selector", item.get("selector"))
+        append_list(lines, "Candidate sources", item.get("candidateSources"))
         append_list(lines, "Evidence", item.get("evidence"))
         append_list(lines, "Signals", item.get("signals"))
         append_value(lines, "Suggested action", item.get("suggestedAction"))

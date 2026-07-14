@@ -19,3 +19,6 @@ tools/ai-generator/generated/*.json
 tools/ai-generator/generated/*.txt
 tools/ai-generator/generated/primary_menu_tree_for_profiles.json
 !tools/ai-generator/generated/test_plan.example.json
+
+# Human-authored local review state (not generated output or source)
+tools/ai-generator/review/*.json

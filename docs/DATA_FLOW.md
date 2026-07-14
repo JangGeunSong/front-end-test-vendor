@@ -40,6 +40,18 @@ classifier는 browser interaction을 실행하지 않는다. selector, role/type
 
 각 classified interaction candidate에는 deduplication과 동일한 canonical identity에서 만든 deterministic `candidateKey`가 포함된다. report JSON/Markdown은 이 key를 보존해 future human approval과 structured interaction plan이 배열 index나 selector 원문 대신 candidate를 참조할 수 있게 한다. key 보유와 safe classification은 실행 승인을 의미하지 않으며, selector 또는 page context가 바뀌면 key도 바뀔 수 있다.
 
+Human approval 이후의 boundary는 contract만 확정되어 있고 아직 구현되지 않았다.
+
+```text
+current classified candidates / analysis_review_report.json
+  + tools/ai-generator/review/interaction_approvals.json
+  -> future approval reconciliation / validation
+  -> valid approved candidates
+  -> future structured interaction plan builder
+```
+
+Approval artifact는 human decision, candidate reference, immutable evidence snapshot, review metadata만 소유한다. Future reconciliation은 exact `candidateKey`, target scope, snapshot, current classification을 대조한다. Current `safe`와 human `approved`와 valid non-stale reference를 모두 만족한 candidate만 future plan 입력 eligibility를 갖는다. Template, expected state, close/reset/rollback은 future structured interaction plan의 책임이다. 상세 계약은 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md)를 따른다.
+
 ## Step Details
 
 ### 1. Target URL

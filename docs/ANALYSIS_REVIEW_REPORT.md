@@ -224,6 +224,8 @@ Analysis Review Report는 단순 pass/fail report가 아니다.
 
 즉, report는 자동화 결과를 사람이 신뢰할 수 있게 만드는 중간 산출물이다.
 
+Report는 approval decision을 소유하지 않는다. Human decision은 report의 `candidateKey`와 최소 evidence를 검토한 뒤 별도 approval artifact에 기록하며, 계약은 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md)를 따른다.
+
 ## MVP Scope
 
 초기 MVP 구현 완료:
@@ -250,10 +252,10 @@ MVP에서 하지 않는 것:
 
 후속 확장 후보:
 
-- review result 저장
-- approved/rejected classification memory
+- approval artifact writer/editor와 reconciliation 구현
+- approved/rejected human decision history
 - workspace/project 단위 report history
 - 검수 UI
 - report 기반 rule tuning
 - regression 승격 후보 추천
-- safe interaction approval flow
+- approval contract 기반 structured interaction plan 연결

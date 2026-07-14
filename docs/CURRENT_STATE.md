@@ -82,7 +82,7 @@ scout_result.json + menu_map.json + test_plan.llm.json
 
 ## Current Development Frontier
 
-현재 중심 frontier는 classified interaction candidate를 human approval 및 structured interaction plan으로 안전하게 연결하는 경계다.
+현재 중심 frontier는 문서로 확정된 human approval contract를 future reconciliation validator와 structured interaction plan으로 안전하게 연결하는 경계다.
 
 완료된 부분:
 
@@ -90,41 +90,41 @@ scout_result.json + menu_map.json + test_plan.llm.json
 - safe/unsafe/unknown의 보수적 deterministic 분류
 - 분류 evidence, confidence, risk, recommended action을 JSON/Markdown report에 표시
 - 동일 normalized candidate를 참조하는 deterministic `candidateKey`
+- `approved`/`held`/`rejected` human decision과 최소 immutable evidence snapshot을 저장하는 versioned approval artifact contract
+- exact `candidateKey`와 snapshot을 기준으로 stale reference를 판정하고 heuristic approval carry-forward를 금지하는 reconciliation contract
+- current `safe` + human `approved` + valid non-stale reference를 future plan eligibility로 사용하는 규칙
 
 열린 boundary:
 
-- 사람이 승인·보류·거절한 결과를 어떤 versioned artifact로 저장할지
-- approval이 어떤 `candidateKey`와 evidence snapshot을 참조해야 하는지
-- selector/page context 변화로 key가 달라졌을 때 stale approval을 어떻게 감지할지
-- 승인된 safe 후보만 structured interaction plan으로 변환하는 계약
+- approval artifact writer/editor와 JSON validator 구현
+- current candidate와 approval artifact를 대조하는 reconciliation tool 및 result schema
+- eligible approved candidate를 structured interaction plan으로 변환하는 최소 field와 template 계약
 - interaction plan validator와 reversible state assertion/rollback 계약
 
-이 frontier는 interaction을 즉시 클릭하는 작업과 다르다. approval contract와 plan validation 없이 Level 3 browser execution을 먼저 구현하지 않는다.
+이 frontier는 interaction을 즉시 클릭하는 작업과 다르다. Approval artifact 기본 경로와 schema는 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md)에 확정되었지만 writer, validator, reconciliation, Level 3 execution은 아직 구현되지 않았다.
 
 ## Latest Completed Work
 
-가장 최근 완료된 구현은 deterministic interaction `candidateKey`다.
+가장 최근 완료된 architecture/documentation 작업은 Interaction Approval Contract 확정이다.
 
-- 목적: classified candidate를 배열 index나 selector 원문 전체 대신 stable identity로 review/approval 및 future plan에서 참조하기 위함
-- 형식: `interaction:<selector|fallback>:<24-character SHA-256 digest>`
-- selector가 있는 경우 canonical input: normalized `pageContext`와 `selector`
-- selector가 없는 경우 fallback input: normalized `pageContext`, `role`, `type`, `tagName`, case-folded `text`
-- classification, 배열 index, 생성 시각, Python process `hash()`는 identity에 포함하지 않음
-- 동일 identity가 여러 source에서 수집되면 key 하나로 dedup하고 `candidateSources`를 병합
-- selector 또는 page context가 바뀌면 key가 바뀔 수 있음
-- safe/unsafe/unknown classifier output과 Analysis Review Report JSON에서 key를 보존하고 Markdown Candidate Details에 표시
+- 기본 local review state 경로: `tools/ai-generator/review/interaction_approvals.json`
+- schema version: `1.0`
+- human decision: `approved`, `held`, `rejected`
+- primary reference: deterministic `candidateKey`; target URL과 최소 evidence snapshot을 함께 보존
+- stale은 decision이 아니라 reconciliation status이며 missing key/evidence change 시 automatic carry-forward를 금지
+- future eligibility: current `safe` AND human `approved` AND valid non-stale reference
+- approval artifact와 future interaction plan의 template/step/assertion/rollback 책임을 분리
 
-fixture는 key 존재·유일성·반복 안정성, selector 없는 fallback, source 병합, safe `interactionKind`, unsafe `actionKind`/`riskLevel`을 검증한다.
+가장 최근 source 구현은 deterministic interaction `candidateKey`이며 그 형식과 fixture 검증 상태는 유지된다. 이번 contract 작업에서는 approval writer, validator, reconciliation, browser interaction을 구현하지 않았다.
 
 ## Open Questions / Next Decisions
 
 현재 frontier에서 바로 결정할 항목만 유지한다.
 
-1. Approval artifact의 version, 저장 위치, decision 값, reviewer/evidence metadata 범위
-2. `candidateKey` 변경 또는 미발견 시 기존 approval을 stale로 처리하는 규칙
-3. approved candidate에서 structured interaction plan으로 변환할 최소 field와 template 계약
-4. unsafe/unknown 또는 승인되지 않은 candidate를 plan validator가 차단하는 방식
-5. reversible interaction의 expected state, close/rollback, failure evidence 계약
+1. Approval artifact writer/validator와 reconciliation result schema를 어떤 module/CLI 경계로 구현할지
+2. eligible approved candidate에서 structured interaction plan으로 변환할 최소 field와 template 계약
+3. interaction plan validator가 eligibility proof와 current evidence를 확인하는 방식
+4. reversible interaction의 expected state, close/rollback, failure evidence 계약
 
 검수 UI, workspace history, Level 3 execution은 위 계약 이후의 단계다.
 
@@ -135,7 +135,7 @@ fixture는 key 존재·유일성·반복 안정성, selector 없는 fallback, so
 - structured navigation plan: [TEST_PLAN_SCHEMA.md](TEST_PLAN_SCHEMA.md), [TEST_TEMPLATE_CATALOG.md](TEST_TEMPLATE_CATALOG.md), [STRUCTURED_PLAN_MIGRATION.md](STRUCTURED_PLAN_MIGRATION.md)
 - prompt 변경: [PROMPT_STRATEGY.md](PROMPT_STRATEGY.md)
 - Playwright 생성 규칙: [PLAYWRIGHT_CONVENTION.md](PLAYWRIGHT_CONVENTION.md), [TEST_GENERATION_RULES.md](TEST_GENERATION_RULES.md)
-- interaction/review 작업: [SAFE_INTERACTION_STRATEGY.md](SAFE_INTERACTION_STRATEGY.md), [ANALYSIS_REVIEW_REPORT.md](ANALYSIS_REVIEW_REPORT.md), [JSON_SCHEMA.md](JSON_SCHEMA.md)
+- interaction/review 작업: [SAFE_INTERACTION_STRATEGY.md](SAFE_INTERACTION_STRATEGY.md), [ANALYSIS_REVIEW_REPORT.md](ANALYSIS_REVIEW_REPORT.md), [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md), [JSON_SCHEMA.md](JSON_SCHEMA.md)
 - 외부 LLM 및 폐쇄망 판단: [OFFLINE_NETWORK_POLICY.md](OFFLINE_NETWORK_POLICY.md)
 - 검증된 일반화 근거: [CROSS_SITE_VALIDATION.md](CROSS_SITE_VALIDATION.md)
 - 과거 실패 원인과 변경 이력: 필요한 경우에만 [TASK_LOG.md](TASK_LOG.md)

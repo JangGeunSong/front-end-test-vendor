@@ -1,5 +1,38 @@
 # Task Log
 
+## 2026-07-15 - Define Interaction Approval artifact contract
+
+### 작업 목적
+
+- classified interaction candidate와 future Level 3 interaction execution 사이에 human approval boundary를 정의한다.
+- `safe` machine classification과 사람의 approval decision을 분리하고, approved-only plan eligibility에 필요한 보수적 reconciliation 원칙을 확정한다.
+
+### 변경 내용
+
+- `docs/INTERACTION_APPROVAL_CONTRACT.md`를 추가했다.
+  - human-authored local state 기본 경로를 `tools/ai-generator/review/interaction_approvals.json`, schema version을 `1.0`으로 정의했다.
+  - decision enum을 `approved`, `held`, `rejected`로 제한하고 classification/reconciliation status와 분리했다.
+  - `candidateKey` exact reference와 decision 당시의 최소 immutable evidence snapshot, reviewer metadata 계약을 정의했다.
+  - missing key 또는 evidence change를 stale reconciliation 결과로 처리하고 heuristic similarity만으로 old approval을 새 candidate에 자동 승계하지 않도록 했다.
+  - current `safe` + human `approved` + valid non-stale reference를 future interaction plan eligibility로 정의했다.
+  - approval artifact의 human decision/evidence 책임과 future plan의 template/step/assertion/rollback 책임을 분리했다.
+- approval local state가 generated output이나 source로 commit되지 않도록 `.gitignore`에 review JSON 경로를 추가했다.
+- current-state, data-flow, module/schema/review/safe-interaction 문서를 새 contract와 일치시켰다.
+- `AGENTS.md`와 project documentation map에 interaction approval 작업의 required contract 문서를 연결했다.
+
+### 확인 결과
+
+- Markdown H1/구조, 상대 링크와 참조 경로, inline JSON example parse를 확인했다.
+- `candidateKey` format/canonical identity와 classifier/report evidence field가 source와 일치함을 재확인했다.
+- `CURRENT_STATE.md`가 contract-defined/writer-not-implemented 상태와 다음 reconciliation/plan frontier를 구분하는지 확인했다.
+- `git diff --check`를 통과했다.
+- source feature, generated artifact, scout/pageProfile, Playwright, 외부 LLM API는 수정하거나 실행하지 않았다.
+
+### 다음 작업
+
+- approval artifact writer/validator와 current candidate reconciliation result schema를 별도 task로 설계·구현한다.
+- valid approved candidate만 입력받는 structured interaction plan의 최소 field와 reversible-state contract를 후속 task로 정의한다.
+
 ## 2026-07-14 - Add durable current-state handoff documentation
 
 ### 작업 목적

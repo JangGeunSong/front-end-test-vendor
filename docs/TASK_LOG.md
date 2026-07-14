@@ -1,5 +1,31 @@
 # Task Log
 
+## 2026-07-14 - Add stable interaction candidate identity
+
+### 작업 목적
+
+- safe/unsafe/unknown classified candidate를 향후 human approval과 structured interaction plan에서 배열 index나 selector 원문에 의존하지 않고 참조할 수 있게 한다.
+- 기존 deduplication과 candidate identity가 서로 다른 기준을 사용하지 않도록 하나의 deterministic 계약으로 정리한다.
+
+### 변경 내용
+
+- classifier의 selector-first dedup signal을 canonical identity로 정리하고 SHA-256 digest 기반 `candidateKey`를 모든 classified candidate에 추가했다.
+- 동일 identity가 여러 source에서 수집되면 하나의 key로 dedup하고 `candidateSources`를 병합하도록 기존 동작과 identity 계약을 연결했다.
+- fixture를 `fixtureId` 기반 상세 기대값으로 확장해 safe `interactionKind`, unsafe `actionKind`/`riskLevel`, key 존재·유일성·반복 실행 안정성, source 병합을 검증한다.
+- Analysis Review Report JSON에서 key를 보존하고 Markdown Candidate Details에서 확인할 수 있게 했다.
+- Safe Interaction, Analysis Review Report, JSON schema, data flow, project overview 문서에 stable identity의 용도와 한계를 반영했다.
+
+### 확인 결과
+
+- Python 문법, fixture 상세 검증, 기존 artifact 분류와 report JSON/Markdown 재생성을 확인했다.
+- 동일 입력 반복 실행의 candidateKey sequence 및 report hash 일치와 generated artifact ignore 상태를 확인했다.
+- scout/pageProfile 재수집, Playwright 실행, 외부 LLM API 호출은 수행하지 않았다.
+
+### 다음 작업
+
+- 사람의 승인 결과가 `candidateKey`를 참조하는 structured interaction plan 계약을 별도 작업으로 정의한다.
+- safe classification과 approval을 분리하고, interaction plan validator가 승인되지 않은 후보 실행을 차단하도록 설계한다.
+
 ## 2026-07-13 - Add Safe Interaction candidate classification MVP
 
 ### 작업 목적

@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -199,19 +200,30 @@ def normalize_candidate(candidate, source, page_context="", form_association="")
     return normalized
 
 
-def candidate_key(candidate):
+def candidate_identity(candidate):
     selector = normalized_space(candidate.get("selector"))
     context = normalized_space(candidate.get("pageContext"))
     if selector:
-        return ("selector", context, selector)
-    return (
-        "fallback",
-        context,
-        normalized_space(candidate.get("role")),
-        normalized_space(candidate.get("type")),
-        normalized_space(candidate.get("tagName")),
-        normalized_space(candidate.get("text")).casefold(),
-    )
+        return {
+            "kind": "selector",
+            "pageContext": context,
+            "selector": selector,
+        }
+    return {
+        "kind": "fallback",
+        "pageContext": context,
+        "role": normalized_space(candidate.get("role")),
+        "type": normalized_space(candidate.get("type")),
+        "tagName": normalized_space(candidate.get("tagName")),
+        "text": normalized_space(candidate.get("text")).casefold(),
+    }
+
+
+def candidate_key(candidate):
+    identity = candidate_identity(candidate)
+    canonical = json.dumps(identity, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:24]
+    return f"interaction:{identity['kind']}:{digest}"
 
 
 def merge_candidate(existing, incoming):
@@ -297,6 +309,7 @@ def collect_candidates(scout_result, menu_map):
     index = {}
     for candidate in collected:
         key = candidate_key(candidate)
+        candidate["candidateKey"] = key
         if key in index:
             merge_candidate(deduplicated[index[key]], candidate)
         else:
@@ -340,6 +353,7 @@ def search_text(candidate):
 
 def public_fields(candidate):
     result = {
+        "candidateKey": candidate.get("candidateKey", candidate_key(candidate)),
         "text": candidate.get("text", ""),
         "selector": candidate.get("selector", ""),
         "role": candidate.get("role", ""),
@@ -556,7 +570,16 @@ def classify_interaction_candidates(scout_result, menu_map):
     }
 
 
-def validate_fixture(result, expected):
+def classified_items(result):
+    for result_key in ("safeInteractionCandidates", "unsafeActionCandidates", "unknownInteractionCandidates"):
+        yield from result[result_key]
+
+
+def candidate_key_sequence(result):
+    return [item.get("candidateKey") for item in classified_items(result)]
+
+
+def validate_fixture(result, expected, repeated_result=None):
     errors = []
     mapping = {
         "safeTexts": ("safeInteractionCandidates", "safe"),
@@ -572,11 +595,48 @@ def validate_fixture(result, expected):
             if text not in actual_by_class[classification]:
                 errors.append(f"Expected {classification} candidate was not found: {text!r}")
     for text in expected.get("mustNotBeSafe", []):
-        if text in actual_by_class["safe"]:
+        safe_items = result["safeInteractionCandidates"]
+        if any(item.get("fixtureId") == text or item.get("text") == text for item in safe_items):
             errors.append(f"Unsafe/unknown candidate was incorrectly classified safe: {text!r}")
+
+    actual_by_fixture_id = {
+        item.get("fixtureId"): item
+        for item in classified_items(result)
+        if item.get("fixtureId")
+    }
+    for expected_candidate in expected.get("candidates", []):
+        fixture_id = expected_candidate.get("fixtureId")
+        actual = actual_by_fixture_id.get(fixture_id)
+        if actual is None:
+            errors.append(f"Expected fixture candidate was not found: {fixture_id!r}")
+            continue
+        for key in ("classification", "interactionKind", "actionKind", "riskLevel"):
+            if key in expected_candidate and actual.get(key) != expected_candidate[key]:
+                errors.append(
+                    f"Fixture candidate {fixture_id!r} expected {key}={expected_candidate[key]!r}, "
+                    f"got {actual.get(key)!r}."
+                )
+        key_prefix = expected_candidate.get("candidateKeyPrefix")
+        if key_prefix and not actual.get("candidateKey", "").startswith(key_prefix):
+            errors.append(
+                f"Fixture candidate {fixture_id!r} expected candidateKey prefix {key_prefix!r}, "
+                f"got {actual.get('candidateKey')!r}."
+            )
+        for source in expected_candidate.get("candidateSources", []):
+            if source not in actual.get("candidateSources", []):
+                errors.append(f"Fixture candidate {fixture_id!r} is missing candidate source {source!r}.")
+
+    keys = candidate_key_sequence(result)
+    if any(not key for key in keys):
+        errors.append("Every classified candidate must have a candidateKey.")
+    if len(keys) != len(set(keys)):
+        errors.append("Classified candidateKey values must be unique.")
+    if repeated_result is not None and keys != candidate_key_sequence(repeated_result):
+        errors.append("candidateKey sequence changed across identical fixture classifications.")
+
     for result_key in ("safeInteractionCandidates", "unsafeActionCandidates", "unknownInteractionCandidates"):
         for index, item in enumerate(result[result_key]):
-            for required_key in ("reason", "confidence", "evidence", "suggestedAction"):
+            for required_key in ("candidateKey", "reason", "confidence", "evidence", "suggestedAction"):
                 if not item.get(required_key):
                     errors.append(f"{result_key}[{index}] is missing {required_key}.")
     return errors
@@ -600,7 +660,8 @@ def main():
 
         result = classify_interaction_candidates(scout_result, menu_map)
         if expected is not None:
-            errors = validate_fixture(result, expected)
+            repeated_result = classify_interaction_candidates(scout_result, menu_map)
+            errors = validate_fixture(result, expected, repeated_result)
             if errors:
                 for error in errors:
                     print(f"[E001] {error}", file=sys.stderr)

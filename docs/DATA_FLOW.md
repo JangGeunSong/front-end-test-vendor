@@ -37,6 +37,8 @@ scout_result.json + menu_map.json + test_plan.llm.json
 
 classifier는 browser interaction을 실행하지 않는다. selector, role/type, ARIA state, form association, page context 같은 기존 evidence로 safe/unsafe/unknown 후보를 분류하며, unknown은 자동 실행 대상이 아니다.
 
+각 classified interaction candidate에는 deduplication과 동일한 canonical identity에서 만든 deterministic `candidateKey`가 포함된다. report JSON/Markdown은 이 key를 보존해 future human approval과 structured interaction plan이 배열 index나 selector 원문 대신 candidate를 참조할 수 있게 한다. key 보유와 safe classification은 실행 승인을 의미하지 않으며, selector 또는 page context가 바뀌면 key도 바뀔 수 있다.
+
 ## Step Details
 
 ### 1. Target URL

@@ -304,6 +304,7 @@ def render_candidate_section(report, key, heading, mode):
     lines.extend(["", "### Candidate Details", ""])
     for index, item in enumerate(items, 1):
         lines.extend([detail_summary(index, item.get("text") or "(no text)"), ""])
+        append_code_value(lines, "Candidate key", item.get("candidateKey"))
         append_value(lines, "Href", item.get("href"))
         append_value(lines, "Classification", item.get("classification"))
         append_value(lines, "Candidate subtype", item.get("candidateSubtype"))

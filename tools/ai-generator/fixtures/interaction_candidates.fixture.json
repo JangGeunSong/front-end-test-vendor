@@ -2,6 +2,7 @@
   "scoutResult": {
     "elements": [
       {
+        "fixtureId": "safe-tab",
         "text": "Overview",
         "tagName": "LI",
         "role": "tab",
@@ -10,6 +11,7 @@
         "isVisible": true
       },
       {
+        "fixtureId": "safe-accordion",
         "text": "Details",
         "tagName": "BUTTON",
         "role": "button",
@@ -19,6 +21,7 @@
         "isVisible": true
       },
       {
+        "fixtureId": "safe-dialog-open",
         "text": "Open dialog",
         "tagName": "BUTTON",
         "role": "button",
@@ -28,6 +31,7 @@
         "isVisible": true
       },
       {
+        "fixtureId": "safe-dialog-close",
         "text": "Close dialog",
         "tagName": "BUTTON",
         "type": "button",
@@ -37,6 +41,7 @@
         "isVisible": true
       },
       {
+        "fixtureId": "unsafe-submit",
         "text": "Submit request",
         "tagName": "BUTTON",
         "type": "submit",
@@ -45,6 +50,7 @@
         "isVisible": true
       },
       {
+        "fixtureId": "unsafe-save",
         "text": "Save changes",
         "tagName": "BUTTON",
         "role": "button",
@@ -53,6 +59,7 @@
         "isVisible": true
       },
       {
+        "fixtureId": "unsafe-delete",
         "text": "Delete item",
         "tagName": "BUTTON",
         "role": "button",
@@ -60,6 +67,7 @@
         "isVisible": true
       },
       {
+        "fixtureId": "unsafe-upload",
         "text": "Upload file",
         "tagName": "INPUT",
         "type": "file",
@@ -67,6 +75,7 @@
         "isVisible": true
       },
       {
+        "fixtureId": "unsafe-login",
         "text": "Login",
         "tagName": "BUTTON",
         "role": "button",
@@ -74,6 +83,7 @@
         "isVisible": true
       },
       {
+        "fixtureId": "unsafe-signup",
         "text": "Sign up",
         "tagName": "BUTTON",
         "role": "button",
@@ -81,6 +91,7 @@
         "isVisible": true
       },
       {
+        "fixtureId": "unsafe-payment",
         "text": "Proceed to payment",
         "tagName": "BUTTON",
         "role": "button",
@@ -88,6 +99,7 @@
         "isVisible": true
       },
       {
+        "fixtureId": "unsafe-send",
         "text": "Send message",
         "tagName": "BUTTON",
         "role": "button",
@@ -95,6 +107,7 @@
         "isVisible": true
       },
       {
+        "fixtureId": "unsafe-approve",
         "text": "Approve request",
         "tagName": "BUTTON",
         "role": "button",
@@ -102,6 +115,7 @@
         "isVisible": true
       },
       {
+        "fixtureId": "unsafe-personal-information",
         "text": "Email",
         "tagName": "INPUT",
         "type": "email",
@@ -109,6 +123,7 @@
         "isVisible": true
       },
       {
+        "fixtureId": "unknown-more-options",
         "text": "More options",
         "tagName": "BUTTON",
         "type": "button",
@@ -116,13 +131,14 @@
         "isVisible": true
       },
       {
+        "fixtureId": "unknown-generic-control",
         "text": "",
         "tagName": "BUTTON",
         "type": "button",
-        "cssPath": "main button.generic-control",
         "isVisible": true
       },
       {
+        "fixtureId": "unknown-conflicting-tab",
         "text": "Conflicting tab",
         "tagName": "BUTTON",
         "role": "tab",
@@ -134,7 +150,18 @@
     ]
   },
   "menuMap": {
-    "pageProfiles": []
+    "pageProfiles": [],
+    "nonPrimaryNavigationCandidates": [
+      {
+        "fixtureId": "safe-tab",
+        "text": "Overview",
+        "tagName": "LI",
+        "role": "tab",
+        "ariaSelected": "false",
+        "cssPath": "main [role='tab']:nth-of-type(1)",
+        "isVisible": true
+      }
+    ]
   },
   "expected": {
     "safeTexts": [
@@ -160,18 +187,118 @@
       "Conflicting tab"
     ],
     "mustNotBeSafe": [
-      "Submit request",
-      "Save changes",
-      "Delete item",
-      "Upload file",
-      "Login",
-      "Sign up",
-      "Proceed to payment",
-      "Send message",
-      "Approve request",
-      "Email",
-      "More options",
-      "Conflicting tab"
+      "unsafe-submit",
+      "unsafe-save",
+      "unsafe-delete",
+      "unsafe-upload",
+      "unsafe-login",
+      "unsafe-signup",
+      "unsafe-payment",
+      "unsafe-send",
+      "unsafe-approve",
+      "unsafe-personal-information",
+      "unknown-more-options",
+      "unknown-generic-control",
+      "unknown-conflicting-tab"
+    ],
+    "candidates": [
+      {
+        "fixtureId": "safe-tab",
+        "classification": "safe",
+        "interactionKind": "tab",
+        "candidateSources": [
+          "scout_result.elements",
+          "menu_map.nonPrimaryNavigationCandidates"
+        ]
+      },
+      {
+        "fixtureId": "safe-accordion",
+        "classification": "safe",
+        "interactionKind": "accordion"
+      },
+      {
+        "fixtureId": "safe-dialog-open",
+        "classification": "safe",
+        "interactionKind": "modalOpen"
+      },
+      {
+        "fixtureId": "safe-dialog-close",
+        "classification": "safe",
+        "interactionKind": "modalClose"
+      },
+      {
+        "fixtureId": "unsafe-submit",
+        "classification": "unsafe",
+        "actionKind": "submit",
+        "riskLevel": "high"
+      },
+      {
+        "fixtureId": "unsafe-save",
+        "classification": "unsafe",
+        "actionKind": "save",
+        "riskLevel": "high"
+      },
+      {
+        "fixtureId": "unsafe-delete",
+        "classification": "unsafe",
+        "actionKind": "delete",
+        "riskLevel": "critical"
+      },
+      {
+        "fixtureId": "unsafe-upload",
+        "classification": "unsafe",
+        "actionKind": "upload",
+        "riskLevel": "high"
+      },
+      {
+        "fixtureId": "unsafe-login",
+        "classification": "unsafe",
+        "actionKind": "login",
+        "riskLevel": "high"
+      },
+      {
+        "fixtureId": "unsafe-signup",
+        "classification": "unsafe",
+        "actionKind": "signup",
+        "riskLevel": "high"
+      },
+      {
+        "fixtureId": "unsafe-payment",
+        "classification": "unsafe",
+        "actionKind": "payment",
+        "riskLevel": "critical"
+      },
+      {
+        "fixtureId": "unsafe-send",
+        "classification": "unsafe",
+        "actionKind": "send",
+        "riskLevel": "high"
+      },
+      {
+        "fixtureId": "unsafe-approve",
+        "classification": "unsafe",
+        "actionKind": "approve",
+        "riskLevel": "high"
+      },
+      {
+        "fixtureId": "unsafe-personal-information",
+        "classification": "unsafe",
+        "actionKind": "personalInformation",
+        "riskLevel": "high"
+      },
+      {
+        "fixtureId": "unknown-more-options",
+        "classification": "unknown"
+      },
+      {
+        "fixtureId": "unknown-generic-control",
+        "classification": "unknown",
+        "candidateKeyPrefix": "interaction:fallback:"
+      },
+      {
+        "fixtureId": "unknown-conflicting-tab",
+        "classification": "unknown"
+      }
     ]
   }
 }

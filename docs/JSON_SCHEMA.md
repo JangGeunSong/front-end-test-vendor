@@ -304,6 +304,7 @@ Do not use the following as standalone page identity signals:
 
 공통 evidence 필드:
 
+- `candidateKey`: classification-neutral stable candidate identity
 - `text`
 - `selector`
 - `role`
@@ -323,6 +324,8 @@ Do not use the following as standalone page identity signals:
 - `suggestedAction`
 
 safe 후보는 `interactionKind`를 포함한다. unsafe 후보는 `actionKind`와 `riskLevel`을 포함한다. unknown 후보는 Analysis Review Report에서 `candidateSubtype: interaction`인 `unresolvedCandidates`로 병합된다. 기존 navigation unresolved 후보는 `candidateSubtype: navigation`으로 구분한다.
+
+`candidateKey`는 `interaction:<selector|fallback>:<stable-digest>` 형식이다. normalized selector와 page context를 우선 사용하고 selector가 없으면 page context, role, type, tag name, normalized text fallback을 사용한다. 같은 canonical identity가 deduplication에도 사용되므로 동일 candidate의 source가 여러 개이면 key는 하나이고 `candidateSources`만 병합된다. classification, 배열 index, 생성 시각, Python process hash는 identity에 포함하지 않는다. selector 또는 page context가 바뀌면 key가 바뀔 수 있다.
 
 분류는 실행 승인이 아니다. safe 후보도 사람이 검수하기 전에는 Level 3 자동 실행 대상으로 사용하지 않는다.
 
@@ -472,3 +475,5 @@ Legacy cautions:
 - `warnings`: optional 입력 누락이나 아직 제공되지 않는 분류 데이터 안내
 
 배열 순서는 입력 artifact의 deterministic 순서를 유지한다. report에는 생성 시각을 넣지 않으므로 동일 입력으로 반복 생성하면 동일한 JSON을 얻는다. 구조 근거가 부족한 interaction 의미는 임의 추론하지 않고 unknown/unresolved로 유지하며, 후보가 없는 section도 빈 배열로 보존한다.
+
+interaction candidate의 `candidateKey`는 classifier 결과에서 report의 safe/unsafe/unresolved section으로 변경 없이 전달된다. navigation candidate에는 이 interaction identity가 필수 필드가 아니다.

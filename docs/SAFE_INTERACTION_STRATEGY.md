@@ -148,8 +148,10 @@ Level 3는 사람이 승인 가능한 범위에서만 확장한다.
 
 - unknown 또는 risky action은 자동 실행하지 않는다.
 - unsafe 후보는 report에서 검수 대상으로 표시한다.
-- 사용자가 승인한 safe action만 regression 후보가 된다.
+- current classification이 `safe`이고 사람이 `approved`했으며 approval reference가 valid/non-stale인 action만 future interaction plan 후보가 된다.
 - 승인되지 않은 후보를 LLM이 임의로 실행 plan에 넣을 수 없어야 한다.
+
+Human decision enum, evidence snapshot, stale rule과 future eligibility는 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md)를 따른다. Classification, human decision, reconciliation status를 하나의 상태로 합치지 않는다.
 
 ## MVP Scope
 
@@ -160,11 +162,13 @@ Level 3는 사람이 승인 가능한 범위에서만 확장한다.
 - stable `candidateKey`와 dedup identity 계약
 - Analysis Review Report에 후보 표시
 - 사람이 검수할 수 있는 evidence 제공
+- versioned Interaction Approval Contract와 approved-only eligibility 규칙 정의
 
 분류 결과는 `safeInteractionCandidates`, `unsafeActionCandidates`, `unresolvedCandidates`에 연결된다. `unresolvedCandidates.candidateSubtype`이 `interaction`인 항목은 동작 의미를 확정할 수 없어 자동 실행에서 제외된 후보다.
 
 MVP에서 하지 않는 것:
 
+- approval artifact writer/editor, validator, reconciliation tool
 - 실제 Playwright interaction 실행
 - read-only form 입력 자동화
 - login session fixture
@@ -176,7 +180,7 @@ MVP에서 하지 않는 것:
 
 - read-only form/filter interaction
 - login session fixture
-- approved safe action memory
+- approved safe action artifact 구현
 - approved flow 저장
 - business scenario plan
 - workspace 단위 interaction review history

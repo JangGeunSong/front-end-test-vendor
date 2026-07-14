@@ -121,6 +121,7 @@ target URL
 - 100% 자동화보다 evidence-based human review를 우선한다.
 - generated artifact와 source를 분리한다.
 - 불확실한 후보는 강한 assertion으로 만들지 않는다.
+- machine classification, human approval, reconciliation status를 분리하며 current `safe`, human `approved`, valid reference가 모두 있어야 future interaction plan 후보가 될 수 있다.
 
 ## Immediate Next Milestones
 
@@ -173,6 +174,7 @@ target URL
 - generated spec validation: `docs/GENERATED_SPEC_VALIDATION.md`
 - Analysis Review Report: `docs/ANALYSIS_REVIEW_REPORT.md`
 - Safe Interaction Strategy: `docs/SAFE_INTERACTION_STRATEGY.md`
+- Interaction Approval Contract: `docs/INTERACTION_APPROVAL_CONTRACT.md`
 - cross-site 검증: `docs/CROSS_SITE_VALIDATION.md`
 - 작업 이력: `docs/TASK_LOG.md`
 

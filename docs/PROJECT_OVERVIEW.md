@@ -1,6 +1,6 @@
 # Project Overview
 
-이 문서는 새 agent 또는 새 대화 세션이 5분 안에 현재 repository 상태를 파악하기 위한 압축 context 문서다. 세부 규칙은 관련 전문 문서를 따른다.
+이 문서는 프로젝트의 상대적으로 안정적인 identity, goal, architecture overview를 제공한다. 현재 repository snapshot, active frontier, latest completed work는 [CURRENT_STATE.md](CURRENT_STATE.md)를 따르고, 세부 규칙은 관련 전문 문서를 따른다.
 
 ## Product Mission
 
@@ -28,28 +28,11 @@
 - 유지보수/SM 업체
 - 외부 SaaS 사용이 어렵거나 제한적인 on-premise/폐쇄망 조직
 
-## Current Development Stage
+## Established Architecture Baseline
 
-현재 Level 1/2 엔진 기반은 안정화된 상태다.
+Level 1 navigation과 Level 2 Page Identity, structured plan validation, deterministic rendering, evidence-based review artifact는 현재 architecture baseline이다. interaction 후보는 safe/unsafe/unknown으로 분류할 수 있지만 실제 Level 3 실행은 baseline에 포함되지 않는다.
 
-구현 완료:
-
-- Level 1 Navigation Smoke Test
-- Level 2 Page Identity Test MVP
-- `primaryMenuTree` projection
-- pageProfile 수집 및 cache
-- LLM structured test plan 생성
-- schema/coverage validation
-- deterministic Playwright rendering
-- deterministic plan과 LLM plan compare quality gate
-- generic `openTriggerCssPath`/`hoverTargetCssPath` navigation open
-- Analysis Review Report JSON MVP
-- Analysis Review Report Markdown MVP
-- deterministic Safe Interaction candidate classification MVP
-- stable interaction `candidateKey` identity와 report 전달
-- generated artifact ignore 정책
-
-현재 개발 단계는 CLI/JSON/Markdown 중심 결과를 사람이 검수하고 승인할 수 있는 제품 표면으로 전환하는 단계다. interaction 후보 분류는 구현되었지만 실제 Level 3 실행은 아직 future work다.
+현재 capability checklist, active frontier, latest completed work는 [CURRENT_STATE.md](CURRENT_STATE.md)에 유지한다.
 
 ## Current Architecture
 
@@ -141,11 +124,7 @@ target URL
 
 ## Immediate Next Milestones
 
-다음 항목은 아직 구현되지 않은 future work다.
-
-1. structured interaction plan
-2. Level 3 Safe Interaction execution
-3. review/approval UI 또는 workspace 확장
+현재 active frontier와 바로 이어질 milestone은 [CURRENT_STATE.md](CURRENT_STATE.md)에 유지한다. 이 문서는 장기적으로 안정적인 지원 범위와 architecture 설명만 유지한다.
 
 ## Validation Strategy
 
@@ -182,6 +161,7 @@ target URL
 ## Documentation Map
 
 - agent 운영 규칙: `AGENTS.md`
+- 현재 repository snapshot: `docs/CURRENT_STATE.md`
 - 제품 방향: `docs/PRODUCT_DIRECTION.md`
 - 구조와 흐름: `docs/MODULE_MAP.md`, `docs/DATA_FLOW.md`
 - 테스트 수준: `docs/TEST_LEVELS.md`

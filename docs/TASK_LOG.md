@@ -1,5 +1,31 @@
 # Task Log
 
+## 2026-07-14 - Add durable current-state handoff documentation
+
+### 작업 목적
+
+- Codex local conversation이나 특정 session을 project memory로 사용하지 않고, 새 PC와 새 agent session이 repository documentation만으로 현재 위치를 복원하게 한다.
+- stable project overview, current snapshot, historical task log의 책임을 분리해 startup reading cost를 줄인다.
+
+### 변경 내용
+
+- `docs/CURRENT_STATE.md`를 추가해 현재 pipeline, stable capability, architecture invariant, active interaction frontier, 최신 `candidateKey` 구현, open decision을 snapshot으로 정리했다.
+- `AGENTS.md`의 기본 reading order에 `CURRENT_STATE.md`를 추가하고, `TASK_LOG.md`는 historical reasoning이 필요한 경우에만 읽도록 분리했다.
+- 새 session이 pipeline, stable capability, frontier, latest work와 문서/source 불일치를 먼저 확인하는 `New Session Bootstrap` contract를 추가했다.
+- `PROJECT_OVERVIEW.md`는 상대적으로 안정적인 제품/architecture overview로 책임을 좁히고 current milestone은 `CURRENT_STATE.md`로 위임했다.
+- `MODULE_MAP.md`에 structured plan, compare gate, interaction classifier, Analysis Review Report 모듈의 현재 책임을 보완하고 `DATA_FLOW.md`의 orchestrator/open-trigger 흐름을 실제 구현과 맞췄다.
+- repository에는 standalone `DECISIONS.md`와 `ROADMAP.md`가 없음을 확인하고 이번 작업에서 임의 생성하지 않았다.
+
+### 확인 결과
+
+- Markdown heading과 상대 링크, 참조 파일 존재 여부, source/git history 기반 capability와 최신 구현 설명을 확인했다.
+- source code, generated artifact, package script, test는 수정하거나 실행하지 않았다.
+
+### 다음 작업
+
+- `candidateKey`를 참조하는 human approval artifact와 structured interaction plan의 계약을 다음 agent task로 정의한다.
+- cross-cutting architecture decision log가 실제로 필요해지는 시점에 standalone decision 문서 도입 여부를 결정한다.
+
 ## 2026-07-14 - Add stable interaction candidate identity
 
 ### 작업 목적

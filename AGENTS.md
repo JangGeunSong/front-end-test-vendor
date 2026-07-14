@@ -36,13 +36,17 @@
 
 1. `AGENTS.md`
 2. `docs/PROJECT_OVERVIEW.md`
-3. 작업 패킷에 지정된 관련 문서
-4. 직접 관련된 source 파일
+3. `docs/CURRENT_STATE.md`
+4. current task packet 또는 현재 요청
+5. 작업 패킷에 지정된 관련 design/schema 문서
+6. 문서에서 범위를 좁힌 직접 관련 source 파일
+
+`docs/TASK_LOG.md` 전체는 기본 startup reading 대상이 아니다. 과거 실패 원인, historical reasoning, 이전 decision 배경이 현재 작업에 필요할 때만 관련 항목을 읽는다. repository 전체 source도 선행 탐색하지 않고, 위 문서에서 현재 frontier와 관련 module을 식별한 뒤 필요한 파일만 확인한다.
 
 작업 유형별 권장 문서:
 
 - 제품 방향: `docs/PRODUCT_DIRECTION.md`
-- 아키텍처: `docs/ARCHITECTURE.md`, `docs/MODULE_MAP.md`, `docs/DATA_FLOW.md`
+- 아키텍처와 data flow: `docs/MODULE_MAP.md`, `docs/DATA_FLOW.md`
 - 테스트 단계: `docs/TEST_LEVELS.md`
 - 생성 규칙: `docs/TEST_GENERATION_RULES.md`
 - Playwright 코드 규칙: `docs/PLAYWRIGHT_CONVENTION.md`
@@ -54,12 +58,26 @@
 - 검증 이력: `docs/CROSS_SITE_VALIDATION.md`
 - 작업 기록: `docs/TASK_LOG.md`
 
+## New Session Bootstrap
+
+새 PC에서 repository를 clone했거나 conversation history가 없는 새 session을 시작하면 다음을 수행한다.
+
+1. 위 required reading order를 따른다.
+2. 현재 pipeline과 stable capability를 짧게 요약한다.
+3. `docs/CURRENT_STATE.md`에서 active development frontier와 latest completed work를 식별한다.
+4. 현재 요청이 frontier를 이어가는지, 별도 유지보수 작업인지 확인한다.
+5. 관련 문서와 source가 충돌하는지 구현 전에 확인한다.
+6. 충돌이 없으면 관련 module만 읽고 작업 범위를 확정한다.
+
+local path, session ID, conversation transcript를 project memory로 사용하지 않는다. repository documentation과 검증 가능한 source/history를 durable context로 사용한다. 기존 architecture를 이유 없이 다시 설계하지 않으며, 현재 contract를 바꿔야 한다면 영향과 필요한 decision을 먼저 보고한다.
+
 ## Source Of Truth Priority
 
 - 에이전트 운영 규칙: `AGENTS.md`
-- 압축된 현재 상태: `docs/PROJECT_OVERVIEW.md`
+- 안정적인 제품/architecture 개요: `docs/PROJECT_OVERVIEW.md`
+- 현재 repository snapshot과 active frontier: `docs/CURRENT_STATE.md`
 - 제품 목적과 방향: `docs/PRODUCT_DIRECTION.md`
-- 실제 구조와 흐름: `docs/ARCHITECTURE.md`, `docs/MODULE_MAP.md`, `docs/DATA_FLOW.md`
+- 실제 구조와 흐름: `docs/MODULE_MAP.md`, `docs/DATA_FLOW.md`
 - schema/template 계약: `docs/JSON_SCHEMA.md`, `docs/TEST_PLAN_SCHEMA.md`, `docs/TEST_TEMPLATE_CATALOG.md`
 - 실행 규칙: `docs/TEST_GENERATION_RULES.md`, `docs/PLAYWRIGHT_CONVENTION.md`
 - 기능별 설계: `docs/ANALYSIS_REVIEW_REPORT.md`, `docs/SAFE_INTERACTION_STRATEGY.md`
@@ -74,7 +92,7 @@
 - structured plan field 수정 시 `docs/TEST_PLAN_SCHEMA.md` 검토
 - template 수정 시 `docs/TEST_TEMPLATE_CATALOG.md` 검토
 - data flow 수정 시 `docs/DATA_FLOW.md` 검토
-- 모듈 책임 변경 시 `docs/MODULE_MAP.md`와 `docs/ARCHITECTURE.md` 검토
+- 모듈 책임 변경 시 `docs/MODULE_MAP.md`와 `docs/DATA_FLOW.md` 검토
 - Playwright 생성 형태 수정 시 `docs/PLAYWRIGHT_CONVENTION.md`와 `docs/TEST_GENERATION_RULES.md` 검토
 - 지원 Level 변경 시 `docs/TEST_LEVELS.md` 검토
 - 구현 완료 시 `docs/TASK_LOG.md` 갱신

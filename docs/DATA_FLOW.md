@@ -8,10 +8,11 @@
 
 ```text
 target URL
+  -> tools/ai-generator/agent_orchestrator.py
   -> tools/ai-generator/scout.js
   -> tools/ai-generator/generated/scout_result.json
+  -> primary navigation projection / pageProfile collection
   -> tools/ai-generator/generated/menu_map.json
-  -> tools/ai-generator/agent_orchestrator.py
   -> LLM structured test plan JSON
   -> tools/ai-generator/validate_test_plan.py
   -> tools/ai-generator/render_test_plan.py
@@ -90,7 +91,7 @@ scout는 후보를 넓게 수집한다. header primary navigation뿐 아니라 m
 
 `depth1Index`는 특정 메뉴명 또는 특정 selector mapping이 아니라 scout가 DOM hierarchy를 기반으로 best-effort 추론한 실제 top-level hover/open 대상 index이다. `navigationGroupIndex`는 수집 그룹 식별자이며 `openDepth1ByIndex` 인자로 사용하지 않는다. 추론할 수 없으면 null로 남기고 generated spec은 보수적인 TODO를 남긴다.
 
-scout는 가능한 경우 `hoverTargetCssPath`와 `openTriggerCssPath`도 함께 남긴다. 이 값은 사람이 hover target 추론을 확인하기 위한 보조 정보이며, cssPath 기반 open helper가 없는 경우 generated spec은 임의로 cssPath hover 코드를 만들지 않는다.
+scout는 가능한 경우 `hoverTargetCssPath`와 `openTriggerCssPath`도 함께 남긴다. structured plan과 renderer는 이 값을 click/open option으로 보존하고, `utils/gnb.js`는 fixed depth1 selector보다 수집된 trigger path를 우선 사용한다. trigger path가 없을 때만 `depth1Index` 기반 fallback을 사용한다.
 
 `menu_map.json`은 다음 projection을 함께 가진다.
 
@@ -128,32 +129,38 @@ Level 2 `pageProfiles`도 `primaryMenuTree` 기준으로 별도 수집한다. br
 - menu 후보 추출
 - menuTree 구성
 - pageProfiles 연결
-- LLM prompt input 구성
-- generated Playwright spec 저장
+- pageProfile cache 관리
+- deterministic 또는 LLM structured plan generation orchestration
+- plan validation과 deterministic renderer 호출
 
-### 6. Generated Spec
+### 6. Structured Plan And Generated Spec
 
-`tests/generated/generated_menu_access.spec.js`는 재생성 가능한 자동 생성 산출물이다.
+현재 structured 경로는 다음 artifact를 사용한다.
+
+- deterministic plan: `tools/ai-generator/generated/test_plan.generated.json`
+- LLM plan: `tools/ai-generator/generated/test_plan.llm.json`
+- renderer output: `tests/generated/generated_from_plan.spec.js`
+
+legacy `spec` mode의 `tests/generated/generated_menu_access.spec.js`도 유지되지만 기본 architecture 방향은 structured plan과 deterministic renderer다.
 
 validator 통과 전에는 신뢰된 테스트로 보지 않는다. generated spec에 문제가 있으면 직접 수정하지 않고 생성 규칙을 보완한 뒤 다시 생성한다.
 
-### 7. ai:validate
+### 7. Validation And Quality Gates
 
-`npm run ai:validate`는 generated spec을 실행하지 않고 정적으로 검수한다.
+structured plan은 renderer 전에 validation을 통과해야 한다.
 
-검수 대상:
+- `npm run ai:validate-generated-plan`: deterministic plan schema 검증
+- `npm run ai:validate-llm-plan`: LLM plan schema와 `primaryMenuTree` coverage 검증
+- `npm run ai:compare-plans:gate`: deterministic/LLM plan의 meaningful difference gate
+- `npm run ai:validate`: legacy direct generated spec 정적 검증
 
-- generated spec
-- menu_map.json
-- scout_result.json
-
-validator error가 있으면 테스트 실행보다 생성 규칙 보완이 우선이다.
+validator 또는 required quality gate가 실패하면 테스트 실행보다 원인이 있는 generation 계층 보완이 우선이다.
 
 ### 8. test:generated
 
 `npm run test:generated`는 generated spec을 실제 Playwright로 실행한다.
 
-실행 전 `npm run ai:validate` 통과를 권장한다.
+실행 전 현재 generation mode에 대응하는 plan/spec validator 통과를 권장한다.
 
 ### 9. visual debug
 

@@ -22,9 +22,28 @@ AI generated spec 생성 파이프라인을 조율한다.
 - `pageProfiles` 연결
 - LLM generation input 구성
 - prompt 작성
-- generated Playwright spec 저장
+- `spec`, deterministic `plan`, `llm-plan` mode orchestration
+- pageProfile cache 관리
+- structured plan validation과 deterministic renderer 호출
 
-이 파일은 generated spec의 구조와 prompt 규칙에 직접 영향을 준다. prompt를 수정하면 `docs/PROMPT_STRATEGY.md`도 함께 검토한다.
+이 파일은 projection, generation input, prompt와 mode orchestration에 직접 영향을 준다. prompt를 수정하면 `docs/PROMPT_STRATEGY.md`도 함께 검토한다.
+
+## Structured Plan Modules
+
+- `tools/ai-generator/build_test_plan.py`: `primaryMenuTree`와 exact menuPath pageProfile에서 deterministic test plan을 생성한다.
+- `tools/ai-generator/validate_test_plan.py`: structured plan schema, ID/menuPath 중복, template field, primary menu coverage를 검증한다.
+- `tools/ai-generator/render_test_plan.py`: validated plan을 고정된 helper/assertion/title 형태의 Playwright spec으로 렌더링한다.
+- `tools/ai-generator/compare_test_plans.py`: deterministic plan과 LLM plan의 coverage 및 meaningful quality difference를 비교하고 opt-in gate를 제공한다.
+
+LLM은 structured plan 판단을 담당하고 executable Playwright code shape는 renderer가 소유한다.
+
+## Analysis And Interaction Modules
+
+- `tools/ai-generator/classify_interaction_candidates.py`: 기존 artifact의 action 후보를 safe/unsafe/unknown으로 분류하고 canonical dedup identity 기반 `candidateKey`를 부여한다.
+- `tools/ai-generator/build_analysis_review_report.py`: navigation, Page Identity, interaction evidence를 deterministic JSON review artifact로 구성한다.
+- `tools/ai-generator/render_analysis_review_report.py`: report JSON을 사람이 읽을 수 있는 deterministic Markdown으로 렌더링한다.
+
+classifier와 report 경로는 기존 artifact만 사용하며 browser interaction을 실행하지 않는다. `safe` classification과 `candidateKey`는 실행 승인이 아니다.
 
 ## tools/ai-generator/scout.js
 
@@ -77,7 +96,9 @@ generated spec 생성을 위한 정제 데이터이다.
 
 - `menus`
 - `menuTree`
+- `primaryMenuTree`
 - `pageProfiles`
+- non-primary/utility/CTA/footer/unresolved projection 후보
 
 `menuTree`는 Level 1 navigation coverage 기준이고, `pageProfiles`는 Level 2 Page Identity MVP의 후보 근거이다.
 

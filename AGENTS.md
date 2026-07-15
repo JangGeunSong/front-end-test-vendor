@@ -51,7 +51,8 @@
 - 테스트 단계: `docs/TEST_LEVELS.md`
 - 생성 규칙: `docs/TEST_GENERATION_RULES.md`
 - Playwright 코드 규칙: `docs/PLAYWRIGHT_CONVENTION.md`
-- structured plan: `docs/TEST_PLAN_SCHEMA.md`, `docs/TEST_TEMPLATE_CATALOG.md`
+- structured navigation plan: `docs/TEST_PLAN_SCHEMA.md`, `docs/TEST_TEMPLATE_CATALOG.md`
+- structured interaction plan: `docs/STRUCTURED_INTERACTION_PLAN.md`
 - prompt: `docs/PROMPT_STRATEGY.md`
 - Review Report: `docs/ANALYSIS_REVIEW_REPORT.md`
 - Safe Interaction: `docs/SAFE_INTERACTION_STRATEGY.md`
@@ -105,9 +106,9 @@ External LLM command 실행 전:
 - local execution environment: `docs/DEVELOPMENT_ENVIRONMENT.md`
 - 제품 목적과 방향: `docs/PRODUCT_DIRECTION.md`
 - 실제 구조와 흐름: `docs/MODULE_MAP.md`, `docs/DATA_FLOW.md`
-- schema/template 계약: `docs/JSON_SCHEMA.md`, `docs/TEST_PLAN_SCHEMA.md`, `docs/TEST_TEMPLATE_CATALOG.md`
+- schema/template 계약: `docs/JSON_SCHEMA.md`, `docs/TEST_PLAN_SCHEMA.md`, `docs/TEST_TEMPLATE_CATALOG.md`, `docs/STRUCTURED_INTERACTION_PLAN.md`
 - 실행 규칙: `docs/TEST_GENERATION_RULES.md`, `docs/PLAYWRIGHT_CONVENTION.md`
-- 기능별 설계: `docs/ANALYSIS_REVIEW_REPORT.md`, `docs/SAFE_INTERACTION_STRATEGY.md`, `docs/INTERACTION_APPROVAL_CONTRACT.md`
+- 기능별 설계: `docs/ANALYSIS_REVIEW_REPORT.md`, `docs/SAFE_INTERACTION_STRATEGY.md`, `docs/INTERACTION_APPROVAL_CONTRACT.md`, `docs/STRUCTURED_INTERACTION_PLAN.md`
 - 이력: `docs/TASK_LOG.md`
 
 문서와 실제 코드가 충돌하면 실제 코드와 검증 결과를 확인한다. 임의로 한쪽을 가정하지 않는다. 구현이 맞다면 문서를 갱신한다. 의사결정이 필요하면 중단하고 보고한다.
@@ -116,9 +117,10 @@ External LLM command 실행 전:
 
 - prompt 수정 시 `docs/PROMPT_STRATEGY.md` 검토
 - JSON 구조 수정 시 producer, consumer, validator, `docs/JSON_SCHEMA.md` 검토
-- structured plan field 수정 시 `docs/TEST_PLAN_SCHEMA.md` 검토
+- structured navigation plan field 수정 시 `docs/TEST_PLAN_SCHEMA.md` 검토
+- structured interaction plan field/template/reset 의미 수정 시 `docs/STRUCTURED_INTERACTION_PLAN.md`와 `docs/JSON_SCHEMA.md` 검토
 - interaction approval field/meaning 수정 시 `docs/INTERACTION_APPROVAL_CONTRACT.md`와 `docs/JSON_SCHEMA.md` 검토
-- template 수정 시 `docs/TEST_TEMPLATE_CATALOG.md` 검토
+- navigation template 수정 시 `docs/TEST_TEMPLATE_CATALOG.md` 검토
 - data flow 수정 시 `docs/DATA_FLOW.md` 검토
 - 모듈 책임 변경 시 `docs/MODULE_MAP.md`와 `docs/DATA_FLOW.md` 검토
 - Playwright 생성 형태 수정 시 `docs/PLAYWRIGHT_CONVENTION.md`와 `docs/TEST_GENERATION_RULES.md` 검토

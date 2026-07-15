@@ -1,5 +1,38 @@
 # Task Log
 
+## 2026-07-15 - Define Structured Interaction Plan contract
+
+### 작업 목적
+
+- Approval reconciliation의 eligible candidate와 future deterministic Level 3 execution 사이의 Structured Interaction Plan contract를 정의한다.
+- Classification, human decision, reconciliation, planning, rendering 책임을 분리한 채 safe reversible page interaction만 bounded schema로 표현한다.
+
+### 변경 내용
+
+- `docs/STRUCTURED_INTERACTION_PLAN.md`를 추가해 schema `1.0`의 architecture position, ownership, future generated artifact path, top-level/test field와 strict validation invariant를 정의했다.
+- Classifier `interactionKind`와 execution plan template을 다른 taxonomy로 분리했다.
+- Exact reconciliation `eligibleCandidates[].candidateKey`를 primary reference로 사용하고 selector, interactionKind, pageContext는 eligible payload에서 exact copy하도록 했다.
+- Current report의 exact ARIA state evidence가 있는 `interaction.tabSelection`과 `interaction.expandedToggle`만 MVP template으로 정의했다.
+- Initial, expected, restored state를 template별 boolean object로 제한하고 free-form expression, JavaScript와 Playwright code field를 금지했다.
+- 모든 MVP case에 deterministic reset/restore를 요구했다. Page-level UI reset/restore와 data mutation rollback을 구분했다.
+- Future builder는 classification/reconciliation을 재수행하지 않고 unsupported evidence를 실행 TODO로 만들지 않으며, validator/renderer/execution report 책임도 별도 계층으로 정의했다.
+- Current state, project overview, module/data flow, approval/safe interaction/schema/navigation plan 문서를 contract-defined/implementation-not-yet 상태와 동기화했다.
+
+### 확인 결과
+
+- Neutral example JSON parse와 candidateKey 형식을 확인했다.
+- Example/template/reset enum이 schema `1.0` taxonomy와 일치하는지 확인했다.
+- Actual classifier `interactionKind`와 reconciliation `eligibleCandidates` field를 contract와 대조했다.
+- Navigation plan의 candidate/evidence → plan → validator → deterministic renderer 책임 분리를 유지하는지 확인했다.
+- Markdown H1, relative link target, referenced path와 `git diff --check`를 확인했다.
+- Source implementation, package script, generated artifact는 변경하지 않았고 scout, pageProfile, Playwright와 external LLM API는 실행하지 않았다.
+
+### 다음 작업
+
+- Deterministic interaction plan builder와 unsupported diagnostic artifact를 구현한다.
+- Reconciliation/report input binding과 strict error contract를 가진 interaction plan validator를 구현한다.
+- Approval writer/editor와 Level 3 renderer/reset execution은 각각 별도 task로 진행한다.
+
 ## 2026-07-15 - Validate and reconcile interaction approvals
 
 ### 작업 목적

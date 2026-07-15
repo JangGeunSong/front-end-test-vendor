@@ -1,5 +1,7 @@
 # Structured Test Plan Schema
 
+> 이 문서는 Level 1/2 navigation plan 계약을 소유한다. Eligible safe interaction의 별도 Level 3 plan 계약은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)를 따른다.
+
 ## Purpose
 
 Structured test plan JSON is the contract for the next generation pipeline.

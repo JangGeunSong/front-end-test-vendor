@@ -1,5 +1,7 @@
 # Test Template Catalog
 
+> 이 catalog는 Level 1/2 navigation template만 소유한다. Level 3 interaction template은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)에서 별도로 정의하며 두 taxonomy를 혼합하지 않는다.
+
 ## Purpose
 
 This catalog defines the test templates that an LLM may choose when creating structured test plan JSON.

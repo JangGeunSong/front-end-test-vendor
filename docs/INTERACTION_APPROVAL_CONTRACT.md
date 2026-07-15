@@ -23,7 +23,7 @@ classified candidate evidence
 - classifier의 `safe`, `unsafe`, `unknown`은 machine assessment다.
 - approval artifact의 `approved`, `held`, `rejected`는 human decision이다.
 - reconciliation의 valid/stale/ineligible 결과는 current candidate와 approval artifact를 대조한 derived status다.
-- future structured interaction plan은 template, step, expected state, rollback을 소유한다.
+- future structured interaction plan은 template, bounded initial/expected state와 page UI reset/restore를 소유한다.
 
 `safe` classification, `approved` decision, valid reconciliation 중 어느 하나도 단독으로 browser execution을 허용하지 않는다.
 
@@ -52,7 +52,7 @@ Approval artifact가 소유하지 않는 정보:
 - executable selector script 또는 Playwright code
 - interaction template과 steps
 - expected state assertion
-- close/reset/rollback procedure
+- page UI reset/restore procedure
 - execution result 또는 regression promotion state
 
 이 artifact는 test plan이 아니며 selector를 실행하기 위한 script도 아니다. `selector`는 evidence snapshot 안에서 사람이 무엇을 검토했는지 확인하고 stale comparison에 사용하기 위한 값이다.
@@ -303,10 +303,10 @@ Future structured interaction plan이 소유할 정보:
 - deterministic interaction steps
 - expected visible/state assertion
 - reversible-state assertion
-- close/reset/rollback behavior
+- page UI reset/restore behavior
 - execution validation 및 failure evidence contract
 
-Approval artifact에는 Playwright step, click sequence, assertion locator, rollback selector를 추가하지 않는다. Structured interaction plan schema는 별도 후속 task에서 정의한다.
+Approval artifact에는 Playwright step, click sequence, assertion locator, reset selector를 추가하지 않는다. Structured Interaction Plan schema `1.0` documentation contract는 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다. Builder, validator, renderer와 browser execution은 아직 구현되지 않았다.
 
 ## MVP Non-Goals
 
@@ -315,7 +315,7 @@ Approval artifact에는 Playwright step, click sequence, assertion locator, roll
 - structured interaction plan builder
 - Level 3 renderer
 - browser interaction execution
-- rollback implementation
+- reset/restore execution implementation
 - reviewer authentication 또는 account management
 - heuristic approval migration
 - workspace history management

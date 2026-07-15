@@ -49,6 +49,8 @@ classifier와 report 경로는 기존 artifact만 사용하며 browser interacti
 
 Human approval artifact의 schema와 classifier/report/future plan 사이 책임 경계는 `docs/INTERACTION_APPROVAL_CONTRACT.md`가 소유한다. 기본 local state 경로는 `tools/ai-generator/review/interaction_approvals.json`이며 writer/editor는 아직 구현되지 않았다. Reconciliation output은 generated artifact인 `tools/ai-generator/generated/interaction_approval_reconciliation.json`에 분리한다.
 
+Eligible candidate 이후의 future interaction plan 계층은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다. 현재 builder/validator/renderer module은 구현되지 않았다. Future builder는 reconciliation eligibility와 report state evidence를 참조해 bounded plan을 만들고, validator는 exact candidate/evidence와 template invariant를 확인하며, renderer만 fixed Playwright code shape를 소유한다. 이 계층은 classification, human decision 또는 reconciliation을 다시 구현하지 않는다.
+
 ## tools/ai-generator/scout.js
 
 대상 URL의 UI 구조를 수집한다.
@@ -178,3 +180,4 @@ visual debug highlight helper이다.
 - `GENERATED_SPEC_VALIDATION.md`: validator 기준
 - `PROMPT_STRATEGY.md`: LLM prompt 전략
 - `INTERACTION_APPROVAL_CONTRACT.md`: interaction human decision, evidence snapshot, stale reconciliation 계약
+- `STRUCTURED_INTERACTION_PLAN.md`: eligible candidate reference, bounded state, reset/restore와 future builder/validator/renderer 경계

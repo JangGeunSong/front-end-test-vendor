@@ -30,7 +30,7 @@
 
 ## Established Architecture Baseline
 
-Level 1 navigation과 Level 2 Page Identity, structured plan validation, deterministic rendering, evidence-based review artifact는 현재 architecture baseline이다. interaction 후보는 safe/unsafe/unknown으로 분류할 수 있지만 실제 Level 3 실행은 baseline에 포함되지 않는다.
+Level 1 navigation과 Level 2 Page Identity, structured plan validation, deterministic rendering, evidence-based review artifact는 현재 architecture baseline이다. Interaction 후보 분류, human approval validation/reconciliation과 Structured Interaction Plan documentation contract도 확정되어 있지만 plan builder/validator와 실제 Level 3 실행은 baseline에 포함되지 않는다.
 
 현재 capability checklist, active frontier, latest completed work는 [CURRENT_STATE.md](CURRENT_STATE.md)에 유지한다.
 
@@ -91,6 +91,7 @@ target URL
 - Analysis Review Report JSON/Markdown
 - safe/unsafe/unknown interaction candidate classification, stable identity, and report integration
 - versioned interaction approval validation과 exact key/evidence 기반 reconciliation
+- eligible candidate를 bounded state/reset instruction으로 전달하는 Structured Interaction Plan contract
 
 ## Current Unsupported Scope
 
@@ -102,6 +103,7 @@ target URL
 - self-healing selector
 - full test management dashboard
 - 완성된 검수 UI
+- interaction plan builder/validator와 Level 3 renderer/browser execution
 
 ## Verified Site Types
 
@@ -173,6 +175,7 @@ target URL
 - 생성 규칙: `docs/TEST_GENERATION_RULES.md`
 - Playwright 규칙: `docs/PLAYWRIGHT_CONVENTION.md`
 - structured plan 계약: `docs/TEST_PLAN_SCHEMA.md`, `docs/TEST_TEMPLATE_CATALOG.md`
+- structured interaction plan 계약: `docs/STRUCTURED_INTERACTION_PLAN.md`
 - JSON 구조: `docs/JSON_SCHEMA.md`
 - prompt 전략: `docs/PROMPT_STRATEGY.md`
 - generated spec validation: `docs/GENERATED_SPEC_VALIDATION.md`

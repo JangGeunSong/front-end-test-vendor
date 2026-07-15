@@ -1,0 +1,416 @@
+{
+  "reconciliation": {
+    "schemaVersion": "1.0",
+    "target": {
+      "url": "https://example.test"
+    },
+    "eligibleCandidates": [
+      {
+        "candidateKey": "interaction:selector:111111111111111111111111",
+        "currentClassification": "safe",
+        "interactionKind": "tab",
+        "confidence": "high",
+        "pageContext": "Overview",
+        "selector": "main [role='tab']:nth-of-type(1)",
+        "text": "Overview"
+      },
+      {
+        "candidateKey": "interaction:selector:222222222222222222222222",
+        "currentClassification": "safe",
+        "interactionKind": "accordion",
+        "confidence": "high",
+        "pageContext": "Details",
+        "selector": "main button.details",
+        "text": "Details"
+      }
+    ]
+  },
+  "analysisReviewReport": {
+    "version": "1.0",
+    "summary": {
+      "targetUrl": "https://example.test"
+    },
+    "safeInteractionCandidates": [
+      {
+        "candidateKey": "interaction:selector:111111111111111111111111",
+        "classification": "safe",
+        "confidence": "high",
+        "pageContext": "Overview",
+        "selector": "main [role='tab']:nth-of-type(1)",
+        "text": "Overview",
+        "ariaAttributes": {
+          "selected": "false"
+        },
+        "interactionKind": "tab"
+      },
+      {
+        "candidateKey": "interaction:selector:222222222222222222222222",
+        "classification": "safe",
+        "confidence": "high",
+        "pageContext": "Details",
+        "selector": "main button.details",
+        "text": "Details",
+        "ariaAttributes": {
+          "expanded": "false"
+        },
+        "interactionKind": "accordion"
+      }
+    ],
+    "unsafeActionCandidates": [],
+    "unresolvedCandidates": []
+  },
+  "validPlan": {
+    "schemaVersion": "1.0",
+    "target": {
+      "url": "https://example.test"
+    },
+    "source": {
+      "reconciliationPath": "tools/ai-generator/fixtures/interaction_plan_validator.fixture.json",
+      "analysisReportPath": "tools/ai-generator/fixtures/interaction_plan_validator.fixture.json"
+    },
+    "tests": [
+      {
+        "id": "interaction-test:selector:111111111111111111111111:tabSelection",
+        "title": "Interaction: Overview tab selection",
+        "candidateKey": "interaction:selector:111111111111111111111111",
+        "template": "interaction.tabSelection",
+        "pageContext": "Overview",
+        "target": {
+          "selector": "main [role='tab']:nth-of-type(1)",
+          "interactionKind": "tab"
+        },
+        "initialState": {
+          "selected": false
+        },
+        "expectedState": {
+          "selected": true
+        },
+        "reset": {
+          "required": true,
+          "strategy": "reloadPage",
+          "restoredState": {
+            "selected": false
+          }
+        }
+      },
+      {
+        "id": "interaction-test:selector:222222222222222222222222:expandedToggle",
+        "title": "Interaction: Details expanded toggle",
+        "candidateKey": "interaction:selector:222222222222222222222222",
+        "template": "interaction.expandedToggle",
+        "pageContext": "Details",
+        "target": {
+          "selector": "main button.details",
+          "interactionKind": "accordion"
+        },
+        "initialState": {
+          "expanded": false
+        },
+        "expectedState": {
+          "expanded": true
+        },
+        "reset": {
+          "required": true,
+          "strategy": "toggleSameTarget",
+          "restoredState": {
+            "expanded": false
+          }
+        }
+      }
+    ]
+  },
+  "emptyPlan": {
+    "schemaVersion": "1.0",
+    "target": {
+      "url": "https://example.test"
+    },
+    "source": {
+      "reconciliationPath": "tools/ai-generator/fixtures/interaction_plan_validator.fixture.json",
+      "analysisReportPath": "tools/ai-generator/fixtures/interaction_plan_validator.fixture.json"
+    },
+    "tests": []
+  },
+  "failureCases": [
+    {
+      "scenario": "unsupported-schema-version",
+      "mutation": {
+        "operation": "set",
+        "path": [
+          "schemaVersion"
+        ],
+        "value": "2.0"
+      },
+      "expectedCodes": [
+        "P003"
+      ]
+    },
+    {
+      "scenario": "invalid-target-url",
+      "mutation": {
+        "operation": "set",
+        "path": [
+          "target",
+          "url"
+        ],
+        "value": "relative/path"
+      },
+      "expectedCodes": [
+        "P006"
+      ]
+    },
+    {
+      "scenario": "target-mismatch",
+      "mutation": {
+        "operation": "set",
+        "path": [
+          "target",
+          "url"
+        ],
+        "value": "https://other.example.test"
+      },
+      "expectedCodes": [
+        "P007"
+      ]
+    },
+    {
+      "scenario": "duplicate-id",
+      "mutation": {
+        "operation": "set",
+        "path": [
+          "tests",
+          1,
+          "id"
+        ],
+        "value": "interaction-test:selector:111111111111111111111111:tabSelection"
+      },
+      "expectedCodes": [
+        "P104",
+        "P105"
+      ]
+    },
+    {
+      "scenario": "duplicate-candidate-key",
+      "mutation": {
+        "operation": "set",
+        "path": [
+          "tests",
+          1,
+          "candidateKey"
+        ],
+        "value": "interaction:selector:111111111111111111111111"
+      },
+      "expectedCodes": [
+        "P108",
+        "P202",
+        "P203",
+        "P204",
+        "P105",
+        "P206"
+      ]
+    },
+    {
+      "scenario": "non-eligible-candidate-key",
+      "mutation": {
+        "operation": "set",
+        "path": [
+          "tests",
+          0,
+          "candidateKey"
+        ],
+        "value": "interaction:selector:333333333333333333333333"
+      },
+      "expectedCodes": [
+        "P201",
+        "P105",
+        "P206",
+        "P120"
+      ]
+    },
+    {
+      "scenario": "unsupported-template",
+      "mutation": {
+        "operation": "set",
+        "path": [
+          "tests",
+          0,
+          "template"
+        ],
+        "value": "interaction.dialog"
+      },
+      "expectedCodes": [
+        "P109"
+      ]
+    },
+    {
+      "scenario": "template-interaction-kind-mismatch",
+      "mutation": {
+        "operation": "set",
+        "path": [
+          "tests",
+          0,
+          "target",
+          "interactionKind"
+        ],
+        "value": "accordion"
+      },
+      "expectedCodes": [
+        "P203",
+        "P205"
+      ]
+    },
+    {
+      "scenario": "selector-differs-from-evidence",
+      "mutation": {
+        "operation": "set",
+        "path": [
+          "tests",
+          0,
+          "target",
+          "selector"
+        ],
+        "value": "main [role='tab'].rewritten"
+      },
+      "expectedCodes": [
+        "P202"
+      ]
+    },
+    {
+      "scenario": "page-context-differs-from-evidence",
+      "mutation": {
+        "operation": "set",
+        "path": [
+          "tests",
+          0,
+          "pageContext"
+        ],
+        "value": "Different"
+      },
+      "expectedCodes": [
+        "P204"
+      ]
+    },
+    {
+      "scenario": "invalid-initial-state",
+      "mutation": {
+        "operation": "set",
+        "path": [
+          "tests",
+          0,
+          "initialState",
+          "selected"
+        ],
+        "value": true
+      },
+      "expectedCodes": [
+        "P301"
+      ]
+    },
+    {
+      "scenario": "invalid-expected-state",
+      "mutation": {
+        "operation": "set",
+        "path": [
+          "tests",
+          1,
+          "expectedState",
+          "expanded"
+        ],
+        "value": false
+      },
+      "expectedCodes": [
+        "P302"
+      ]
+    },
+    {
+      "scenario": "invalid-reset-required",
+      "mutation": {
+        "operation": "set",
+        "path": [
+          "tests",
+          0,
+          "reset",
+          "required"
+        ],
+        "value": false
+      },
+      "expectedCodes": [
+        "P305"
+      ]
+    },
+    {
+      "scenario": "invalid-reset-strategy",
+      "mutation": {
+        "operation": "set",
+        "path": [
+          "tests",
+          1,
+          "reset",
+          "strategy"
+        ],
+        "value": "reloadPage"
+      },
+      "expectedCodes": [
+        "P306"
+      ]
+    },
+    {
+      "scenario": "invalid-restored-state",
+      "mutation": {
+        "operation": "set",
+        "path": [
+          "tests",
+          1,
+          "reset",
+          "restoredState",
+          "expanded"
+        ],
+        "value": true
+      },
+      "expectedCodes": [
+        "P307"
+      ]
+    },
+    {
+      "scenario": "free-form-executable-field",
+      "mutation": {
+        "operation": "add",
+        "path": [
+          "tests",
+          0,
+          "script"
+        ],
+        "value": "page.click('button')"
+      },
+      "expectedCodes": [
+        "P102"
+      ]
+    },
+    {
+      "scenario": "invalid-deterministic-id",
+      "mutation": {
+        "operation": "set",
+        "path": [
+          "tests",
+          0,
+          "id"
+        ],
+        "value": "interaction-test:custom"
+      },
+      "expectedCodes": [
+        "P103",
+        "P105"
+      ]
+    },
+    {
+      "scenario": "non-deterministic-order",
+      "mutation": {
+        "operation": "swapTests",
+        "firstIndex": 0,
+        "secondIndex": 1
+      },
+      "expectedCodes": [
+        "P120"
+      ]
+    }
+  ]
+}

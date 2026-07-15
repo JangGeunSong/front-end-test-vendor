@@ -13,9 +13,9 @@ The current implementation includes:
 - deterministic Safe Interaction candidate classification MVP
 - versioned Interaction Approval artifact validation
 - deterministic Interaction Approval reconciliation result
-- Structured Interaction Plan schema `1.0` documentation contract
+- Structured Interaction Plan schema `1.0`, deterministic builder, and strict validator
 
-The approval artifact writer/editor, Structured Interaction Plan builder/validator, `Level 3 interactionProfile` producer, renderer, and Safe Interaction execution remain planned work. This document distinguishes implemented schemas, contract-defined schemas, and future candidate schemas.
+The approval artifact writer/editor, `Level 3 interactionProfile` producer, deterministic renderer, and Safe Interaction execution remain planned work. This document distinguishes implemented schemas, contract-defined schemas, and future candidate schemas.
 
 ## Data Policy
 
@@ -408,9 +408,9 @@ Top-level schema:
 
 Approval entry와 current candidate는 `candidateKey` 오름차순으로 처리한다. 생성 시각을 포함하지 않으며 같은 input은 byte-stable JSON을 생성한다. Invalid approval, invalid current report, target scope mismatch에서는 result를 생성하지 않는다.
 
-## Structured Interaction Plan (Contract Defined, Not Implemented)
+## Structured Interaction Plan (Implemented Through Validation)
 
-Structured Interaction Plan은 reconciliation `eligibleCandidates[]`를 future deterministic Level 3 renderer에 전달하는 generated intermediate artifact다. Future deterministic builder의 contract-defined 기본 output path는 `tools/ai-generator/generated/interaction_plan.generated.json`이며 현재는 생성되지 않는다.
+Structured Interaction Plan은 reconciliation `eligibleCandidates[]`와 Analysis Review Report의 exact current evidence를 future deterministic Level 3 renderer에 전달하는 generated intermediate artifact다. Deterministic builder의 기본 output path는 `tools/ai-generator/generated/interaction_plan.generated.json`이다.
 
 Top-level outline:
 
@@ -430,7 +430,7 @@ Top-level outline:
 
 Schema `1.0`은 `interaction.tabSelection`과 `interaction.expandedToggle` template만 정의한다. 각 test는 exact eligible `candidateKey`와 target snapshot, bounded initial/expected state, required reset/restored state를 소유한다. Human approval metadata, classifier 전체 output, free-form JavaScript/Playwright code와 runtime result는 포함하지 않는다.
 
-Builder, validator, renderer 또는 execution이 구현된 것은 아니다. 상세 field, ordering, unknown-field policy, template compatibility와 validation invariant는 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다.
+`build_interaction_plan.py`와 `validate_interaction_plan.py`가 builder/validator 계약을 구현한다. Renderer와 browser execution은 아직 구현되지 않았다. 상세 field, ordering, unknown-field policy, template compatibility와 validation invariant는 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다.
 
 ## Level 3 interactionProfile (Planned Candidate)
 
@@ -551,7 +551,7 @@ Legacy cautions:
 
 - Keep the documented `scout_result`, `menu_map`, and `pageProfile` structures aligned with their producers and consumers as the implemented Level 1/2 pipeline evolves.
 - Implement an approval artifact writer/editor without combining human-authored review state with generated reconciliation output.
-- Define the `interactionProfile` producer/consumer relationship needed by supported templates, then implement the Structured Interaction Plan builder and validator before Level 3 execution.
+- Define the `interactionProfile` producer/consumer relationship needed by future execution evidence without weakening the implemented Structured Interaction Plan contract.
 - Review `agent_orchestrator.py` when JSON structure changes.
 - Update prompt strategy when generated tests start using `interactionProfile`.
 

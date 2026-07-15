@@ -49,16 +49,17 @@ current classified candidates / analysis_review_report.json
   -> reconcile_interaction_approvals.py
   -> generated/interaction_approval_reconciliation.json
   -> eligibleCandidates
-  -> future structured interaction plan builder
-  -> structured interaction plan
-  -> future interaction plan validator
+  -> build_interaction_plan.py
+  -> generated/interaction_plan.generated.json
+  -> validate_interaction_plan.py
+  -> validated structured interaction plan
   -> future deterministic Level 3 renderer
   -> future browser execution / execution report
 ```
 
 Approval artifact는 human decision, candidate reference, immutable evidence snapshot, review metadata만 소유한다. Reconciliation은 Analysis Review Report를 current candidate source로 사용하고 exact `candidateKey`, target scope, snapshot, current classification을 대조한다. Current `safe`와 human `approved`와 valid non-stale reference를 모두 만족한 candidate만 future plan 입력 eligibility를 갖는다.
 
-Structured Interaction Plan은 exact eligible `candidateKey`, eligible payload에서 복사한 target snapshot, bounded initial/expected state와 required UI reset/restore instruction만 소유한다. Schema `1.0` contract는 정의되었지만 builder, validator, renderer와 browser execution은 아직 구현되지 않았다. Approval 경계는 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md), plan 상세 계약은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)를 따른다.
+Structured Interaction Plan은 exact eligible `candidateKey`, eligible payload에서 복사한 target snapshot, bounded initial/expected state와 required UI reset/restore instruction만 소유한다. Schema `1.0` builder와 validator는 구현되었지만 renderer와 browser execution은 아직 구현되지 않았다. Approval 경계는 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md), plan 상세 계약은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)를 따른다.
 
 Approval artifact validation, current candidate input validation 또는 exact target scope match가 실패하면 partial reconciliation result를 만들지 않는다. `missingCandidate`는 similarity search 없이 exact key 부재로 판정하고, exact key가 있어도 review-critical evidence가 달라지면 `evidenceChanged`로 판정한다. Reconciliation result는 생성 시각을 포함하지 않고 candidate key 순서로 deterministic하게 생성한다.
 

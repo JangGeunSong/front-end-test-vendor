@@ -73,6 +73,8 @@ target URL
 - `tools/ai-generator/classify_interaction_candidates.py`: 기존 artifact의 action 후보를 safe, unsafe, unknown으로 분류하고 deterministic `candidateKey`를 부여한다.
 - `tools/ai-generator/build_analysis_review_report.py`: navigation, Page Identity, interaction 분류 evidence를 JSON review artifact로 구성한다.
 - `tools/ai-generator/render_analysis_review_report.py`: Analysis Review Report JSON을 사람이 읽을 수 있는 Markdown으로 렌더링한다.
+- `tools/ai-generator/validate_interaction_approvals.py`: human approval artifact를 strict하게 검증한다.
+- `tools/ai-generator/reconcile_interaction_approvals.py`: current report candidate와 validated approval을 deterministic하게 대조해 eligibility를 생성한다.
 - `utils/gnb.js`: plan 기반 navigation open/click helper를 제공한다.
 - `utils/highlight.js`: visual debug highlight를 담당한다.
 
@@ -88,6 +90,7 @@ target URL
 - plan comparison quality gate
 - Analysis Review Report JSON/Markdown
 - safe/unsafe/unknown interaction candidate classification, stable identity, and report integration
+- versioned interaction approval validation과 exact key/evidence 기반 reconciliation
 
 ## Current Unsupported Scope
 
@@ -162,6 +165,7 @@ target URL
 ## Documentation Map
 
 - agent 운영 규칙: `AGENTS.md`
+- local development environment: `docs/DEVELOPMENT_ENVIRONMENT.md`
 - 현재 repository snapshot: `docs/CURRENT_STATE.md`
 - 제품 방향: `docs/PRODUCT_DIRECTION.md`
 - 구조와 흐름: `docs/MODULE_MAP.md`, `docs/DATA_FLOW.md`

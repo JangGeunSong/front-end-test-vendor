@@ -11,9 +11,10 @@ The current implementation includes:
 - structured test plan artifacts and deterministic Playwright rendering
 - `Analysis Review Report JSON MVP`
 - deterministic Safe Interaction candidate classification MVP
-- versioned Interaction Approval artifact contract (documentation contract only)
+- versioned Interaction Approval artifact validation
+- deterministic Interaction Approval reconciliation result
 
-The approval artifact writer/validator/reconciliation, `Level 3 interactionProfile`, structured interaction plan, and Safe Interaction execution remain planned work. This document distinguishes implemented schemas, documentation-only contracts, and future candidate schemas.
+The approval artifact writer/editor, `Level 3 interactionProfile`, structured interaction plan, and Safe Interaction execution remain planned work. This document distinguishes implemented schemas and future candidate schemas.
 
 ## Data Policy
 
@@ -330,7 +331,7 @@ safe 후보는 `interactionKind`를 포함한다. unsafe 후보는 `actionKind`�
 
 분류는 실행 승인이 아니다. safe 후보도 사람이 검수하기 전에는 Level 3 자동 실행 대상으로 사용하지 않는다.
 
-## Interaction Approval Artifact (Contract Defined, Not Implemented)
+## Interaction Approval Artifact (Validation Implemented)
 
 Human approval artifact의 상세 source of truth는 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md)다.
 
@@ -340,7 +341,7 @@ MVP 기본 local state 경로:
 tools/ai-generator/review/interaction_approvals.json
 ```
 
-이 artifact는 generated classifier/report output이 아니라 human-authored review state다. 현재 writer, JSON validator, reconciliation tool은 구현되지 않았다.
+이 artifact는 generated classifier/report output이 아니라 human-authored review state다. Writer/editor는 구현되지 않았지만 strict JSON validator와 reconciliation consumer는 구현되어 있다.
 
 Top-level contract:
 
@@ -355,7 +356,56 @@ Approval entry contract:
 - `evidenceSnapshot`: required immutable minimum candidate evidence
 - `review`: required reviewer identifier and timezone-aware review timestamp; note is optional
 
-Future validator는 duplicate `candidateKey`, unknown field, unsupported version과 invalid enum을 거부해야 한다. Stale은 human decision 값이 아니라 future reconciliation에서 계산하는 reference status다. Current `safe`, human `approved`, valid non-stale reference가 모두 충족되어야 future interaction plan eligibility가 있다.
+`tools/ai-generator/validate_interaction_approvals.py`는 duplicate `candidateKey`, unknown field, unsupported version과 invalid enum을 거부한다. `candidateKey`는 형식만 검증하고 classifier의 identity algorithm을 복제하지 않는다. Required snapshot string은 값이 없을 때 빈 문자열을 사용하며 null은 허용하지 않는다. `ariaAttributes`는 classifier가 normalize하는 ARIA field의 string map이다. `safe`에는 `interactionKind`, `unsafe`에는 `actionKind`와 `riskLevel`이 필요하며 다른 classification의 conditional field는 허용하지 않는다.
+
+Stale은 human decision 값이 아니라 reconciliation에서 계산하는 reference status다. Current `safe`, human `approved`, valid non-stale reference가 모두 충족되어야 future interaction plan eligibility가 있다.
+
+## Interaction Approval Reconciliation Result (Implemented)
+
+기본 generated artifact 경로:
+
+```text
+tools/ai-generator/generated/interaction_approval_reconciliation.json
+```
+
+Current candidate input은 `analysis_review_report.json`의 `safeInteractionCandidates`, `unsafeActionCandidates`, interaction subtype `unresolvedCandidates`다. 이 report representation은 target scope와 complete review-critical evidence를 보존하므로 reconciler가 candidate extraction 또는 classification을 중복 구현하지 않는다.
+
+Top-level schema:
+
+```json
+{
+  "schemaVersion": "1.0",
+  "target": {
+    "url": "https://sample.example.com/"
+  },
+  "summary": {
+    "currentCandidateCount": 0,
+    "approvalEntryCount": 0,
+    "validReferenceCount": 0,
+    "missingCandidateCount": 0,
+    "evidenceChangedCount": 0,
+    "eligibleCandidateCount": 0,
+    "unreviewedCandidateCount": 0
+  },
+  "results": [],
+  "eligibleCandidates": [],
+  "unreviewedCandidates": []
+}
+```
+
+`results[]` field:
+
+- `candidateKey`: approval entry exact reference
+- `decision`: `approved`, `held`, `rejected`
+- `referenceStatus`: `valid`, `missingCandidate`, `evidenceChanged`
+- `currentClassification`: `safe`, `unsafe`, `unknown`; missing candidate이면 null
+- `eligible`: future interaction plan input eligibility boolean
+- `ineligibilityReasons`: stable order의 `missingCandidate`, `evidenceChanged`, `currentClassificationNotSafe`, `decisionNotApproved` subset
+- `changedFields`: `evidenceChanged`일 때만 존재하며 review-critical field의 stable contract order를 사용
+
+`eligibleCandidates[]`는 classifier 전체를 복제하지 않고 `candidateKey`, `currentClassification`, `interactionKind`, `confidence`, `pageContext`, `selector`, `text`만 제공한다. `unreviewedCandidates[]`는 approval entry가 없는 current candidate의 `candidateKey`, `currentClassification`, `text`, `pageContext`만 제공한다. `unreviewed`는 human decision enum이 아니다.
+
+Approval entry와 current candidate는 `candidateKey` 오름차순으로 처리한다. 생성 시각을 포함하지 않으며 같은 input은 byte-stable JSON을 생성한다. Invalid approval, invalid current report, target scope mismatch에서는 result를 생성하지 않는다.
 
 ## Level 3 interactionProfile (Planned Candidate)
 
@@ -475,7 +525,7 @@ Legacy cautions:
 ## Future Schema Work
 
 - Keep the documented `scout_result`, `menu_map`, and `pageProfile` structures aligned with their producers and consumers as the implemented Level 1/2 pipeline evolves.
-- Implement the approval artifact writer/validator and define reconciliation result schema against the existing Interaction Approval Contract.
+- Implement an approval artifact writer/editor without combining human-authored review state with generated reconciliation output.
 - Define the `interactionProfile` producer, consumer, validation rules, and structured interaction plan contract before implementing Level 3 execution.
 - Review `agent_orchestrator.py` when JSON structure changes.
 - Update prompt strategy when generated tests start using `interactionProfile`.

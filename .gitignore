@@ -13,6 +13,8 @@ tests/generated/
 
 # python opensource library
 venv/
+__pycache__/
+*.py[cod]
 
 tools/ai-generator/generated/*
 tools/ai-generator/generated/*.json

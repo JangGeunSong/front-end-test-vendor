@@ -63,34 +63,46 @@ Level 3 Safe Interaction Test와 Level 4 Business Scenario Test는 향후 확장
 
 ## 실행 환경
 
-아래 버전은 현재 검증한 개발 환경 기준입니다. 다른 버전에서도 동작할 수 있지만 문제가 발생하면 먼저 이 기준과 차이를 확인합니다.
+상세한 fresh clone/new shell bootstrap은 `docs/DEVELOPMENT_ENVIRONMENT.md`를 따릅니다.
 
-- **Node.js**: `24.15.0`
-- **npm**: `11.12.1`
+- **Python**: project-local `venv`, `tools/ai-generator/requirements.txt` 기준
+- **Node.js**: `fnm`, `.node-version` 기준
+- **Node dependency**: `package-lock.json` 기준
 - **Playwright**: `package.json` 기준 버전
-- **Python**: `tools/ai-generator/agent_orchestrator.py` 실행 가능 버전
 
 ## 사전 준비
 
-의존성을 설치합니다.
+PowerShell에서 project venv와 fnm environment를 활성화합니다.
 
 ```powershell
-npm install
+.\venv\Scripts\Activate.ps1
+python -c "import sys; print(sys.executable)"
+fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
+fnm use
+node --version
+npm --version
 ```
 
-Playwright browser 설치 여부를 확인합니다.
+Dependency는 먼저 현재 상태를 확인하고 누락되었을 때만 lock/requirements 기준으로 설치합니다.
+
+```powershell
+python -m pip install -r tools/ai-generator/requirements.txt
+npm ci
+```
+
+Playwright browser가 필요한 browser task에서만 browser 설치를 확인합니다.
 
 ```powershell
 npx playwright install
 ```
 
-AI generated spec 생성을 위해 프로젝트 루트에 `.env`를 준비합니다.
+External LLM을 사용하는 AI generation command에 한해 프로젝트 루트의 local `.env`가 필요합니다.
 
 ```env
 GEMINI_API_KEY=your_api_key_here
 ```
 
-`GEMINI_API_KEY`는 `npm run ai:generate` 실행 시 필요합니다.
+`GEMINI_API_KEY`는 `npm run ai:generate` 같은 external LLM command에서만 필요합니다. `.env`와 secret 값은 Git에 commit하지 않습니다. Deterministic validator/reconciler는 `.env`를 요구하지 않습니다.
 
 ## 기본 실행 흐름
 
@@ -319,6 +331,7 @@ Playwright report에서 실행 결과, trace, screenshot 등 디버깅 정보를
 ## 참고 문서
 
 - agent 작업 규칙: `AGENTS.md`
+- local development environment: `docs/DEVELOPMENT_ENVIRONMENT.md`
 - 압축 프로젝트 context: `docs/PROJECT_OVERVIEW.md`
 - agent task 작성 template: `docs/AGENT_TASK_TEMPLATE.md`
 - 테스트 수준과 승격 기준: `docs/TEST_LEVELS.md`

@@ -47,6 +47,19 @@ scout_result.json + menu_map.json + test_plan.llm.json
 
 이 경로는 기존 artifact만 읽으며 browser interaction이나 외부 LLM 호출을 수행하지 않는다.
 
+현재 approval validation/reconciliation 경로:
+
+```text
+analysis_review_report.json
+  + tools/ai-generator/review/interaction_approvals.json
+  -> tools/ai-generator/validate_interaction_approvals.py
+  -> tools/ai-generator/reconcile_interaction_approvals.py
+  -> tools/ai-generator/generated/interaction_approval_reconciliation.json
+  -> eligible approved candidates / unreviewed candidates
+```
+
+이 경로는 approval artifact validation 또는 target scope/current evidence validation이 실패하면 partial result를 만들지 않는다.
+
 ## Stable Capabilities
 
 현재 구현되어 기본 architecture로 취급하는 capability:
@@ -64,6 +77,10 @@ scout_result.json + menu_map.json + test_plan.llm.json
 - Analysis Review Report JSON/Markdown 생성
 - safe/unsafe/unknown interaction candidate classification과 report integration
 - interaction candidate deduplication과 future reference를 위한 deterministic `candidateKey`
+- strict interaction approval artifact validation
+- exact `candidateKey`와 immutable evidence snapshot 기반 deterministic reconciliation
+- valid/missingCandidate/evidenceChanged reference status와 approved-only eligible candidate output
+- project venv, requirements, fnm, repository Node version, local `.env` policy를 복원하는 documented environment bootstrap
 - generated artifact와 source/docs를 분리하는 ignore 정책
 
 검증된 site type은 complex multi-depth GNB 41 tests, PC/MO overlay navigation 17 tests, direct documentation navigation 8 tests다. 이는 현재 일반화 근거이지 모든 사이트의 무보정 지원을 보장하지 않는다.
@@ -82,7 +99,7 @@ scout_result.json + menu_map.json + test_plan.llm.json
 
 ## Current Development Frontier
 
-현재 중심 frontier는 문서로 확정된 human approval contract를 future reconciliation validator와 structured interaction plan으로 안전하게 연결하는 경계다.
+현재 중심 frontier는 구현된 approval validation/reconciliation output을 human approval authoring과 future structured interaction plan으로 안전하게 연결하는 경계다.
 
 완료된 부분:
 
@@ -93,19 +110,21 @@ scout_result.json + menu_map.json + test_plan.llm.json
 - `approved`/`held`/`rejected` human decision과 최소 immutable evidence snapshot을 저장하는 versioned approval artifact contract
 - exact `candidateKey`와 snapshot을 기준으로 stale reference를 판정하고 heuristic approval carry-forward를 금지하는 reconciliation contract
 - current `safe` + human `approved` + valid non-stale reference를 future plan eligibility로 사용하는 규칙
+- strict approval artifact validator와 deterministic error category/path output
+- Analysis Review Report current candidate와 approval artifact의 exact key/evidence reconciliation
+- deterministic reconciliation result artifact, eligible candidate set, unreviewed candidate set
 
 열린 boundary:
 
-- approval artifact writer/editor와 JSON validator 구현
-- current candidate와 approval artifact를 대조하는 reconciliation tool 및 result schema
+- approval artifact writer/editor
 - eligible approved candidate를 structured interaction plan으로 변환하는 최소 field와 template 계약
 - interaction plan validator와 reversible state assertion/rollback 계약
 
-이 frontier는 interaction을 즉시 클릭하는 작업과 다르다. Approval artifact 기본 경로와 schema는 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md)에 확정되었지만 writer, validator, reconciliation, Level 3 execution은 아직 구현되지 않았다.
+이 frontier는 interaction을 즉시 클릭하는 작업과 다르다. Approval writer/editor, structured interaction plan, Level 3 execution은 아직 구현되지 않았다.
 
 ## Latest Completed Work
 
-가장 최근 완료된 architecture/documentation 작업은 Interaction Approval Contract 확정이다.
+가장 최근 완료된 구현 작업은 Interaction Approval Contract의 executable validation/reconciliation layer다.
 
 - 기본 local review state 경로: `tools/ai-generator/review/interaction_approvals.json`
 - schema version: `1.0`
@@ -114,14 +133,17 @@ scout_result.json + menu_map.json + test_plan.llm.json
 - stale은 decision이 아니라 reconciliation status이며 missing key/evidence change 시 automatic carry-forward를 금지
 - future eligibility: current `safe` AND human `approved` AND valid non-stale reference
 - approval artifact와 future interaction plan의 template/step/assertion/rollback 책임을 분리
+- `validate_interaction_approvals.py`의 strict schema/unknown-field/duplicate/conditional invariant 검증
+- `reconcile_interaction_approvals.py`의 valid/missingCandidate/evidenceChanged 판정과 deterministic result 생성
+- approval entry가 없는 current candidate의 별도 unreviewed output
 
-가장 최근 source 구현은 deterministic interaction `candidateKey`이며 그 형식과 fixture 검증 상태는 유지된다. 이번 contract 작업에서는 approval writer, validator, reconciliation, browser interaction을 구현하지 않았다.
+Approval writer/editor, structured interaction plan, browser interaction은 구현하지 않았다. Reconciliation result는 generated artifact이며 human-authored review state와 분리된다.
 
 ## Open Questions / Next Decisions
 
 현재 frontier에서 바로 결정할 항목만 유지한다.
 
-1. Approval artifact writer/validator와 reconciliation result schema를 어떤 module/CLI 경계로 구현할지
+1. Approval artifact writer/editor의 local review workflow와 overwrite/re-review 경계
 2. eligible approved candidate에서 structured interaction plan으로 변환할 최소 field와 template 계약
 3. interaction plan validator가 eligibility proof와 current evidence를 확인하는 방식
 4. reversible interaction의 expected state, close/rollback, failure evidence 계약
@@ -136,6 +158,7 @@ scout_result.json + menu_map.json + test_plan.llm.json
 - prompt 변경: [PROMPT_STRATEGY.md](PROMPT_STRATEGY.md)
 - Playwright 생성 규칙: [PLAYWRIGHT_CONVENTION.md](PLAYWRIGHT_CONVENTION.md), [TEST_GENERATION_RULES.md](TEST_GENERATION_RULES.md)
 - interaction/review 작업: [SAFE_INTERACTION_STRATEGY.md](SAFE_INTERACTION_STRATEGY.md), [ANALYSIS_REVIEW_REPORT.md](ANALYSIS_REVIEW_REPORT.md), [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md), [JSON_SCHEMA.md](JSON_SCHEMA.md)
+- local command/bootstrap 작업: [DEVELOPMENT_ENVIRONMENT.md](DEVELOPMENT_ENVIRONMENT.md)
 - 외부 LLM 및 폐쇄망 판단: [OFFLINE_NETWORK_POLICY.md](OFFLINE_NETWORK_POLICY.md)
 - 검증된 일반화 근거: [CROSS_SITE_VALIDATION.md](CROSS_SITE_VALIDATION.md)
 - 과거 실패 원인과 변경 이력: 필요한 경우에만 [TASK_LOG.md](TASK_LOG.md)

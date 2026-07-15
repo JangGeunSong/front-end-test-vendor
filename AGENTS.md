@@ -45,6 +45,7 @@
 
 작업 유형별 권장 문서:
 
+- local development environment: `docs/DEVELOPMENT_ENVIRONMENT.md`
 - 제품 방향: `docs/PRODUCT_DIRECTION.md`
 - 아키텍처와 data flow: `docs/MODULE_MAP.md`, `docs/DATA_FLOW.md`
 - 테스트 단계: `docs/TEST_LEVELS.md`
@@ -68,15 +69,40 @@
 3. `docs/CURRENT_STATE.md`에서 active development frontier와 latest completed work를 식별한다.
 4. 현재 요청이 frontier를 이어가는지, 별도 유지보수 작업인지 확인한다.
 5. 관련 문서와 source가 충돌하는지 구현 전에 확인한다.
-6. 충돌이 없으면 관련 module만 읽고 작업 범위를 확정한다.
+6. command 실행이 필요한 task이면 `docs/DEVELOPMENT_ENVIRONMENT.md`에 따라 project venv와 fnm/Node environment를 확인하고 활성화한다.
+7. 충돌이 없으면 관련 module만 읽고 작업 범위를 확정한다.
 
 local path, session ID, conversation transcript를 project memory로 사용하지 않는다. repository documentation과 검증 가능한 source/history를 durable context로 사용한다. 기존 architecture를 이유 없이 다시 설계하지 않으며, 현재 contract를 바꿔야 한다면 영향과 필요한 decision을 먼저 보고한다.
+
+## Local Execution Environment Bootstrap
+
+Python command 실행 전:
+
+- project-local `venv` policy와 `tools/ai-generator/requirements.txt`를 확인한다.
+- `venv`를 활성화하고 `sys.executable`이 project venv interpreter인지 확인한다.
+- system/global Python dependency를 전제로 하지 않는다.
+- dependency availability를 먼저 확인하고 누락된 경우에만 requirements 기준으로 설치한다.
+
+Node/npm command 실행 전:
+
+- `node` 또는 `npm`이 없으면 Node 미설치로 단정하지 않고 먼저 `fnm`을 확인한다.
+- fresh shell에서는 fnm PowerShell environment를 활성화한 뒤 repository version declaration에 맞는 Node를 선택한다.
+- `node --version`, `npm --version`과 dependency availability를 확인한다.
+- dependency가 필요한 경우 `package-lock.json`과 repository policy를 기준으로 설치한다.
+
+External LLM command 실행 전:
+
+- 필요한 local `.env` 존재만 확인하고 secret 값을 출력하거나 commit하지 않는다.
+- deterministic validator/reconciler command에는 external LLM key를 요구하지 않는다.
+
+상세 command와 troubleshooting contract는 `docs/DEVELOPMENT_ENVIRONMENT.md`를 따른다. `npm not found` 또는 Python import error를 곧바로 implementation failure로 보고하지 않고 local environment 복원 가능성을 먼저 확인한다.
 
 ## Source Of Truth Priority
 
 - 에이전트 운영 규칙: `AGENTS.md`
 - 안정적인 제품/architecture 개요: `docs/PROJECT_OVERVIEW.md`
 - 현재 repository snapshot과 active frontier: `docs/CURRENT_STATE.md`
+- local execution environment: `docs/DEVELOPMENT_ENVIRONMENT.md`
 - 제품 목적과 방향: `docs/PRODUCT_DIRECTION.md`
 - 실제 구조와 흐름: `docs/MODULE_MAP.md`, `docs/DATA_FLOW.md`
 - schema/template 계약: `docs/JSON_SCHEMA.md`, `docs/TEST_PLAN_SCHEMA.md`, `docs/TEST_TEMPLATE_CATALOG.md`

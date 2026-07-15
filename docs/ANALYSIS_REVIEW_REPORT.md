@@ -226,6 +226,8 @@ Analysis Review Report는 단순 pass/fail report가 아니다.
 
 Report는 approval decision을 소유하지 않는다. Human decision은 report의 `candidateKey`와 최소 evidence를 검토한 뒤 별도 approval artifact에 기록하며, 계약은 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md)를 따른다.
 
+Approval reconciliation은 JSON report를 current interaction candidate source로 사용한다. `safeInteractionCandidates`, `unsafeActionCandidates`, `candidateSubtype: interaction`인 unresolved 후보가 target scope와 complete review-critical evidence를 함께 제공하므로 reconciler가 별도 candidate extraction/classification logic을 만들지 않는다. Report 자체에는 human decision이나 reconciliation status를 추가하지 않는다.
+
 ## MVP Scope
 
 초기 MVP 구현 완료:
@@ -252,7 +254,7 @@ MVP에서 하지 않는 것:
 
 후속 확장 후보:
 
-- approval artifact writer/editor와 reconciliation 구현
+- approval artifact writer/editor
 - approved/rejected human decision history
 - workspace/project 단위 report history
 - 검수 UI

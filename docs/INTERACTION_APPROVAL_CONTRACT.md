@@ -13,7 +13,7 @@ classified candidate evidence
   -> Analysis Review Report
   -> human review
   -> interaction approval artifact
-  -> future approval reconciliation / validation
+  -> approval validation / reconciliation
   -> eligible approved candidates
   -> future structured interaction plan
 ```
@@ -22,7 +22,7 @@ classified candidate evidence
 
 - classifier의 `safe`, `unsafe`, `unknown`은 machine assessment다.
 - approval artifact의 `approved`, `held`, `rejected`는 human decision이다.
-- future reconciliation의 valid/stale/ineligible 결과는 current candidate와 approval artifact를 대조한 derived status다.
+- reconciliation의 valid/stale/ineligible 결과는 current candidate와 approval artifact를 대조한 derived status다.
 - future structured interaction plan은 template, step, expected state, rollback을 소유한다.
 
 `safe` classification, `approved` decision, valid reconciliation 중 어느 하나도 단독으로 browser execution을 허용하지 않는다.
@@ -72,7 +72,7 @@ tools/ai-generator/review/interaction_approvals.json
 - target URL, selector, display text, reviewer identifier가 포함될 수 있으므로 기본적으로 Git commit 대상에서 제외한다.
 - future target별 workspace가 도입되면 workspace 내부에서 같은 basename과 schema를 사용할 수 있다. 위치가 달라져도 schema 의미는 바뀌지 않는다.
 
-한 approval artifact는 정확히 하나의 `target.url`에 scope된다. 여러 target의 approval을 한 파일에 합치지 않는다. runtime artifact writer, editor, workspace management는 아직 구현되지 않았다.
+한 approval artifact는 정확히 하나의 `target.url`에 scope된다. 여러 target의 approval을 한 파일에 합치지 않는다. Runtime validator와 reconciler는 구현되었지만 artifact writer, editor, workspace management는 아직 구현되지 않았다.
 
 ## Schema Version Contract
 
@@ -82,7 +82,7 @@ Top-level `schemaVersion`은 필수이며 MVP 값은 `1.0`이다. 형식은 `maj
 - minor 변경: 기존 의미를 바꾸지 않는 optional field 추가
 - 문구 정정이나 example 수정처럼 JSON contract를 바꾸지 않는 변경: version 유지
 
-MVP에서는 migration framework를 만들지 않는다. Future validator/reconciler는 자신이 지원하지 않는 version을 명시적으로 거부해야 한다. Strict enum을 사용하므로 enum expansion도 major 변경으로 취급한다.
+MVP에서는 migration framework를 만들지 않는다. Validator/reconciler는 자신이 지원하지 않는 version을 명시적으로 거부한다. Strict enum을 사용하므로 enum expansion도 major 변경으로 취급한다.
 
 ## Decision Model
 
@@ -194,9 +194,9 @@ Approval artifact는 human-authored state이므로 deterministic generated repor
 }
 ```
 
-## Field And Collection Invariants
+## Validation Implementation
 
-Future validator는 최소한 다음을 확인해야 한다.
+`tools/ai-generator/validate_interaction_approvals.py`는 다음 invariant를 strict하게 검증한다.
 
 - top-level required fields: `schemaVersion`, `target`, `approvals`
 - `target.url`: required non-empty absolute HTTP(S) URL
@@ -215,9 +215,19 @@ Future validator는 최소한 다음을 확인해야 한다.
 
 Unknown field와 unsupported enum을 조용히 무시하지 않는다. Optional field 확장이 필요하면 schema version을 먼저 변경한다.
 
+현재 classifier representation에 맞춰 `ariaAttributes`의 key는 `label`, `expanded`, `pressed`, `selected`, `controls`, `haspopup`, `readonly`만 허용하며 value는 string이어야 한다. `safe` snapshot에는 `interactionKind`만, `unsafe` snapshot에는 `actionKind`와 `riskLevel`만 허용하고 `unknown` snapshot에는 conditional kind/risk field를 허용하지 않는다. Validator는 classifier identity algorithm을 재구현하지 않고 `candidateKey` 형식만 검증한다.
+
+기본 실행:
+
+```text
+npm run ai:validate-interaction-approvals
+```
+
+기본 approval file이 없거나 JSON parse/schema validation이 실패하면 non-zero로 종료한다.
+
 ## Stale Approval Rules
 
-Stale은 human decision이 아니므로 approval artifact의 `decision` enum에 저장하지 않는다. Future reconciliation 결과에서 derived status로 표현한다.
+Stale은 human decision이 아니므로 approval artifact의 `decision` enum에 저장하지 않는다. Reconciliation 결과에서 derived status로 표현한다.
 
 Minimum reference statuses:
 
@@ -235,12 +245,12 @@ Case rules:
 - exact key가 같아도 classification, kind, risk 또는 review-critical evidence가 달라지면 `evidenceChanged`이며 재검토 전에는 eligibility가 없다.
 - stale entry의 원래 human decision은 audit 의미로 보존한다. Re-review가 완료될 때만 current key/snapshot/review metadata로 명시적으로 갱신한다.
 
-## Future Reconciliation Contract
+## Reconciliation Implementation
 
 ```text
 current classified candidates / review report
   + interaction approval artifact
-  -> future approval reconciliation / validation
+  -> approval reconciliation / validation
   -> valid approved candidates
   -> stale approval references
   -> held/rejected candidates
@@ -249,7 +259,9 @@ current classified candidates / review report
   -> future structured interaction plan builder
 ```
 
-Future reconciliation 단계는 최소한 다음을 확인한다.
+`tools/ai-generator/reconcile_interaction_approvals.py`는 Analysis Review Report JSON을 current candidate source of truth로 사용한다. Report는 target scope와 classifier의 safe/unsafe/interaction-unknown section을 함께 보존하고, reconciliation이 별도 candidate extraction/classification rule을 만들지 않게 한다.
+
+Reconciliation 단계는 다음을 확인한다.
 
 - supported `schemaVersion`
 - artifact `target.url`과 current analysis target 일치
@@ -258,6 +270,8 @@ Future reconciliation 단계는 최소한 다음을 확인한다.
 - evidence snapshot comparison
 - current candidate classification
 - human decision
+
+Approval artifact validation 또는 current report validation이 실패하면 partial result를 만들지 않는다. Approval `target.url`과 report `summary.targetUrl`이 exact match하지 않아도 non-zero로 종료한다.
 
 Future interaction plan eligibility는 다음 조건을 모두 만족해야 한다.
 
@@ -270,7 +284,13 @@ AND target/schema/duplicate validation passed
 
 과거에 `approved`였더라도 current classification이 `unsafe` 또는 `unknown`이면 eligibility가 없다. Past approval은 current safety assessment를 override하지 않는다. `held`, `rejected`, stale, unreviewed candidate도 plan input에서 제외한다.
 
-Reconciliation tool, result JSON schema, CLI는 이번 계약 범위에 포함하지 않는다.
+Result는 `tools/ai-generator/generated/interaction_approval_reconciliation.json`에 생성한다. Approval entry와 current candidate는 `candidateKey` 오름차순으로 정렬하며 생성 시각을 포함하지 않는다. `referenceStatus`는 `valid`, `missingCandidate`, `evidenceChanged`를 사용하고, `changedFields`는 이 문서의 review-critical field 순서를 따른다. 상세 result schema는 [JSON_SCHEMA.md](JSON_SCHEMA.md)를 따른다.
+
+기본 실행:
+
+```text
+npm run ai:reconcile-interaction-approvals
+```
 
 ## Boundary To Structured Interaction Plan
 
@@ -292,8 +312,6 @@ Approval artifact에는 Playwright step, click sequence, assertion locator, roll
 
 - approval CLI 또는 editor/UI
 - approval artifact writer
-- JSON validator
-- reconciliation script 또는 result schema
 - structured interaction plan builder
 - Level 3 renderer
 - browser interaction execution

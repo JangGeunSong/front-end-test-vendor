@@ -40,17 +40,21 @@ classifier는 browser interaction을 실행하지 않는다. selector, role/type
 
 각 classified interaction candidate에는 deduplication과 동일한 canonical identity에서 만든 deterministic `candidateKey`가 포함된다. report JSON/Markdown은 이 key를 보존해 future human approval과 structured interaction plan이 배열 index나 selector 원문 대신 candidate를 참조할 수 있게 한다. key 보유와 safe classification은 실행 승인을 의미하지 않으며, selector 또는 page context가 바뀌면 key도 바뀔 수 있다.
 
-Human approval 이후의 boundary는 contract만 확정되어 있고 아직 구현되지 않았다.
+Human approval 이후의 validation/reconciliation boundary가 구현되어 있다.
 
 ```text
 current classified candidates / analysis_review_report.json
   + tools/ai-generator/review/interaction_approvals.json
-  -> future approval reconciliation / validation
+  -> validate_interaction_approvals.py
+  -> reconcile_interaction_approvals.py
+  -> generated/interaction_approval_reconciliation.json
   -> valid approved candidates
   -> future structured interaction plan builder
 ```
 
-Approval artifact는 human decision, candidate reference, immutable evidence snapshot, review metadata만 소유한다. Future reconciliation은 exact `candidateKey`, target scope, snapshot, current classification을 대조한다. Current `safe`와 human `approved`와 valid non-stale reference를 모두 만족한 candidate만 future plan 입력 eligibility를 갖는다. Template, expected state, close/reset/rollback은 future structured interaction plan의 책임이다. 상세 계약은 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md)를 따른다.
+Approval artifact는 human decision, candidate reference, immutable evidence snapshot, review metadata만 소유한다. Reconciliation은 Analysis Review Report를 current candidate source로 사용하고 exact `candidateKey`, target scope, snapshot, current classification을 대조한다. Current `safe`와 human `approved`와 valid non-stale reference를 모두 만족한 candidate만 future plan 입력 eligibility를 갖는다. Template, expected state, close/reset/rollback은 future structured interaction plan의 책임이다. 상세 계약은 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md)를 따른다.
+
+Approval artifact validation, current candidate input validation 또는 exact target scope match가 실패하면 partial reconciliation result를 만들지 않는다. `missingCandidate`는 similarity search 없이 exact key 부재로 판정하고, exact key가 있어도 review-critical evidence가 달라지면 `evidenceChanged`로 판정한다. Reconciliation result는 생성 시각을 포함하지 않고 candidate key 순서로 deterministic하게 생성한다.
 
 ## Step Details
 

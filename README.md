@@ -193,6 +193,13 @@ visual debug에서는 다음을 눈으로 확인합니다.
 
 structured plan 경로는 `menu_map.json`과 `pageProfiles`를 바탕으로 test plan JSON을 만들고, validator와 deterministic renderer를 거쳐 `tests/generated/generated_from_plan.spec.js`를 생성합니다.
 
+승인 reconciliation 결과에서 Level 3 실행 전 단계의 Structured Interaction Plan JSON을 생성하고 검증하려면 다음 명령을 사용합니다. 이 경로는 browser나 Playwright renderer를 실행하지 않습니다.
+
+```powershell
+npm run ai:build-interaction-plan
+npm run ai:validate-interaction-plan
+```
+
 ### 어떤 명령을 쓰면 되는가
 
 일반적인 안정 경로가 필요하면 기존 generated spec 경로를 사용합니다.
@@ -321,6 +328,8 @@ Playwright report에서 실행 결과, trace, screenshot 등 디버깅 정보를
 | LLM structured plan 생성/렌더 | `npm run ai:plan:llm -- --url https://target.example.com` |
 | deterministic/LLM plan 비교 | `npm run ai:compare-plans` |
 | deterministic/LLM plan 품질 게이트 | `npm run ai:compare-plans:gate` |
+| interaction plan JSON 생성 | `npm run ai:build-interaction-plan` |
+| interaction plan JSON 검증 | `npm run ai:validate-interaction-plan` |
 | generated 테스트 실행 | `npm run test:generated` |
 | generated visual debug 실행 | `npm run test:generated:visual` |
 | smoke 테스트 실행 | `npm run test:smoke` |

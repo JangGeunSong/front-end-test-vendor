@@ -1,5 +1,46 @@
 # Task Log
 
+## 2026-07-16 - Build and validate Structured Interaction Plans
+
+### 작업 목적
+
+- Approval reconciliation의 `eligibleCandidates[]`와 Analysis Review Report의 exact current evidence를 validated Structured Interaction Plan JSON으로 변환한다.
+- Level 3 renderer/browser execution 전 deterministic planning/validation boundary를 구현한다.
+
+### 변경 내용
+
+- `interaction_plan_contract.py`에 schema/version/path, supported template mapping, candidateKey 기반 deterministic test ID와 reconciliation/report input binding을 공통 계약으로 추가했다.
+- `build_interaction_plan.py`를 추가했다.
+  - exact `candidateKey` join만 사용하고 reconciliation eligibility를 재계산하지 않는다.
+  - `tab`은 `interaction.tabSelection`, `accordion`/`expandCollapse`는 `interaction.expandedToggle`로만 mapping한다.
+  - current ARIA state가 string `"false"`로 확인될 때만 bounded initial/expected/restored state와 fixed reset strategy를 생성한다.
+  - unsupported candidate는 executable TODO로 만들지 않고 `unsupportedInteractionKind`, `missingStateEvidence`, `initialStateNotSupported`, `missingSelector` CLI summary로 분리한다.
+  - missing exact report candidate, target mismatch와 eligible/report evidence mismatch는 input consistency failure로 처리해 partial plan을 생성하지 않는다.
+- `validate_interaction_plan.py`를 추가했다.
+  - strict unknown-field/schema/URL/source path/test shape와 duplicate ID/candidateKey를 검증한다.
+  - 모든 plan candidate가 reconciliation eligible set에 있는지와 selector/interactionKind/pageContext exact copy를 검증한다.
+  - 두 supported template의 compatibility, current ARIA evidence, bounded state/reset/restore와 deterministic ID/order를 exact하게 검증한다.
+  - free-form executable field는 unknown field로 거부한다.
+- Neutral builder/validator/malformed fixture와 `ai:build-interaction-plan`, `ai:validate-interaction-plan` npm command를 추가했다.
+- Structured plan, current state, module/data flow, schema, approval/report/safe-interaction와 README를 actual builder/validator 구현 상태에 맞췄다.
+
+### 확인 결과
+
+- Project venv의 Python 3.12.10으로 새 module syntax와 builder/validator fixture를 통과했다.
+- Builder fixture에서 3개 executable plan, 4개 bounded unsupported result, 4개 input consistency failure와 반복 build byte equality/JSON parse를 확인했다.
+- Validator fixture에서 tab/expanded plan, empty plan과 18개 strict failure scenario를 확인했다.
+- 기존 interaction classifier, approval validator, approval reconciliation fixture를 모두 통과했다.
+- `.node-version`의 Node 24.15.0과 npm 11.12.1을 fnm으로 선택하고 두 fixture npm wrapper를 통과했다.
+- Default npm command는 runtime generated reconciliation/report/plan이 없는 현재 workspace에서 expected missing-artifact error로 종료함을 확인했다.
+- Malformed JSON과 missing input이 non-zero로 종료하고, Markdown H1/relative link, JSON example/fixture parse와 `git diff --check`를 확인했다.
+- Scout/pageProfile 수집, Playwright/browser test와 external LLM API는 실행하지 않았다.
+
+### 다음 작업
+
+- Validated Structured Interaction Plan의 두 template만 해석하는 deterministic Level 3 renderer를 설계/구현한다.
+- Initial/expected/reset/restored state의 browser validation과 execution failure evidence contract를 구현한다.
+- Approval writer/editor는 browser execution과 분리된 human review workflow task로 유지한다.
+
 ## 2026-07-15 - Define Structured Interaction Plan contract
 
 ### 작업 목적

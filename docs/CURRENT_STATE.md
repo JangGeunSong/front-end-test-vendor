@@ -80,7 +80,9 @@ analysis_review_report.json
 - strict interaction approval artifact validation
 - exact `candidateKey`와 immutable evidence snapshot 기반 deterministic reconciliation
 - valid/missingCandidate/evidenceChanged reference status와 approved-only eligible candidate output
-- eligible candidate 기반 Structured Interaction Plan schema `1.0` documentation contract
+- eligible candidate 기반 Structured Interaction Plan schema `1.0` implemented contract
+- reconciliation/report exact join 기반 deterministic interaction plan builder
+- supported template/state/reset/eligibility/evidence를 strict하게 검증하는 interaction plan validator
 - project venv, requirements, fnm, repository Node version, local `.env` policy를 복원하는 documented environment bootstrap
 - generated artifact와 source/docs를 분리하는 ignore 정책
 
@@ -101,7 +103,7 @@ analysis_review_report.json
 
 ## Current Development Frontier
 
-현재 중심 frontier는 documentation contract로 확정된 Structured Interaction Plan을 executable builder/validator 계층으로 연결하는 경계다.
+현재 중심 frontier는 validated Structured Interaction Plan을 deterministic Level 3 renderer와 reset/restore execution으로 연결하는 경계다.
 
 완료된 부분:
 
@@ -118,21 +120,22 @@ analysis_review_report.json
 - `interactionKind`와 execution plan template을 분리한 Structured Interaction Plan schema `1.0` contract
 - exact eligible `candidateKey`/target snapshot과 bounded initial/expected/restored state 계약
 - page UI reset/restore를 data rollback과 분리한 reversible interaction 계약
+- reconciliation `eligibleCandidates`와 Analysis Review Report exact evidence를 join하는 deterministic plan builder
+- `interaction.tabSelection`, `interaction.expandedToggle`만 생성하고 unsupported candidate를 CLI summary로 분리하는 bounded mapping
+- eligible membership, exact selector/context/kind, deterministic ID/order, bounded state/reset과 unknown field를 검증하는 strict plan validator
 
 열린 boundary:
 
 - approval artifact writer/editor
-- deterministic interaction plan builder와 unsupported diagnostic
-- interaction plan validator
 - Level 3 deterministic renderer와 reset/restore execution
 
-이 frontier는 interaction을 즉시 클릭하는 작업과 다르다. Structured Interaction Plan은 contract만 정의되었고 builder/validator, Approval writer/editor와 Level 3 execution은 아직 구현되지 않았다.
+이 frontier는 interaction을 즉시 클릭하는 작업과 다르다. Builder/validator는 validated JSON까지만 생성하며 Approval writer/editor와 Level 3 renderer/browser execution은 아직 구현되지 않았다.
 
 ## Latest Completed Work
 
-가장 최근 완료된 architecture 작업은 Structured Interaction Plan documentation contract 정의다. 가장 최근 완료된 구현 작업은 Interaction Approval Contract의 executable validation/reconciliation layer다.
+가장 최근 완료된 구현 작업은 deterministic Structured Interaction Plan builder와 strict validator다.
 
-Structured Interaction Plan contract:
+Structured Interaction Plan implementation:
 
 - schema version: `1.0`
 - input boundary: reconciliation `eligibleCandidates[]`와 exact current report state evidence
@@ -140,7 +143,11 @@ Structured Interaction Plan contract:
 - primary reference: exact eligible `candidateKey`; selector/interactionKind/pageContext는 eligible payload에서 exact copy
 - bounded initial/expected/restored state와 required reset strategy
 - page-level UI `reset`/`restore`를 사용하며 data mutation rollback은 범위 밖
-- plan builder, validator, renderer와 browser execution은 구현하지 않음
+- exact candidateKey join과 target/evidence mismatch fail-fast
+- supported state evidence가 있는 `tabSelection`/`expandedToggle`만 executable plan case로 생성
+- unsupported candidate는 plan에 넣지 않고 bounded CLI diagnostic으로 보고
+- candidateKey/template 기반 deterministic ID, candidateKey ordering, timestamp 없는 byte-stable JSON
+- strict schema/unknown field/duplicate/eligibility/exact evidence/template/state/reset validation
 
 Approval validation/reconciliation implementation:
 
@@ -155,16 +162,15 @@ Approval validation/reconciliation implementation:
 - `reconcile_interaction_approvals.py`의 valid/missingCandidate/evidenceChanged 판정과 deterministic result 생성
 - approval entry가 없는 current candidate의 별도 unreviewed output
 
-Approval writer/editor, structured interaction plan builder/validator와 browser interaction은 구현하지 않았다. Reconciliation result는 generated artifact이며 human-authored review state와 분리된다.
+Approval writer/editor와 Level 3 renderer/browser interaction은 구현하지 않았다. Reconciliation result와 interaction plan은 generated artifact이며 human-authored review state와 분리된다.
 
 ## Open Questions / Next Decisions
 
 현재 frontier에서 바로 결정할 항목만 유지한다.
 
-1. Deterministic interaction plan builder의 output path, unsupported diagnostic과 provenance 확인 방식
-2. Interaction plan validator의 error contract와 reconciliation/report input binding
+1. Level 3 renderer의 fixed locator/assertion과 reset/restore execution contract
+2. Browser validation failure/evidence report contract
 3. Approval artifact writer/editor의 local review workflow와 overwrite/re-review 경계
-4. Level 3 renderer의 fixed locator/assertion과 reset/restore execution contract
 
 검수 UI, workspace history, Level 3 execution은 위 계약 이후의 단계다.
 

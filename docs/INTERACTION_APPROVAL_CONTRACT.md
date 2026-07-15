@@ -294,7 +294,7 @@ npm run ai:reconcile-interaction-approvals
 
 ## Boundary To Structured Interaction Plan
 
-Approval artifact가 future plan builder에 제공하는 것은 eligible candidate reference와 human decision 근거뿐이다.
+Approval reconciliation이 implemented plan builder에 제공하는 것은 eligible candidate reference와 human decision에서 파생된 eligibility뿐이다. Exact current execution evidence는 Analysis Review Report에서 가져온다.
 
 Future structured interaction plan이 소유할 정보:
 
@@ -306,13 +306,12 @@ Future structured interaction plan이 소유할 정보:
 - page UI reset/restore behavior
 - execution validation 및 failure evidence contract
 
-Approval artifact에는 Playwright step, click sequence, assertion locator, reset selector를 추가하지 않는다. Structured Interaction Plan schema `1.0` documentation contract는 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다. Builder, validator, renderer와 browser execution은 아직 구현되지 않았다.
+Approval artifact에는 Playwright step, click sequence, assertion locator, reset selector를 추가하지 않는다. Structured Interaction Plan schema `1.0`과 implemented builder/validator contract는 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다. Renderer와 browser execution은 아직 구현되지 않았다.
 
 ## MVP Non-Goals
 
 - approval CLI 또는 editor/UI
 - approval artifact writer
-- structured interaction plan builder
 - Level 3 renderer
 - browser interaction execution
 - reset/restore execution implementation

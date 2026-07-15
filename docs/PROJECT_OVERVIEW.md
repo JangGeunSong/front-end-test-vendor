@@ -30,7 +30,7 @@
 
 ## Established Architecture Baseline
 
-Level 1 navigation과 Level 2 Page Identity, structured plan validation, deterministic rendering, evidence-based review artifact는 현재 architecture baseline이다. Interaction 후보 분류, human approval validation/reconciliation과 Structured Interaction Plan documentation contract도 확정되어 있지만 plan builder/validator와 실제 Level 3 실행은 baseline에 포함되지 않는다.
+Level 1 navigation과 Level 2 Page Identity, structured plan validation, deterministic rendering, evidence-based review artifact는 현재 architecture baseline이다. Interaction 후보 분류, human approval validation/reconciliation, deterministic Structured Interaction Plan builder와 strict validator도 구현되어 있지만 실제 Level 3 renderer/browser execution은 baseline에 포함되지 않는다.
 
 현재 capability checklist, active frontier, latest completed work는 [CURRENT_STATE.md](CURRENT_STATE.md)에 유지한다.
 
@@ -75,6 +75,8 @@ target URL
 - `tools/ai-generator/render_analysis_review_report.py`: Analysis Review Report JSON을 사람이 읽을 수 있는 Markdown으로 렌더링한다.
 - `tools/ai-generator/validate_interaction_approvals.py`: human approval artifact를 strict하게 검증한다.
 - `tools/ai-generator/reconcile_interaction_approvals.py`: current report candidate와 validated approval을 deterministic하게 대조해 eligibility를 생성한다.
+- `tools/ai-generator/build_interaction_plan.py`: eligible candidate와 exact report state evidence를 deterministic bounded interaction plan으로 변환한다.
+- `tools/ai-generator/validate_interaction_plan.py`: plan schema, eligibility, exact evidence, template와 bounded state/reset contract를 strict하게 검증한다.
 - `utils/gnb.js`: plan 기반 navigation open/click helper를 제공한다.
 - `utils/highlight.js`: visual debug highlight를 담당한다.
 
@@ -92,6 +94,7 @@ target URL
 - safe/unsafe/unknown interaction candidate classification, stable identity, and report integration
 - versioned interaction approval validation과 exact key/evidence 기반 reconciliation
 - eligible candidate를 bounded state/reset instruction으로 전달하는 Structured Interaction Plan contract
+- deterministic Structured Interaction Plan builder와 strict validator
 
 ## Current Unsupported Scope
 
@@ -103,7 +106,7 @@ target URL
 - self-healing selector
 - full test management dashboard
 - 완성된 검수 UI
-- interaction plan builder/validator와 Level 3 renderer/browser execution
+- Level 3 interaction renderer/browser execution
 
 ## Verified Site Types
 

@@ -14,6 +14,8 @@
     "ai:validate-llm-plan": "python tools/ai-generator/validate_test_plan.py --input tools/ai-generator/generated/test_plan.llm.json --menu-map tools/ai-generator/generated/menu_map.json",
     "ai:compare-plans": "python tools/ai-generator/compare_test_plans.py",
     "ai:compare-plans:gate": "python tools/ai-generator/compare_test_plans.py --fail-on-meaningful-mismatch",
+    "ai:validate-interaction-approvals": "python tools/ai-generator/validate_interaction_approvals.py",
+    "ai:reconcile-interaction-approvals": "python tools/ai-generator/reconcile_interaction_approvals.py",
     "ai:render-plan": "python tools/ai-generator/render_test_plan.py",
     "ai:render-generated-plan": "python tools/ai-generator/render_test_plan.py --input tools/ai-generator/generated/test_plan.generated.json --output tests/generated/generated_from_plan.spec.js",
     "ai:render-llm-plan": "python tools/ai-generator/render_test_plan.py --input tools/ai-generator/generated/test_plan.llm.json --output tests/generated/generated_from_plan.spec.js",

@@ -1,0 +1,380 @@
+{
+  "analysisReviewReport": {
+    "version": "1.0",
+    "summary": {
+      "targetUrl": "https://sample.local/"
+    },
+    "safeInteractionCandidates": [
+      {
+        "candidateKey": "interaction:selector:111111111111111111111111",
+        "classification": "safe",
+        "confidence": "high",
+        "pageContext": "Overview",
+        "selector": "main [role='tab']",
+        "text": "Overview",
+        "role": "tab",
+        "type": "",
+        "tagName": "li",
+        "ariaAttributes": {
+          "selected": "false"
+        },
+        "interactionKind": "tab"
+      },
+      {
+        "candidateKey": "interaction:selector:222222222222222222222222",
+        "classification": "safe",
+        "confidence": "high",
+        "pageContext": "Details",
+        "selector": "main button.details",
+        "text": "Details",
+        "role": "button",
+        "type": "button",
+        "tagName": "button",
+        "ariaAttributes": {
+          "expanded": "false"
+        },
+        "interactionKind": "accordion"
+      },
+      {
+        "candidateKey": "interaction:selector:555555555555555555555555",
+        "classification": "safe",
+        "confidence": "medium",
+        "pageContext": "Options",
+        "selector": "main button.options",
+        "text": "Options",
+        "role": "button",
+        "type": "button",
+        "tagName": "button",
+        "ariaAttributes": {
+          "haspopup": "menu"
+        },
+        "interactionKind": "dropdown"
+      },
+      {
+        "candidateKey": "interaction:selector:888888888888888888888888",
+        "classification": "safe",
+        "confidence": "high",
+        "pageContext": "Help",
+        "selector": "main button.help",
+        "text": "Help",
+        "role": "button",
+        "type": "button",
+        "tagName": "button",
+        "ariaAttributes": {
+          "haspopup": "dialog"
+        },
+        "interactionKind": "modalOpen"
+      }
+    ],
+    "unsafeActionCandidates": [
+      {
+        "candidateKey": "interaction:selector:333333333333333333333333",
+        "classification": "unsafe",
+        "confidence": "high",
+        "pageContext": "Settings",
+        "selector": "main button.delete",
+        "text": "Delete",
+        "role": "button",
+        "type": "button",
+        "tagName": "button",
+        "ariaAttributes": {},
+        "actionKind": "delete",
+        "riskLevel": "critical"
+      },
+      {
+        "candidateKey": "interaction:selector:666666666666666666666666",
+        "classification": "unsafe",
+        "confidence": "high",
+        "pageContext": "Preferences",
+        "selector": "main button.preference-action",
+        "text": "Save preference",
+        "role": "button",
+        "type": "button",
+        "tagName": "button",
+        "ariaAttributes": {},
+        "actionKind": "save",
+        "riskLevel": "high"
+      }
+    ],
+    "unresolvedCandidates": [
+      {
+        "candidateSubtype": "navigation",
+        "text": "Unresolved link"
+      },
+      {
+        "candidateKey": "interaction:selector:777777777777777777777777",
+        "candidateSubtype": "interaction",
+        "classification": "unknown",
+        "confidence": "low",
+        "pageContext": "Filters",
+        "selector": "main button.filter",
+        "text": "Filter",
+        "role": "button",
+        "type": "button",
+        "tagName": "button",
+        "ariaAttributes": {}
+      }
+    ]
+  },
+  "approvalArtifact": {
+    "schemaVersion": "1.0",
+    "target": {
+      "url": "https://sample.local/"
+    },
+    "approvals": [
+      {
+        "candidateKey": "interaction:selector:777777777777777777777777",
+        "decision": "approved",
+        "evidenceSnapshot": {
+          "classification": "safe",
+          "confidence": "high",
+          "pageContext": "Filters",
+          "selector": "main button.filter",
+          "text": "Filter",
+          "role": "button",
+          "type": "button",
+          "tagName": "button",
+          "ariaAttributes": {},
+          "interactionKind": "dropdown"
+        },
+        "review": {
+          "reviewer": "fixture-reviewer",
+          "reviewedAt": "2026-07-15T09:37:00Z"
+        }
+      },
+      {
+        "candidateKey": "interaction:selector:111111111111111111111111",
+        "decision": "approved",
+        "evidenceSnapshot": {
+          "classification": "safe",
+          "confidence": "high",
+          "pageContext": "Overview",
+          "selector": "main [role='tab']",
+          "text": "Overview",
+          "role": "tab",
+          "type": "",
+          "tagName": "li",
+          "ariaAttributes": {
+            "selected": "false"
+          },
+          "interactionKind": "tab"
+        },
+        "review": {
+          "reviewer": "fixture-reviewer",
+          "reviewedAt": "2026-07-15T09:31:00Z"
+        }
+      },
+      {
+        "candidateKey": "interaction:selector:444444444444444444444444",
+        "decision": "approved",
+        "evidenceSnapshot": {
+          "classification": "safe",
+          "confidence": "high",
+          "pageContext": "Missing",
+          "selector": "main button.missing",
+          "text": "Missing",
+          "role": "button",
+          "type": "button",
+          "tagName": "button",
+          "ariaAttributes": {
+            "expanded": "false"
+          },
+          "interactionKind": "expandCollapse"
+        },
+        "review": {
+          "reviewer": "fixture-reviewer",
+          "reviewedAt": "2026-07-15T09:34:00Z"
+        }
+      },
+      {
+        "candidateKey": "interaction:selector:333333333333333333333333",
+        "decision": "rejected",
+        "evidenceSnapshot": {
+          "classification": "unsafe",
+          "confidence": "high",
+          "pageContext": "Settings",
+          "selector": "main button.delete",
+          "text": "Delete",
+          "role": "button",
+          "type": "button",
+          "tagName": "button",
+          "ariaAttributes": {},
+          "actionKind": "delete",
+          "riskLevel": "critical"
+        },
+        "review": {
+          "reviewer": "fixture-reviewer",
+          "reviewedAt": "2026-07-15T09:33:00Z"
+        }
+      },
+      {
+        "candidateKey": "interaction:selector:555555555555555555555555",
+        "decision": "approved",
+        "evidenceSnapshot": {
+          "classification": "safe",
+          "confidence": "high",
+          "pageContext": "Options",
+          "selector": "main button.options",
+          "text": "Options",
+          "role": "button",
+          "type": "button",
+          "tagName": "button",
+          "ariaAttributes": {
+            "haspopup": "menu"
+          },
+          "interactionKind": "dropdown"
+        },
+        "review": {
+          "reviewer": "fixture-reviewer",
+          "reviewedAt": "2026-07-15T09:35:00Z"
+        }
+      },
+      {
+        "candidateKey": "interaction:selector:222222222222222222222222",
+        "decision": "held",
+        "evidenceSnapshot": {
+          "classification": "safe",
+          "confidence": "high",
+          "pageContext": "Details",
+          "selector": "main button.details",
+          "text": "Details",
+          "role": "button",
+          "type": "button",
+          "tagName": "button",
+          "ariaAttributes": {
+            "expanded": "false"
+          },
+          "interactionKind": "accordion"
+        },
+        "review": {
+          "reviewer": "fixture-reviewer",
+          "reviewedAt": "2026-07-15T09:32:00Z"
+        }
+      },
+      {
+        "candidateKey": "interaction:selector:666666666666666666666666",
+        "decision": "approved",
+        "evidenceSnapshot": {
+          "classification": "safe",
+          "confidence": "high",
+          "pageContext": "Preferences",
+          "selector": "main button.preference-action",
+          "text": "Save preference",
+          "role": "button",
+          "type": "button",
+          "tagName": "button",
+          "ariaAttributes": {},
+          "interactionKind": "dropdown"
+        },
+        "review": {
+          "reviewer": "fixture-reviewer",
+          "reviewedAt": "2026-07-15T09:36:00Z"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "summary": {
+      "currentCandidateCount": 7,
+      "approvalEntryCount": 7,
+      "validReferenceCount": 3,
+      "missingCandidateCount": 1,
+      "evidenceChangedCount": 3,
+      "eligibleCandidateCount": 1,
+      "unreviewedCandidateCount": 1
+    },
+    "results": [
+      {
+        "candidateKey": "interaction:selector:111111111111111111111111",
+        "decision": "approved",
+        "referenceStatus": "valid",
+        "currentClassification": "safe",
+        "eligible": true,
+        "ineligibilityReasons": []
+      },
+      {
+        "candidateKey": "interaction:selector:222222222222222222222222",
+        "decision": "held",
+        "referenceStatus": "valid",
+        "currentClassification": "safe",
+        "eligible": false,
+        "ineligibilityReasons": [
+          "decisionNotApproved"
+        ]
+      },
+      {
+        "candidateKey": "interaction:selector:333333333333333333333333",
+        "decision": "rejected",
+        "referenceStatus": "valid",
+        "currentClassification": "unsafe",
+        "eligible": false,
+        "ineligibilityReasons": [
+          "currentClassificationNotSafe",
+          "decisionNotApproved"
+        ]
+      },
+      {
+        "candidateKey": "interaction:selector:444444444444444444444444",
+        "decision": "approved",
+        "referenceStatus": "missingCandidate",
+        "currentClassification": null,
+        "eligible": false,
+        "ineligibilityReasons": [
+          "missingCandidate"
+        ]
+      },
+      {
+        "candidateKey": "interaction:selector:555555555555555555555555",
+        "decision": "approved",
+        "referenceStatus": "evidenceChanged",
+        "currentClassification": "safe",
+        "eligible": false,
+        "ineligibilityReasons": [
+          "evidenceChanged"
+        ],
+        "changedFields": [
+          "confidence"
+        ]
+      },
+      {
+        "candidateKey": "interaction:selector:666666666666666666666666",
+        "decision": "approved",
+        "referenceStatus": "evidenceChanged",
+        "currentClassification": "unsafe",
+        "eligible": false,
+        "ineligibilityReasons": [
+          "evidenceChanged",
+          "currentClassificationNotSafe"
+        ],
+        "changedFields": [
+          "classification",
+          "interactionKind",
+          "actionKind",
+          "riskLevel"
+        ]
+      },
+      {
+        "candidateKey": "interaction:selector:777777777777777777777777",
+        "decision": "approved",
+        "referenceStatus": "evidenceChanged",
+        "currentClassification": "unknown",
+        "eligible": false,
+        "ineligibilityReasons": [
+          "evidenceChanged",
+          "currentClassificationNotSafe"
+        ],
+        "changedFields": [
+          "classification",
+          "confidence",
+          "interactionKind"
+        ]
+      }
+    ],
+    "eligibleCandidateKeys": [
+      "interaction:selector:111111111111111111111111"
+    ],
+    "unreviewedCandidateKeys": [
+      "interaction:selector:888888888888888888888888"
+    ]
+  }
+}

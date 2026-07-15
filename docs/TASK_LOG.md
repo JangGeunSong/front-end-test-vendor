@@ -1,5 +1,45 @@
 # Task Log
 
+## 2026-07-15 - Validate and reconcile interaction approvals
+
+### 작업 목적
+
+- documentation contract로 확정된 Interaction Approval 경계를 executable validation/reconciliation layer로 연결한다.
+- machine classification, human decision, reconciliation status를 분리한 채 valid approved candidate만 future interaction plan 입력 eligibility를 갖게 한다.
+
+### 변경 내용
+
+- `validate_interaction_approvals.py`를 추가했다.
+  - approval schema `1.0`, absolute target URL, strict enum/unknown field, candidateKey format, evidence snapshot conditional field, reviewer metadata를 검증한다.
+  - duplicate candidateKey와 approved/unsafe snapshot 조합을 거부하며 deterministic error code와 field path를 출력한다.
+- `reconcile_interaction_approvals.py`를 추가했다.
+  - Analysis Review Report의 classified interaction section을 current candidate source로 사용한다.
+  - exact candidateKey와 review-critical evidence를 대조해 `valid`, `missingCandidate`, `evidenceChanged`를 계산한다.
+  - current `safe` + human `approved` + valid reference만 eligible로 출력하고 current unsafe/unknown이 old approval로 override되지 않게 한다.
+  - approval entry가 없는 current candidate는 human decision enum을 변경하지 않고 별도 unreviewed candidate set으로 출력한다.
+- `interaction_approval_reconciliation.json` generated result schema와 deterministic ordering을 정의했다.
+- neutral validator/reconciliation fixture와 npm validation/reconciliation command를 추가했다.
+- `docs/DEVELOPMENT_ENVIRONMENT.md`와 `.node-version`을 추가해 fresh shell이 project `venv`, requirements-managed Python, fnm-managed Node, package lock, local `.env` policy를 repository documentation만으로 복원하게 했다.
+- AGENTS startup/read map과 README quick start를 environment contract에 연결했다.
+- current state, module/data flow, schema, approval/review/safe-interaction 문서를 실제 구현 상태와 동기화했다.
+
+### 확인 결과
+
+- Python syntax check와 validator/reconciliation fixture를 통과했다.
+- unsupported version, missing target, invalid decision/key, duplicate key, approved unsafe snapshot, malformed/conditional evidence, unknown field를 검증했다.
+- valid/missingCandidate/evidenceChanged, current unsafe/unknown 재평가, eligible/non-eligible, unreviewed와 반복 실행 byte stability를 확인했다.
+- malformed JSON과 missing input이 non-zero로 종료하고 invalid approval에서 partial reconciliation을 만들지 않는 것을 확인했다.
+- Project venv interpreter와 requirements import를 확인하고 fnm PowerShell environment를 활성화해 `.node-version`의 Node와 npm을 복원했다.
+- npm wrapper default command가 Python entry point까지 호출된 뒤 missing local approval artifact로 exit 1을 반환하고, 두 fixture wrapper는 exit 0으로 통과하는 것을 확인했다.
+- `.env`, `venv`, human-authored approval과 generated reconciliation output의 ignore policy를 확인했다.
+- scout/pageProfile 재수집, Playwright browser test, 외부 LLM API는 실행하지 않았다.
+
+### 다음 작업
+
+- approval artifact writer/editor의 human re-review workflow를 별도 task로 정의한다.
+- eligible candidate 기반 structured interaction plan 최소 field와 reversible state/rollback contract를 후속 task로 정의한다.
+- Level 3 browser interaction은 위 계약과 validator 이후에 진행한다.
+
 ## 2026-07-15 - Define Interaction Approval artifact contract
 
 ### 작업 목적

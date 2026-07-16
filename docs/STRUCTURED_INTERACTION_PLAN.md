@@ -4,7 +4,7 @@
 
 이 문서는 approval reconciliation의 eligible interaction candidate와 deterministic Level 3 renderer 사이의 structured contract를 정의한다.
 
-목표는 approved safe candidate를 free-form Playwright JavaScript 없이 bounded plan으로 표현하고, validator와 renderer가 classification, approval 또는 selector 추론을 다시 수행하지 않게 하는 것이다. Deterministic builder, strict validator와 두 MVP template의 deterministic renderer가 구현되어 있다. Generated spec의 browser execution은 아직 구현·검증되지 않았다.
+목표는 approved safe candidate를 free-form Playwright JavaScript 없이 bounded plan으로 표현하고, validator와 renderer가 classification, approval 또는 selector 추론을 다시 수행하지 않게 하는 것이다. Deterministic builder, strict validator와 두 MVP template의 deterministic renderer가 구현되어 있다. 첫 tab runtime은 restore contract gap을 확인했으며 repeatable browser capability는 아직 완료되지 않았다.
 
 ## Architecture Position
 
@@ -307,6 +307,8 @@ Supported reset strategy:
 
 Reset 성공 후 `restoredState`는 `initialState`와 같은 의미와 값을 가져야 한다.
 
+첫 public-site runtime validation에서는 tab click 후 page가 selected state를 reload 사이에 보존해 `reloadPage` 이후 target이 계속 selected였다. 따라서 schema `2.0`의 `reloadPage`는 restore action을 표현하지만 generic restore 보장은 아니며, `tabSelection` runtime capability는 현재 완료되지 않았다. Storage clear나 sibling selector 추론으로 우회하지 않고 previous selected tab의 exact evidence/approval과 bounded restore target을 추가하는 후속 contract decision이 필요하다.
+
 ## Template-Specific Requirements
 
 ### `interaction.tabSelection`
@@ -430,6 +432,8 @@ Renderer가 selector fallback, candidate search, approval lookup, generic JavaSc
 현재 fixed rendering은 `interaction.tabSelection`의 selected false → true → reload → false assertion과 `interaction.expandedToggle`의 expanded false → true → same-target toggle → false assertion만 지원한다. Reload와 toggle은 restore action이며 restored assertion이 성공 여부를 판정한다.
 
 Generated source는 JavaScript syntax와 Playwright `--list` discovery까지 검증한다. Browser execution과 execution report는 별도 future layer다. Plan JSON에 runtime result를 기록하지 않는다.
+
+첫 `interaction.tabSelection` runtime은 navigation, target resolution과 selected false → true transition까지 성공했지만 reload 후 false restore에서 실패했다. Playwright trace와 screenshot은 exact URL/selector가 유지된 상태에서 selected value가 true로 지속됨을 보여줬다. Renderer는 plan의 `reloadPage`를 정확히 생성했으므로 root cause는 reset strategy/template evidence boundary다.
 
 ## Future Failure Contract
 

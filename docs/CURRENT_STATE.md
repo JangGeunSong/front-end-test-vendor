@@ -101,13 +101,13 @@ analysis_review_report.json
 - 특정 사이트명, URL, 메뉴명 전용 예외보다 DOM/evidence 기반 일반화 규칙을 우선한다.
 - interaction `candidateKey`와 deduplication은 동일 canonical identity를 사용한다. key는 classification이나 승인 상태에 의존하지 않는다.
 - `target.url`은 분석 scope, candidate `observedUrl`은 실제 관찰 위치, plan `startUrl`은 exact execution entry point다. pageContext나 target root에서 URL을 추론하지 않는다.
-- `safe` classification은 실행 승인과 동일하지 않다. Level 3 spec rendering은 구현됐지만 실제 browser interaction 실행은 아직 검증되지 않았다.
+- `safe` classification은 실행 승인과 동일하지 않다. 첫 `tabSelection` browser run에서 navigation과 false → true transition은 확인했지만 `reloadPage` restore가 실패했으므로 Level 3 runtime capability는 아직 완료되지 않았다.
 - interaction plan은 reconciliation eligible candidate만 exact `candidateKey`로 참조하고, free-form code 없이 bounded state/reset instruction만 표현한다.
 - generated artifact는 기본적으로 commit하지 않으며 tracked fixture 예외만 repository 정책에 따라 유지한다.
 
 ## Current Development Frontier
 
-현재 중심 frontier는 exact per-test `startUrl`을 가진 validated Structured Interaction Plan의 deterministic spec rendering 이후 실제 browser reset/restore transition을 검증하는 경계다.
+현재 중심 frontier는 첫 `tabSelection` runtime에서 드러난 persistent tab state와 schema `2.0`의 `reloadPage` reset 가정 사이의 계약 gap을 해결하는 것이다.
 
 완료된 부분:
 
@@ -135,10 +135,12 @@ analysis_review_report.json
 열린 boundary:
 
 - approval artifact writer/editor
-- 실제 Level 3 browser interaction과 reset/restore runtime validation
+- previous selected tab의 exact evidence/approval과 bounded restore target을 보존하는 reset strategy contract
+- `tabSelection` reset/restore runtime validation 완료
+- `expandedToggle` runtime validation
 - runtime failure evidence/screenshot/execution report
 
-Renderer는 validated JSON을 executable source shape로 변환하지만 test body를 실행하지 않는다. Approval writer/editor와 Level 3 browser execution은 아직 구현되지 않았다.
+Renderer는 validated JSON을 executable source shape로 변환한다. Approval writer/editor와 repeatable Level 3 browser execution/reset capability는 아직 완료되지 않았다.
 
 ## Latest Completed Work
 
@@ -191,15 +193,28 @@ Approval validation/reconciliation implementation:
 - `reconcile_interaction_approvals.py`의 valid/missingCandidate/evidenceChanged 판정과 deterministic result 생성
 - approval entry가 없는 current candidate의 별도 unreviewed output
 
-Approval writer/editor와 Level 3 browser interaction은 구현하지 않았다. Reconciliation result, interaction plan과 generated interaction spec은 human-authored review state와 분리된다.
+Approval writer/editor와 repeatable Level 3 browser interaction capability는 완료되지 않았다. Reconciliation result, interaction plan과 generated interaction spec은 human-authored review state와 분리된다.
+
+## Latest Runtime Validation Finding
+
+Playwright public-site의 approved `yarn` tab generated spec 한 건을 retry 0으로 실행했다.
+
+- exact `startUrl` navigation과 selector resolution 성공
+- initial `aria-selected=false`, click, expected `aria-selected=true` 성공
+- `page.reload()` 성공 후 URL과 exact selector는 유지
+- page가 selected tab state를 reload 사이에 보존해 restored `aria-selected=false` assertion 실패
+- screenshot, trace, HTML report와 DOM snapshot으로 동일 target이 `aria-selected=true`인 상태를 확인
+
+이는 renderer가 plan을 잘못 해석한 문제가 아니라 `reloadPage`를 generic tab restore로 정의한 template/reset contract gap이다. Storage clear, selector fallback, assertion 완화 또는 generated spec hand edit로 우회하지 않는다. Correct fix는 previous selected tab의 exact evidence와 승인 경계를 plan에 보존하고 bounded restore action을 검증하는 schema decision이 필요하다.
 
 ## Open Questions / Next Decisions
 
 현재 frontier에서 바로 결정할 항목만 유지한다.
 
-1. Generated interaction spec의 실제 browser click/reset/restore transition validation
-2. Browser validation failure/evidence report contract
-3. Approval artifact writer/editor의 local review workflow와 overwrite/re-review 경계
+1. `tabSelection` previous selected target evidence와 approval/reset strategy contract
+2. Correct reset contract 적용 후 동일 single-test runtime 재검증
+3. Browser validation failure/evidence report contract
+4. Approval artifact writer/editor의 local review workflow와 overwrite/re-review 경계
 
 검수 UI, workspace history, Level 3 execution은 위 계약 이후의 단계다.
 

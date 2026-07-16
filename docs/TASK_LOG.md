@@ -1,5 +1,34 @@
 # Task Log
 
+## 2026-07-16 - Validate first tab interaction runtime path
+
+### 작업 목적
+
+- 실제 generated interaction spec의 approved `yarn` tab 한 건을 Playwright로 실행한다.
+- 기본 HTML report, trace, screenshot과 assertion evidence로 runtime failure stage와 root cause 계층을 확인한다.
+
+### 실행 결과
+
+- Schema `2.0` plan strict validation, renderer 반복 output byte equality, Node syntax와 1-test discovery를 다시 확인했다.
+- Project venv Python 3.10.11, fnm Node 24.15.0, npm 11.12.1과 Playwright 1.59.1을 사용했다. Installed Chromium을 재사용하고 browser를 재설치하지 않았다.
+- Generated spec의 `interaction:selector:f3e8ee3f82c5ccb372ab62e2` 한 건만 workers 1, retries 0, trace on으로 실행했다.
+- Exact `https://playwright.dev/docs/intro` navigation, target resolution, initial `aria-selected=false`, click과 expected `aria-selected=true`는 성공했다.
+- `page.reload()`과 동일 URL/selector 재해석은 성공했지만 target이 계속 `aria-selected=true`여서 restored false assertion이 실패했다.
+- Console assertion, HTML report, trace action timeline, DOM snapshot, failure screenshot과 video가 동일 restore mismatch를 보여줬다.
+
+### 판단
+
+- Failure stage는 restore mismatch이며 environment, URL provenance, selector, click 또는 renderer dispatch 문제가 아니다.
+- Page가 tab selection을 reload 사이에 보존하므로 schema `2.0`의 `reloadPage` reset strategy가 generic restore를 보장하지 못한다.
+- Generated spec hand edit, selector fallback, storage clear, timeout/retry, assertion 완화로 우회하지 않았다.
+- Correct fix는 previous selected tab의 exact evidence와 approval/reset target을 plan에 보존하는 breaking contract decision이 필요하므로 이번 runtime validation task에서는 source/schema를 변경하지 않았다.
+
+### 다음 작업
+
+- Previous selected tab reference의 producer, approval boundary, plan schema와 bounded `restorePreviousSelection` strategy를 설계한다.
+- Contract 적용 후 동일 single tab test를 retries 0으로 두 번 통과시켜 runtime smoke를 완료한다.
+- `expandedToggle` runtime과 custom execution result schema는 별도 후속 범위로 유지한다.
+
 ## 2026-07-16 - Render Structured Interaction Plans
 
 ### 작업 목적

@@ -22,6 +22,7 @@ from interaction_plan_contract import (
     is_absolute_http_url,
     is_non_empty_string,
     is_portable_relative_path,
+    is_same_origin,
     load_json,
     portable_source_path,
     resolve_path,
@@ -187,6 +188,12 @@ def validate_test_case(test_case, index, bound, seen_ids, seen_keys, errors):
     if not isinstance(test_case.get("pageContext"), str):
         add_error(errors, "P110", f"{path}.pageContext", "pageContext is required and must be a string")
 
+    start_url = test_case.get("startUrl")
+    if not is_absolute_http_url(start_url):
+        add_error(errors, "P115", f"{path}.startUrl", "startUrl must be an absolute HTTP(S) URL without credentials")
+    elif not is_same_origin(bound["targetUrl"], start_url):
+        add_error(errors, "P116", f"{path}.startUrl", "startUrl must be same-origin with target.url")
+
     target = test_case.get("target")
     if not isinstance(target, dict):
         add_error(errors, "P111", f"{path}.target", "target is required and must be an object")
@@ -207,10 +214,13 @@ def validate_test_case(test_case, index, bound, seen_ids, seen_keys, errors):
             (target.get("selector"), eligible.get("selector"), f"{path}.target.selector", "P202"),
             (target.get("interactionKind"), eligible.get("interactionKind"), f"{path}.target.interactionKind", "P203"),
             (test_case.get("pageContext"), eligible.get("pageContext"), f"{path}.pageContext", "P204"),
+            (test_case.get("startUrl"), eligible.get("observedUrl"), f"{path}.startUrl", "P207"),
         )
         for actual, expected, field_path, code in exact_fields:
             if actual != expected:
                 add_error(errors, code, field_path, "field must exactly match eligible/report evidence")
+        if isinstance(report_candidate, dict) and test_case.get("startUrl") != report_candidate.get("observedUrl"):
+            add_error(errors, "P208", f"{path}.startUrl", "startUrl must exactly match current report observedUrl")
 
     if template in SUPPORTED_TEMPLATES:
         interaction_kind = target.get("interactionKind")
@@ -257,6 +267,11 @@ def apply_fixture_mutation(plan, mutation):
         set_fixture_path(mutated, mutation["path"], mutation.get("value"))
     elif operation == "add":
         set_fixture_path(mutated, mutation["path"], mutation.get("value"))
+    elif operation == "remove":
+        current = mutated
+        for part in mutation["path"][:-1]:
+            current = current[part]
+        del current[mutation["path"][-1]]
     elif operation == "appendTest":
         mutated["tests"].append(copy.deepcopy(mutated["tests"][mutation["sourceIndex"]]))
     elif operation == "swapTests":

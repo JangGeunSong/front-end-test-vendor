@@ -1,5 +1,39 @@
 # Task Log
 
+## 2026-07-16 - Preserve interaction execution URL provenance
+
+### 작업 목적
+
+- Renderer 구현 전에 발견된 per-candidate execution URL 누락을 discovery/evidence 계층에서 해결한다.
+- 분석 scope `target.url`, 실제 관찰 위치 `observedUrl`, plan 실행 시작점 `startUrl`의 책임을 분리한다.
+
+### 변경 내용
+
+- Root scout element에 final `window.location.href`, pageProfile candidate에 click 후 `page.url()`을 provenance source of truth로 사용했다.
+- Projection과 classifier가 `observedUrl`을 보존하고 safe/unsafe/unknown 모든 candidate에 absolute credential-free HTTP(S), target same-origin을 요구하도록 했다.
+- CandidateKey algorithm은 유지했다. 같은 canonical candidate source의 observed URL이 충돌하면 조용히 덮어쓰지 않고 input consistency error로 종료한다.
+- Analysis Review Report JSON/Markdown에 candidate `observedUrl`을 추가했다.
+- Interaction Approval schema를 `2.0`으로 올리고 immutable evidence snapshot에 required `observedUrl`을 추가했다. Approval validator는 invalid scheme, credentials와 cross-origin을 거부한다.
+- Reconciliation result를 `2.0`으로 올리고 review-critical comparison과 eligible payload에 `observedUrl`을 추가했다. URL만 변경돼도 `evidenceChanged`이며 eligibility가 없다.
+- Structured Interaction Plan을 `2.0`으로 올리고 required `tests[].startUrl`을 current observed URL의 exact copy로 정의했다. Builder/validator는 target root fallback이나 URL normalization 없이 eligible/report provenance exact equality를 검증한다.
+- Shared `interaction_url.py`, neutral success/failure/version fixtures와 관련 architecture/schema 문서를 actual contract에 맞췄다.
+
+### 확인 결과
+
+- Project `venv` Python 3.10.11에서 변경 module syntax와 classifier, report, approval validator, reconciliation, plan builder/validator fixture를 통과했다.
+- Missing/invalid/cross-origin observed URL, old schema version, URL-only stale change, missing/mismatched/query/hash/trailing-slash/cross-origin start URL과 source conflict를 검증했다.
+- `https://playwright.dev`를 `npm run ai:generate-plan -- --url https://playwright.dev --clear-profile-cache`로 fresh 수집했다. Windows CP949 진단 실패는 source 변경 없이 UTF-8 console environment로 재실행해 해결했다.
+- Fresh report의 interaction candidate는 22개, unique observed URL은 2개였다. `https://playwright.dev/` 4개, `https://playwright.dev/docs/intro` 18개이며 missing/invalid/cross-origin은 0개였다.
+- Nested `/docs/intro`의 unselected `yarn` tab 1개를 local ignored temporary approval로 검증했다. Approval validation, reconciliation 1 eligible/21 unreviewed, plan build 1 tabSelection, plan validation을 통과했으며 smoke 후 temporary approval file은 제거했다.
+- Candidate/report/approval/eligible/plan의 URL이 모두 `https://playwright.dev/docs/intro`로 exact 일치했고 report, reconciliation, plan 반복 생성은 byte-stable했다.
+- Renderer, generated interaction spec, interaction click, reset/restore browser execution, screenshot, execution report와 external LLM API는 구현하거나 실행하지 않았다.
+
+### 다음 작업
+
+- Validated schema `2.0` plan의 exact per-test `startUrl`을 사용하는 deterministic Level 3 renderer를 구현하고 static generated spec validation을 수행한다.
+- Browser interaction과 reset/restore runtime validation은 renderer 이후 별도 task로 유지한다.
+- Approval writer/editor는 execution 계층과 분리된 human review workflow로 유지한다.
+
 ## 2026-07-16 - Build and validate Structured Interaction Plans
 
 ### 작업 목적

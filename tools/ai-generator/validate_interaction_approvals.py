@@ -4,14 +4,15 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlsplit
+
+from interaction_url import has_url_credentials, is_absolute_http_url, is_same_origin
 
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_APPROVAL_PATH = (
     ROOT_DIR / "tools" / "ai-generator" / "review" / "interaction_approvals.json"
 )
-SUPPORTED_SCHEMA_VERSION = "1.0"
+SUPPORTED_SCHEMA_VERSION = "2.0"
 CANDIDATE_KEY_PATTERN = re.compile(
     r"^interaction:(?:selector|fallback):[0-9a-f]{24}$"
 )
@@ -26,6 +27,7 @@ SNAPSHOT_REQUIRED_FIELDS = {
     "classification",
     "confidence",
     "pageContext",
+    "observedUrl",
     "selector",
     "text",
     "role",
@@ -90,13 +92,6 @@ def is_non_empty_string(value):
     return isinstance(value, str) and bool(value.strip())
 
 
-def is_absolute_http_url(value):
-    if not is_non_empty_string(value) or value != value.strip():
-        return False
-    parsed = urlsplit(value)
-    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
-
-
 def is_timezone_aware_timestamp(value):
     if not is_non_empty_string(value) or "T" not in value:
         return False
@@ -119,7 +114,7 @@ def reject_unknown_fields(value, allowed, path, code, errors):
         add_error(errors, code, f"{path}.{field}", "unknown field")
 
 
-def validate_snapshot(snapshot, path, errors):
+def validate_snapshot(snapshot, path, target_url, errors):
     if not isinstance(snapshot, dict):
         add_error(errors, "E106", path, "evidenceSnapshot is required and must be an object")
         return
@@ -144,9 +139,30 @@ def validate_snapshot(snapshot, path, errors):
             f"confidence must be one of {sorted(CONFIDENCE_LEVELS)}",
         )
 
-    for field in sorted(SNAPSHOT_REQUIRED_FIELDS - {"classification", "confidence", "ariaAttributes"}):
+    for field in sorted(
+        SNAPSHOT_REQUIRED_FIELDS
+        - {"classification", "confidence", "ariaAttributes", "observedUrl"}
+    ):
         if not isinstance(snapshot.get(field), str):
             add_error(errors, "E110", f"{path}.{field}", "field is required and must be a string")
+
+    observed_url = snapshot.get("observedUrl")
+    if has_url_credentials(observed_url):
+        add_error(errors, "E124", f"{path}.observedUrl", "observedUrl must not contain credentials")
+    elif not is_absolute_http_url(observed_url):
+        add_error(
+            errors,
+            "E123",
+            f"{path}.observedUrl",
+            "observedUrl is required and must be an absolute HTTP(S) URL",
+        )
+    elif is_absolute_http_url(target_url) and not is_same_origin(target_url, observed_url):
+        add_error(
+            errors,
+            "E125",
+            f"{path}.observedUrl",
+            "observedUrl must be same-origin with target.url",
+        )
 
     tag_name = snapshot.get("tagName")
     if isinstance(tag_name, str) and tag_name != tag_name.lower():
@@ -208,7 +224,7 @@ def validate_review(review, path, errors):
         add_error(errors, "E121", f"{path}.note", "note must be a non-empty string when present")
 
 
-def validate_approval_entry(entry, index, seen_keys, errors):
+def validate_approval_entry(entry, index, seen_keys, target_url, errors):
     path = f"$.approvals[{index}]"
     if not isinstance(entry, dict):
         add_error(errors, "E101", path, "approval entry must be an object")
@@ -239,7 +255,7 @@ def validate_approval_entry(entry, index, seen_keys, errors):
         )
 
     snapshot = entry.get("evidenceSnapshot")
-    validate_snapshot(snapshot, f"{path}.evidenceSnapshot", errors)
+    validate_snapshot(snapshot, f"{path}.evidenceSnapshot", target_url, errors)
     if (
         decision == "approved"
         and isinstance(snapshot, dict)
@@ -292,9 +308,10 @@ def validate_approval_artifact(artifact):
         add_error(errors, "E008", "$.approvals", "approvals is required and must be an array")
         return errors
 
+    target_url = target.get("url") if isinstance(target, dict) else ""
     seen_keys = set()
     for index, entry in enumerate(approvals):
-        validate_approval_entry(entry, index, seen_keys, errors)
+        validate_approval_entry(entry, index, seen_keys, target_url, errors)
     return errors
 
 
@@ -337,7 +354,51 @@ def validate_fixture(fixture):
             failures.append(
                 f"{scenario}: expected codes {expected_codes!r}, got {actual_codes!r}"
             )
-    return failures, len(cases)
+
+    observed_url_cases = fixture.get("observedUrlCases", [])
+    if not isinstance(observed_url_cases, list):
+        raise ValueError("approval validator fixture observedUrlCases must be an array")
+    for index, case in enumerate(observed_url_cases):
+        if not isinstance(case, dict):
+            failures.append(f"observedUrlCases[{index}] must be an object")
+            continue
+        snapshot = {
+            "classification": "safe",
+            "confidence": "high",
+            "pageContext": "Overview",
+            "observedUrl": case.get("value"),
+            "selector": "main [role='tab']",
+            "text": "Overview",
+            "role": "tab",
+            "type": "",
+            "tagName": "li",
+            "ariaAttributes": {"selected": "false"},
+            "interactionKind": "tab",
+        }
+        if case.get("omit") is True:
+            snapshot.pop("observedUrl")
+        artifact = {
+            "schemaVersion": SUPPORTED_SCHEMA_VERSION,
+            "target": {"url": "https://sample.local/"},
+            "approvals": [
+                {
+                    "candidateKey": "interaction:selector:999999999999999999999999",
+                    "decision": "approved",
+                    "evidenceSnapshot": snapshot,
+                    "review": {
+                        "reviewer": "fixture-reviewer",
+                        "reviewedAt": "2026-07-16T09:30:00Z",
+                    },
+                }
+            ],
+        }
+        actual_codes = [code for code, _, _ in validate_approval_artifact(artifact)]
+        if actual_codes != case.get("expectedCodes"):
+            failures.append(
+                f"{case.get('scenario')}: expected codes {case.get('expectedCodes')!r}, "
+                f"got {actual_codes!r}"
+            )
+    return failures, len(cases) + len(observed_url_cases)
 
 
 def main():

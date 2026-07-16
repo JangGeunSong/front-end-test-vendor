@@ -1058,6 +1058,7 @@ def extract_menu_candidate(dom_data):
         
         menus.append({
             "index": item.get("index"),
+            "observedUrl": item.get("observedUrl", ""),
             "tagName": item.get("tagName", ""),
             "text": item.get("text", ""),
             "href": item.get("href", ""),

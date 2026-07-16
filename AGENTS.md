@@ -57,6 +57,7 @@
 - Review Report: `docs/ANALYSIS_REVIEW_REPORT.md`
 - Safe Interaction: `docs/SAFE_INTERACTION_STRATEGY.md`
 - Interaction approval: `docs/INTERACTION_APPROVAL_CONTRACT.md`
+- Structured interaction plan: `docs/STRUCTURED_INTERACTION_PLAN.md`
 - 오프라인/폐쇄망: `docs/OFFLINE_NETWORK_POLICY.md`
 - 검증 이력: `docs/CROSS_SITE_VALIDATION.md`
 - 작업 기록: `docs/TASK_LOG.md`
@@ -120,6 +121,7 @@ External LLM command 실행 전:
 - structured navigation plan field 수정 시 `docs/TEST_PLAN_SCHEMA.md` 검토
 - structured interaction plan field/template/reset 의미 수정 시 `docs/STRUCTURED_INTERACTION_PLAN.md`와 `docs/JSON_SCHEMA.md` 검토
 - interaction approval field/meaning 수정 시 `docs/INTERACTION_APPROVAL_CONTRACT.md`와 `docs/JSON_SCHEMA.md` 검토
+- interaction `observedUrl`/plan `startUrl` provenance 수정 시 producer, approval/reconciliation, `docs/STRUCTURED_INTERACTION_PLAN.md`, `docs/DATA_FLOW.md` 검토
 - navigation template 수정 시 `docs/TEST_TEMPLATE_CATALOG.md` 검토
 - data flow 수정 시 `docs/DATA_FLOW.md` 검토
 - 모듈 책임 변경 시 `docs/MODULE_MAP.md`와 `docs/DATA_FLOW.md` 검토

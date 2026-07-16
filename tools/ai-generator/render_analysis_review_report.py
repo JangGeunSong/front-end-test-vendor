@@ -317,6 +317,7 @@ def render_candidate_section(report, key, heading, mode):
         append_value(lines, "Confidence", item.get("confidence"))
         append_value(lines, "Reason", item.get("reason"))
         append_value(lines, "Page context", item.get("pageContext"))
+        append_code_value(lines, "Observed URL", item.get("observedUrl"))
         append_value(lines, "Form association", item.get("formAssociation"))
         append_value(lines, "Surrounding text", item.get("surroundingText"))
         append_mapping(lines, "ARIA attributes", item.get("ariaAttributes"))

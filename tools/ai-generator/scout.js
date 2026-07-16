@@ -179,6 +179,7 @@ async function collectPageProfile(page) {
 
     function summarizeElement(el, textLimit = 120) {
       return {
+        observedUrl: window.location.href,
         tagName: el.tagName,
         text: normalizeText(el.innerText || el.textContent || '').slice(0, textLimit),
         id: el.id || '',
@@ -464,6 +465,7 @@ function extractMenuCandidates(elements) {
     }
 
     const menu = {
+      observedUrl: item.observedUrl || '',
       text: item.text || '',
       href: item.href || '',
       id: item.id || '',
@@ -514,6 +516,7 @@ function extractMenuCandidates(elements) {
 
 function toProfileMenu(menu) {
   return {
+    observedUrl: menu.observedUrl || '',
     text: menu.text || '',
     href: menu.href || '',
     id: menu.id || '',
@@ -1173,6 +1176,7 @@ async function scoutSite(url) {
 
         return {
           index,
+          observedUrl: window.location.href,
           tagName,
           text,
           id,

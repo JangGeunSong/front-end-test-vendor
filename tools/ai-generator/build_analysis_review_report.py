@@ -473,7 +473,7 @@ def build_report(scout_result, menu_map, test_plan, warnings, source_paths=None)
     }
 
     return {
-        "version": "1.0",
+        "version": "2.0",
         "sources": sources,
         "summary": {
             "targetUrl": target_url,

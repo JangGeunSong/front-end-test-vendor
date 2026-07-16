@@ -1,6 +1,6 @@
 {
   "analysisReviewReport": {
-    "version": "1.0",
+    "version": "2.0",
     "summary": {
       "targetUrl": "https://sample.local/"
     },
@@ -10,6 +10,7 @@
         "classification": "safe",
         "confidence": "high",
         "pageContext": "Overview",
+        "observedUrl": "https://sample.local/",
         "selector": "main [role='tab']",
         "text": "Overview",
         "role": "tab",
@@ -25,6 +26,7 @@
         "classification": "safe",
         "confidence": "high",
         "pageContext": "Details",
+        "observedUrl": "https://sample.local/docs/details",
         "selector": "main button.details",
         "text": "Details",
         "role": "button",
@@ -40,6 +42,7 @@
         "classification": "safe",
         "confidence": "medium",
         "pageContext": "Options",
+        "observedUrl": "https://sample.local/docs/options?mode=advanced#menu",
         "selector": "main button.options",
         "text": "Options",
         "role": "button",
@@ -55,6 +58,7 @@
         "classification": "safe",
         "confidence": "high",
         "pageContext": "Help",
+        "observedUrl": "https://sample.local/help",
         "selector": "main button.help",
         "text": "Help",
         "role": "button",
@@ -72,6 +76,7 @@
         "classification": "unsafe",
         "confidence": "high",
         "pageContext": "Settings",
+        "observedUrl": "https://sample.local/settings",
         "selector": "main button.delete",
         "text": "Delete",
         "role": "button",
@@ -86,6 +91,7 @@
         "classification": "unsafe",
         "confidence": "high",
         "pageContext": "Preferences",
+        "observedUrl": "https://sample.local/preferences",
         "selector": "main button.preference-action",
         "text": "Save preference",
         "role": "button",
@@ -107,6 +113,7 @@
         "classification": "unknown",
         "confidence": "low",
         "pageContext": "Filters",
+        "observedUrl": "https://sample.local/filters",
         "selector": "main button.filter",
         "text": "Filter",
         "role": "button",
@@ -117,7 +124,7 @@
     ]
   },
   "approvalArtifact": {
-    "schemaVersion": "1.0",
+    "schemaVersion": "2.0",
     "target": {
       "url": "https://sample.local/"
     },
@@ -129,6 +136,7 @@
           "classification": "safe",
           "confidence": "high",
           "pageContext": "Filters",
+          "observedUrl": "https://sample.local/filters",
           "selector": "main button.filter",
           "text": "Filter",
           "role": "button",
@@ -149,6 +157,7 @@
           "classification": "safe",
           "confidence": "high",
           "pageContext": "Overview",
+          "observedUrl": "https://sample.local/",
           "selector": "main [role='tab']",
           "text": "Overview",
           "role": "tab",
@@ -171,6 +180,7 @@
           "classification": "safe",
           "confidence": "high",
           "pageContext": "Missing",
+          "observedUrl": "https://sample.local/missing",
           "selector": "main button.missing",
           "text": "Missing",
           "role": "button",
@@ -193,6 +203,7 @@
           "classification": "unsafe",
           "confidence": "high",
           "pageContext": "Settings",
+          "observedUrl": "https://sample.local/settings",
           "selector": "main button.delete",
           "text": "Delete",
           "role": "button",
@@ -212,8 +223,9 @@
         "decision": "approved",
         "evidenceSnapshot": {
           "classification": "safe",
-          "confidence": "high",
+          "confidence": "medium",
           "pageContext": "Options",
+          "observedUrl": "https://sample.local/docs/options",
           "selector": "main button.options",
           "text": "Options",
           "role": "button",
@@ -236,6 +248,7 @@
           "classification": "safe",
           "confidence": "high",
           "pageContext": "Details",
+          "observedUrl": "https://sample.local/docs/details",
           "selector": "main button.details",
           "text": "Details",
           "role": "button",
@@ -258,6 +271,7 @@
           "classification": "safe",
           "confidence": "high",
           "pageContext": "Preferences",
+          "observedUrl": "https://sample.local/preferences",
           "selector": "main button.preference-action",
           "text": "Save preference",
           "role": "button",
@@ -273,7 +287,14 @@
       }
     ]
   },
+  "reportVersionFailure": {
+    "version": "1.0",
+    "expectedCodes": [
+      "C003"
+    ]
+  },
   "expected": {
+    "schemaVersion": "2.0",
     "summary": {
       "currentCandidateCount": 7,
       "approvalEntryCount": 7,
@@ -333,7 +354,7 @@
           "evidenceChanged"
         ],
         "changedFields": [
-          "confidence"
+          "observedUrl"
         ]
       },
       {
@@ -373,6 +394,9 @@
     "eligibleCandidateKeys": [
       "interaction:selector:111111111111111111111111"
     ],
+    "eligibleCandidateObservedUrls": {
+      "interaction:selector:111111111111111111111111": "https://sample.local/"
+    },
     "unreviewedCandidateKeys": [
       "interaction:selector:888888888888888888888888"
     ]

@@ -13,7 +13,7 @@ The current implementation includes:
 - deterministic Safe Interaction candidate classification MVP
 - versioned Interaction Approval artifact validation
 - deterministic Interaction Approval reconciliation result
-- Structured Interaction Plan schema `1.0`, deterministic builder, and strict validator
+- Structured Interaction Plan schema `2.0`, deterministic builder, and strict validator
 
 The approval artifact writer/editor, `Level 3 interactionProfile` producer, deterministic renderer, and Safe Interaction execution remain planned work. This document distinguishes implemented schemas, contract-defined schemas, and future candidate schemas.
 
@@ -316,6 +316,7 @@ Do not use the following as standalone page identity signals:
 - `href`
 - `semanticRegion`
 - `pageContext`
+- `observedUrl`: actual final browser URL at candidate collection time; absolute credential-free HTTP(S), target same-origin
 - `formAssociation`
 - `surroundingText`
 - `ariaAttributes`
@@ -346,7 +347,7 @@ tools/ai-generator/review/interaction_approvals.json
 
 Top-level contract:
 
-- `schemaVersion`: required, current contract `1.0`
+- `schemaVersion`: required, current contract `2.0`
 - `target.url`: required single-target scope
 - `approvals`: required array, empty array allowed
 
@@ -354,10 +355,12 @@ Approval entry contract:
 
 - `candidateKey`: required exact candidate reference
 - `decision`: required `approved`, `held`, or `rejected`
-- `evidenceSnapshot`: required immutable minimum candidate evidence
+- `evidenceSnapshot`: required immutable minimum candidate evidence, including same-origin `observedUrl`
 - `review`: required reviewer identifier and timezone-aware review timestamp; note is optional
 
 `tools/ai-generator/validate_interaction_approvals.py`는 duplicate `candidateKey`, unknown field, unsupported version과 invalid enum을 거부한다. `candidateKey`는 형식만 검증하고 classifier의 identity algorithm을 복제하지 않는다. Required snapshot string은 값이 없을 때 빈 문자열을 사용하며 null은 허용하지 않는다. `ariaAttributes`는 classifier가 normalize하는 ARIA field의 string map이다. `safe`에는 `interactionKind`, `unsafe`에는 `actionKind`와 `riskLevel`이 필요하며 다른 classification의 conditional field는 허용하지 않는다.
+
+Schema `2.0`은 required `evidenceSnapshot.observedUrl`을 추가한다. 이 값은 absolute credential-free HTTP(S) URL이고 artifact target과 same-origin이어야 하며 query, fragment, trailing slash를 normalize하지 않는다. URL 변경은 candidateKey를 변경하지 않고 reconciliation `evidenceChanged`를 발생시킨다. Approval `1.0`은 지원하지 않는다.
 
 Stale은 human decision 값이 아니라 reconciliation에서 계산하는 reference status다. Current `safe`, human `approved`, valid non-stale reference가 모두 충족되어야 future interaction plan eligibility가 있다.
 
@@ -375,7 +378,7 @@ Top-level schema:
 
 ```json
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "2.0",
   "target": {
     "url": "https://sample.local/"
   },
@@ -404,7 +407,7 @@ Top-level schema:
 - `ineligibilityReasons`: stable order의 `missingCandidate`, `evidenceChanged`, `currentClassificationNotSafe`, `decisionNotApproved` subset
 - `changedFields`: `evidenceChanged`일 때만 존재하며 review-critical field의 stable contract order를 사용
 
-`eligibleCandidates[]`는 classifier 전체를 복제하지 않고 `candidateKey`, `currentClassification`, `interactionKind`, `confidence`, `pageContext`, `selector`, `text`만 제공한다. `unreviewedCandidates[]`는 approval entry가 없는 current candidate의 `candidateKey`, `currentClassification`, `text`, `pageContext`만 제공한다. `unreviewed`는 human decision enum이 아니다.
+`eligibleCandidates[]`는 classifier 전체를 복제하지 않고 `candidateKey`, `currentClassification`, `interactionKind`, `confidence`, `pageContext`, `observedUrl`, `selector`, `text`만 제공한다. Builder는 eligible `observedUrl`과 current report candidate evidence가 exact하게 일치할 때만 plan `startUrl`을 생성한다. `unreviewedCandidates[]`는 approval entry가 없는 current candidate의 `candidateKey`, `currentClassification`, `text`, `pageContext`만 제공한다. `unreviewed`는 human decision enum이 아니다.
 
 Approval entry와 current candidate는 `candidateKey` 오름차순으로 처리한다. 생성 시각을 포함하지 않으며 같은 input은 byte-stable JSON을 생성한다. Invalid approval, invalid current report, target scope mismatch에서는 result를 생성하지 않는다.
 
@@ -416,7 +419,7 @@ Top-level outline:
 
 ```json
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "2.0",
   "target": {
     "url": "https://example.test"
   },
@@ -428,7 +431,7 @@ Top-level outline:
 }
 ```
 
-Schema `1.0`은 `interaction.tabSelection`과 `interaction.expandedToggle` template만 정의한다. 각 test는 exact eligible `candidateKey`와 target snapshot, bounded initial/expected state, required reset/restored state를 소유한다. Human approval metadata, classifier 전체 output, free-form JavaScript/Playwright code와 runtime result는 포함하지 않는다.
+Schema `2.0`은 `interaction.tabSelection`과 `interaction.expandedToggle` template만 정의한다. 각 test는 exact eligible `candidateKey`, current `observedUrl`의 exact copy인 required `startUrl`, target snapshot, bounded initial/expected state, required reset/restored state를 소유한다. Human approval metadata, classifier 전체 output, free-form JavaScript/Playwright code와 runtime result는 포함하지 않는다.
 
 `build_interaction_plan.py`와 `validate_interaction_plan.py`가 builder/validator 계약을 구현한다. Renderer와 browser execution은 아직 구현되지 않았다. 상세 field, ordering, unknown-field policy, template compatibility와 validation invariant는 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다.
 
@@ -565,7 +568,7 @@ Legacy cautions:
 
 주요 top-level 필드:
 
-- `version`: report 계약 버전
+- `version`: report 계약 버전, current `2.0`
 - `sources`: report 생성에 사용한 artifact 경로
 - `summary`: test, primary navigation, pageProfile, 제외 및 unresolved 후보 count
 - `generatedNavigationTests`: structured plan과 primary menu evidence를 결합한 navigation test 검수 항목
@@ -580,4 +583,4 @@ Legacy cautions:
 
 배열 순서는 입력 artifact의 deterministic 순서를 유지한다. report에는 생성 시각을 넣지 않으므로 동일 입력으로 반복 생성하면 동일한 JSON을 얻는다. 구조 근거가 부족한 interaction 의미는 임의 추론하지 않고 unknown/unresolved로 유지하며, 후보가 없는 section도 빈 배열로 보존한다.
 
-interaction candidate의 `candidateKey`는 classifier 결과에서 report의 safe/unsafe/unresolved section으로 변경 없이 전달된다. navigation candidate에는 이 interaction identity가 필수 필드가 아니다.
+interaction candidate의 `candidateKey`와 `observedUrl`은 classifier 결과에서 report의 safe/unsafe/unresolved section으로 변경 없이 전달된다. Report `2.0`은 모든 interaction candidate에 `observedUrl`을 요구한다. navigation candidate에는 이 interaction identity/provenance field가 필수 필드가 아니다.

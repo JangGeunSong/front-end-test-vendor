@@ -76,7 +76,7 @@ tools/ai-generator/review/interaction_approvals.json
 
 ## Schema Version Contract
 
-Top-level `schemaVersion`은 필수이며 MVP 값은 `1.0`이다. 형식은 `major.minor`를 사용한다.
+Top-level `schemaVersion`은 필수이며 현재 값은 `2.0`이다. 형식은 `major.minor`를 사용한다. Candidate 실행 위치를 immutable evidence로 보존하는 required `observedUrl` 추가가 breaking change이므로 `1.0`에서 major version을 올렸다.
 
 - major 변경: field 제거/이름 변경, required field 추가, 기존 field 의미 변경, decision 또는 classification enum 변경·확장
 - minor 변경: 기존 의미를 바꾸지 않는 optional field 추가
@@ -127,6 +127,7 @@ Required fields:
 - `classification`: `safe`, `unsafe`, `unknown`
 - `confidence`: `high`, `medium`, `low`
 - `pageContext`: string, 값이 없으면 빈 문자열
+- `observedUrl`: candidate가 실제 rendered DOM에서 관찰된 absolute credential-free HTTP(S) URL; artifact `target.url`과 same-origin
 - `selector`: string, selector가 없으면 빈 문자열
 - `text`: classifier가 제공한 display string, 값이 없으면 빈 문자열
 - `role`: string, 값이 없으면 빈 문자열
@@ -162,7 +163,7 @@ Approval artifact는 human-authored state이므로 deterministic generated repor
 
 ```json
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "2.0",
   "target": {
     "url": "https://sample.local/"
   },
@@ -174,6 +175,7 @@ Approval artifact는 human-authored state이므로 deterministic generated repor
         "classification": "safe",
         "confidence": "high",
         "pageContext": "Overview",
+        "observedUrl": "https://sample.local/docs/overview?mode=basic#tabs",
         "selector": "main [role='tab']:nth-of-type(1)",
         "text": "Overview",
         "role": "tab",
@@ -200,6 +202,7 @@ Approval artifact는 human-authored state이므로 deterministic generated repor
 
 - top-level required fields: `schemaVersion`, `target`, `approvals`
 - `target.url`: required non-empty absolute HTTP(S) URL
+- `evidenceSnapshot.observedUrl`: required absolute credential-free HTTP(S) URL이며 target과 same-origin
 - approval required fields: `candidateKey`, `decision`, `evidenceSnapshot`, `review`
 - `candidateKey`: documented interaction key format
 - `decision`: `approved`, `held`, `rejected`
@@ -235,7 +238,7 @@ Minimum reference statuses:
 - `missingCandidate`: current candidate set에서 exact `candidateKey`를 찾을 수 없음
 - `evidenceChanged`: exact key는 존재하지만 current classification 또는 snapshot field가 달라짐
 
-Review-critical comparison fields는 `classification`, `confidence`, `pageContext`, `selector`, `text`, `role`, `type`, `tagName`, `ariaAttributes`와 존재하는 `interactionKind`, `actionKind`, `riskLevel`이다.
+Review-critical comparison fields는 `classification`, `confidence`, `pageContext`, `observedUrl`, `selector`, `text`, `role`, `type`, `tagName`, `ariaAttributes`와 존재하는 `interactionKind`, `actionKind`, `riskLevel`이다.
 
 Case rules:
 
@@ -243,6 +246,7 @@ Case rules:
 - selector/page context 변화로 새 key가 생성되면 old approval은 `missingCandidate`다.
 - heuristic similarity로 replacement candidate를 제안할 수는 있지만 old decision을 새 key로 자동 이전하지 않는다.
 - exact key가 같아도 classification, kind, risk 또는 review-critical evidence가 달라지면 `evidenceChanged`이며 재검토 전에는 eligibility가 없다.
+- exact key가 같아도 current `observedUrl`이 approval snapshot과 다르면 `changedFields`에 `observedUrl`을 기록하고 `evidenceChanged`로 처리한다. CandidateKey algorithm에는 URL을 추가하지 않는다.
 - stale entry의 원래 human decision은 audit 의미로 보존한다. Re-review가 완료될 때만 current key/snapshot/review metadata로 명시적으로 갱신한다.
 
 ## Reconciliation Implementation
@@ -306,7 +310,7 @@ Future structured interaction plan이 소유할 정보:
 - page UI reset/restore behavior
 - execution validation 및 failure evidence contract
 
-Approval artifact에는 Playwright step, click sequence, assertion locator, reset selector를 추가하지 않는다. Structured Interaction Plan schema `1.0`과 implemented builder/validator contract는 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다. Renderer와 browser execution은 아직 구현되지 않았다.
+Approval artifact에는 Playwright step, click sequence, assertion locator, reset selector를 추가하지 않는다. Structured Interaction Plan schema `2.0`의 per-test `startUrl`과 implemented builder/validator contract는 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다. Renderer와 browser execution은 아직 구현되지 않았다.
 
 ## MVP Non-Goals
 

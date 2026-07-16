@@ -1,0 +1,137 @@
+{
+  "validPlan": {
+    "schemaVersion": "2.0",
+    "target": {
+      "url": "https://example.test"
+    },
+    "source": {
+      "reconciliationPath": "tools/ai-generator/fixtures/interaction_plan_renderer.fixture.json",
+      "analysisReportPath": "tools/ai-generator/fixtures/interaction_plan_renderer.fixture.json"
+    },
+    "tests": [
+      {
+        "id": "interaction-test:selector:111111111111111111111111:tabSelection",
+        "title": "Interaction: 탭 \"A\" selection",
+        "candidateKey": "interaction:selector:111111111111111111111111",
+        "template": "interaction.tabSelection",
+        "pageContext": "Tabs",
+        "startUrl": "https://example.test/docs/tabs?mode=quoted#examples",
+        "target": {
+          "selector": "main [data-label=\"A 'quoted' \\\\ path\n한글\"] [role='tab']",
+          "interactionKind": "tab"
+        },
+        "initialState": {
+          "selected": false
+        },
+        "expectedState": {
+          "selected": true
+        },
+        "reset": {
+          "required": true,
+          "strategy": "reloadPage",
+          "restoredState": {
+            "selected": false
+          }
+        }
+      },
+      {
+        "id": "interaction-test:selector:222222222222222222222222:expandedToggle",
+        "title": "Interaction: Details expanded toggle",
+        "candidateKey": "interaction:selector:222222222222222222222222",
+        "template": "interaction.expandedToggle",
+        "pageContext": "Details",
+        "startUrl": "https://example.test/settings/panel",
+        "target": {
+          "selector": "main button.details[data-state='closed']",
+          "interactionKind": "expandCollapse"
+        },
+        "initialState": {
+          "expanded": false
+        },
+        "expectedState": {
+          "expanded": true
+        },
+        "reset": {
+          "required": true,
+          "strategy": "toggleSameTarget",
+          "restoredState": {
+            "expanded": false
+          }
+        }
+      }
+    ]
+  },
+  "expectedFragments": [
+    "await expect(target).toHaveAttribute('aria-selected', \"false\");",
+    "await expect(target).toHaveAttribute('aria-selected', \"true\");",
+    "await page.reload();",
+    "const restoredTarget = page.locator(",
+    "await expect(restoredTarget).toHaveAttribute('aria-selected', \"false\");",
+    "await expect(target).toHaveAttribute('aria-expanded', \"false\");",
+    "await expect(target).toHaveAttribute('aria-expanded', \"true\");"
+  ],
+  "expectedCounts": {
+    "await target.click();": 3,
+    "await page.reload();": 1,
+    "const restoredTarget = page.locator(": 1
+  },
+  "failureCases": [
+    {
+      "scenario": "unsupported-schema-version",
+      "mutation": {
+        "operation": "set",
+        "path": [
+          "schemaVersion"
+        ],
+        "value": "1.0"
+      },
+      "expectedCodes": [
+        "R003"
+      ]
+    },
+    {
+      "scenario": "unsupported-template",
+      "mutation": {
+        "operation": "set",
+        "path": [
+          "tests",
+          0,
+          "template"
+        ],
+        "value": "interaction.dialogOpenClose"
+      },
+      "expectedCodes": [
+        "R109"
+      ]
+    },
+    {
+      "scenario": "missing-start-url",
+      "mutation": {
+        "operation": "remove",
+        "path": [
+          "tests",
+          0,
+          "startUrl"
+        ]
+      },
+      "expectedCodes": [
+        "R115"
+      ]
+    },
+    {
+      "scenario": "missing-selector",
+      "mutation": {
+        "operation": "remove",
+        "path": [
+          "tests",
+          1,
+          "target",
+          "selector"
+        ]
+      },
+      "expectedCodes": [
+        "R113"
+      ]
+    }
+  ]
+}

@@ -1,5 +1,36 @@
 # Task Log
 
+## 2026-07-16 - Render Structured Interaction Plans
+
+### 작업 목적
+
+- Validated Structured Interaction Plan schema `2.0`을 deterministic Playwright interaction spec으로 변환한다.
+- 실제 browser interaction 전에 JavaScript syntax와 Playwright test discovery까지 정적으로 검증한다.
+
+### 변경 내용
+
+- `render_interaction_plan.py`를 추가해 plan 외 report, approval, reconciliation artifact를 다시 읽지 않는 renderer boundary를 구현했다.
+- 각 test의 exact `startUrl`을 `page.goto()`에, exact selector를 `page.locator()`에 semantic change 없이 JSON string literal로 encoding한다.
+- `interaction.tabSelection`은 selected false → click → true → reload → target re-resolution → false를, `interaction.expandedToggle`은 expanded false → click → true → same-target click → false를 고정 shape로 생성한다.
+- Reload/toggle은 restore action이며 restored-state assertion이 성공 여부를 판정한다. Timeout, sleep, fallback selector와 free-form code는 생성하지 않는다.
+- Renderer direct safety check는 schema `2.0`, required renderer field, duplicate/order, supported template와 bounded state/reset을 검사하고 전체 source 완성 후 atomic replace한다.
+- Neutral renderer fixture와 `ai:render-interaction-plan` command를 추가했다. Output은 timestamp와 local path 없이 UTF-8 LF/trailing newline을 사용한다.
+
+### 확인 결과
+
+- Project `venv` Python 3.10.11에서 renderer syntax, neutral fixture의 두 template와 4개 direct failure scenario를 통과했다.
+- Quote, backslash, newline과 Unicode selector를 exact literal로 보존하고 repeated render byte equality를 확인했다.
+- Fixture generated spec은 Node syntax check와 Playwright `--list`에서 2 tests로 discovery됐다.
+- Existing ignored schema `2.0` public-site plan은 strict validator 통과 후 npm wrapper로 1 tabSelection spec을 생성했고 syntax 및 1-test discovery를 통과했다.
+- Interaction plan builder/validator, approval reconciliation과 navigation plan validator/renderer regression을 확인했다.
+- 실제 Playwright test body, browser click, reload/toggle runtime transition, screenshot과 execution report는 실행하지 않았다.
+
+### 다음 작업
+
+- Generated interaction spec의 실제 browser transition과 reset/restore assertion을 최소 public-site target에서 검증한다.
+- Runtime failure evidence/screenshot/execution report contract를 renderer와 분리해 정의한다.
+- Approval writer/editor는 browser execution과 분리된 human review workflow로 유지한다.
+
 ## 2026-07-16 - Preserve interaction execution URL provenance
 
 ### 작업 목적

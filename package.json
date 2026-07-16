@@ -18,6 +18,7 @@
     "ai:reconcile-interaction-approvals": "python tools/ai-generator/reconcile_interaction_approvals.py",
     "ai:build-interaction-plan": "python tools/ai-generator/build_interaction_plan.py",
     "ai:validate-interaction-plan": "python tools/ai-generator/validate_interaction_plan.py",
+    "ai:render-interaction-plan": "python tools/ai-generator/render_interaction_plan.py",
     "ai:render-plan": "python tools/ai-generator/render_test_plan.py",
     "ai:render-generated-plan": "python tools/ai-generator/render_test_plan.py --input tools/ai-generator/generated/test_plan.generated.json --output tests/generated/generated_from_plan.spec.js",
     "ai:render-llm-plan": "python tools/ai-generator/render_test_plan.py --input tools/ai-generator/generated/test_plan.llm.json --output tests/generated/generated_from_plan.spec.js",

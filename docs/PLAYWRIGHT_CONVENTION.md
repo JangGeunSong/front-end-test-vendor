@@ -78,6 +78,12 @@ for (const child of children) {
 - navigation 또는 UI 상태는 `expect(locator).toBeVisible()` 같은 조건 기반 assertion으로 기다린다.
 - 필요한 경우 Playwright의 auto-waiting을 우선 활용한다.
 
+## Generated Interaction Spec Pattern
+
+Validated Structured Interaction Plan schema `2.0`의 renderer는 test별 exact `startUrl`로 이동하고 exact selector를 `page.locator()`에 전달한다. `interaction.tabSelection`과 `interaction.expandedToggle`의 bounded ARIA state, click, reset, restored assertion만 생성하며 selector fallback, 임의 wait, free-form assertion을 추가하지 않는다.
+
+Generated interaction spec은 syntax와 Playwright discovery를 통과한 source artifact다. 실제 browser transition 성공은 별도 runtime validation 단계에서 확인한다. 상세 template/reset 계약은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)를 따른다.
+
 ## Visual Debug
 
 `HIGHLIGHT=true`인 경우 helper가 메뉴 클릭 대상과 Page Identity 대상을 강조할 수 있다.

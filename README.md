@@ -41,8 +41,12 @@
   - schema/coverage validation
   - deterministic Playwright spec rendering
   - plan 비교 및 quality gate
+- **Structured Interaction Plan Pipeline**
+  - approved eligible candidate의 exact `startUrl`/selector와 bounded state/reset plan 생성·검증
+  - `interaction.tabSelection`과 `interaction.expandedToggle` deterministic Playwright spec rendering
+  - JavaScript syntax와 Playwright test discovery 검증
 
-Level 3 Safe Interaction Test와 Level 4 Business Scenario Test는 향후 확장 단계입니다.
+Level 3 generated interaction spec의 실제 browser transition 실행과 Level 4 Business Scenario Test는 향후 확장 단계입니다.
 
 현재 지원하지 않는 범위도 명확히 구분합니다.
 
@@ -193,14 +197,17 @@ visual debug에서는 다음을 눈으로 확인합니다.
 
 structured plan 경로는 `menu_map.json`과 `pageProfiles`를 바탕으로 test plan JSON을 만들고, validator와 deterministic renderer를 거쳐 `tests/generated/generated_from_plan.spec.js`를 생성합니다.
 
-승인 reconciliation 결과에서 Level 3 실행 전 단계의 Structured Interaction Plan JSON을 생성하고 검증하려면 다음 명령을 사용합니다. 이 경로는 browser나 Playwright renderer를 실행하지 않습니다.
+승인 reconciliation 결과에서 Structured Interaction Plan JSON을 생성·검증하고 deterministic Playwright source를 렌더링하려면 다음 명령을 사용합니다. Renderer command는 browser test body를 실행하지 않습니다.
 
 현재 interaction plan schema `2.0`은 candidate가 실제 관찰된 same-origin `observedUrl`을 test별 `startUrl`로 exact 보존합니다. Target root나 page context에서 실행 URL을 추론하지 않습니다.
 
 ```powershell
 npm run ai:build-interaction-plan
 npm run ai:validate-interaction-plan
+npm run ai:render-interaction-plan
 ```
+
+기본 renderer output은 `tests/generated/generated_interaction_plan.spec.js`입니다. 실제 click/reset/restore를 실행하기 전 static 확인은 `node --check`와 `npx playwright test tests/generated/generated_interaction_plan.spec.js --list`로 수행할 수 있습니다.
 
 ### 어떤 명령을 쓰면 되는가
 
@@ -332,6 +339,7 @@ Playwright report에서 실행 결과, trace, screenshot 등 디버깅 정보를
 | deterministic/LLM plan 품질 게이트 | `npm run ai:compare-plans:gate` |
 | interaction plan JSON 생성 | `npm run ai:build-interaction-plan` |
 | interaction plan JSON 검증 | `npm run ai:validate-interaction-plan` |
+| interaction plan Playwright spec 렌더 | `npm run ai:render-interaction-plan` |
 | generated 테스트 실행 | `npm run test:generated` |
 | generated visual debug 실행 | `npm run test:generated:visual` |
 | smoke 테스트 실행 | `npm run test:smoke` |

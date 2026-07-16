@@ -2,9 +2,9 @@
 
 ## Purpose
 
-이 문서는 approval reconciliation의 eligible interaction candidate와 future deterministic Level 3 renderer 사이의 structured contract를 정의한다.
+이 문서는 approval reconciliation의 eligible interaction candidate와 deterministic Level 3 renderer 사이의 structured contract를 정의한다.
 
-목표는 approved safe candidate를 free-form Playwright JavaScript 없이 bounded plan으로 표현하고, validator와 future renderer가 classification, approval 또는 selector 추론을 다시 수행하지 않게 하는 것이다. Deterministic builder와 strict validator는 구현되어 있으며 renderer와 browser execution은 아직 구현되지 않았다.
+목표는 approved safe candidate를 free-form Playwright JavaScript 없이 bounded plan으로 표현하고, validator와 renderer가 classification, approval 또는 selector 추론을 다시 수행하지 않게 하는 것이다. Deterministic builder, strict validator와 두 MVP template의 deterministic renderer가 구현되어 있다. Generated spec의 browser execution은 아직 구현·검증되지 않았다.
 
 ## Architecture Position
 
@@ -16,7 +16,8 @@ current classified candidates
   -> deterministic interaction plan builder
   -> structured interaction plan
   -> strict interaction plan validator
-  -> future deterministic Level 3 renderer
+  -> deterministic Level 3 renderer
+  -> generated Playwright interaction spec
   -> future browser execution / execution report
 ```
 
@@ -400,6 +401,7 @@ Unsupported candidate는 executable TODO plan case로 넣지 않는다. 별도 a
 ```text
 npm run ai:build-interaction-plan
 npm run ai:validate-interaction-plan
+npm run ai:render-interaction-plan
 ```
 
 Neutral fixture command:
@@ -411,7 +413,7 @@ npm run ai:validate-interaction-plan -- --fixture tools/ai-generator/fixtures/in
 
 ## Renderer And Execution Boundary
 
-Future deterministic renderer는 validated template과 bounded fields만 해석한다.
+`tools/ai-generator/render_interaction_plan.py`는 validated template과 bounded fields만 해석해 `tests/generated/generated_interaction_plan.spec.js`를 생성한다. Renderer direct invocation은 malformed input과 renderer 필수 field를 fail-fast하지만 strict eligibility/evidence validation은 선행 validator 책임으로 유지한다.
 
 Renderer responsibility:
 
@@ -421,10 +423,13 @@ Renderer responsibility:
 - fixed initial/expected/restored state assertion
 - fixed reset strategy implementation
 - unsupported template rejection
+- timestamp, local absolute path와 environment-dependent output이 없는 byte-stable UTF-8 source
 
 Renderer가 selector fallback, candidate search, approval lookup, generic JavaScript evaluation을 수행하지 않는다.
 
-Browser execution과 execution report는 별도 future layer다. Plan JSON에 runtime result를 기록하지 않는다.
+현재 fixed rendering은 `interaction.tabSelection`의 selected false → true → reload → false assertion과 `interaction.expandedToggle`의 expanded false → true → same-target toggle → false assertion만 지원한다. Reload와 toggle은 restore action이며 restored assertion이 성공 여부를 판정한다.
+
+Generated source는 JavaScript syntax와 Playwright `--list` discovery까지 검증한다. Browser execution과 execution report는 별도 future layer다. Plan JSON에 runtime result를 기록하지 않는다.
 
 ## Future Failure Contract
 
@@ -508,7 +513,7 @@ Future execution report는 최소 다음 failure category를 구분해야 한다
 ## MVP Non-Goals
 
 - approval writer/editor
-- Level 3 renderer/helper/browser execution
+- Level 3 browser execution과 runtime helper/evidence report
 - unsafe or unknown action representation
 - business scenario sequencing
 - form input and data mutation

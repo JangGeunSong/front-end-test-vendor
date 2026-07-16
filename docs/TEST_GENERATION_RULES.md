@@ -4,7 +4,7 @@
 
 이 문서는 AI generated Playwright spec 생성 규칙을 정의한다.
 
-현재 자동 생성 범위는 Level 1 Navigation Smoke Test와 Level 2 Page Identity Test MVP까지이다. Level 3 Safe Interaction Test와 Level 4 Business Scenario Test는 자동 생성 대상이 아니다.
+현재 실행 검증 범위는 Level 1 Navigation Smoke Test와 Level 2 Page Identity Test MVP까지이다. Level 3는 validated Structured Interaction Plan의 두 safe template을 deterministic spec으로 렌더링하고 static discovery하는 단계까지 구현됐으며 browser test body는 아직 실행 검증 대상이 아니다. Level 4 Business Scenario Test는 자동 생성 대상이 아니다.
 
 ## Generated Spec Scope
 
@@ -20,6 +20,7 @@ generated spec이 자동 생성할 수 있는 범위:
 - pageProfiles 기반 mainContainer visible assertion
 - 보수적인 Page Identity highlight
 - 안정적인 후보가 없을 때 TODO 주석
+- validated interaction plan의 exact `startUrl`/selector와 `interaction.tabSelection`/`interaction.expandedToggle` bounded transition rendering
 
 `menus` 전체 후보를 그대로 generated spec 대상으로 사용하지 않는다. `linkCandidates`, `ctaCandidates`, `footerLinks`, `nonPrimaryNavigationCandidates`는 Level 1/2 generated spec 대상이 아니며 추후 Level 3/link check 확장 후보로 보존한다.
 
@@ -33,6 +34,7 @@ generated spec이 자동 생성할 수 있는 범위:
 - 조회 결과 데이터 정확성 검증
 - 제품명, 모델명, 공지 제목, FAQ 질문 같은 volatile content assertion
 - selector 근거 없이 만든 임의 locator assertion
+- generated Level 3 interaction spec의 browser click/reset/restore runtime 실행
 
 ## Safety Rules
 

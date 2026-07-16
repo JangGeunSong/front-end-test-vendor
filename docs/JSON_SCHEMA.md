@@ -14,8 +14,9 @@ The current implementation includes:
 - versioned Interaction Approval artifact validation
 - deterministic Interaction Approval reconciliation result
 - Structured Interaction Plan schema `2.0`, deterministic builder, and strict validator
+- deterministic Structured Interaction Plan renderer and generated interaction spec static validation
 
-The approval artifact writer/editor, `Level 3 interactionProfile` producer, deterministic renderer, and Safe Interaction execution remain planned work. This document distinguishes implemented schemas, contract-defined schemas, and future candidate schemas.
+The approval artifact writer/editor, `Level 3 interactionProfile` producer, browser Safe Interaction execution, and runtime evidence report remain planned work. This document distinguishes implemented schemas, contract-defined schemas, and future candidate schemas.
 
 ## Data Policy
 
@@ -433,7 +434,7 @@ Top-level outline:
 
 Schema `2.0`은 `interaction.tabSelection`과 `interaction.expandedToggle` template만 정의한다. 각 test는 exact eligible `candidateKey`, current `observedUrl`의 exact copy인 required `startUrl`, target snapshot, bounded initial/expected state, required reset/restored state를 소유한다. Human approval metadata, classifier 전체 output, free-form JavaScript/Playwright code와 runtime result는 포함하지 않는다.
 
-`build_interaction_plan.py`와 `validate_interaction_plan.py`가 builder/validator 계약을 구현한다. Renderer와 browser execution은 아직 구현되지 않았다. 상세 field, ordering, unknown-field policy, template compatibility와 validation invariant는 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다.
+`build_interaction_plan.py`와 `validate_interaction_plan.py`가 builder/validator 계약을 구현한다. `render_interaction_plan.py`는 validated plan만 소비해 generated CommonJS Playwright spec을 만들며 JSON artifact schema를 새로 소유하지 않는다. Browser execution은 아직 구현·검증되지 않았다. 상세 field, ordering, unknown-field policy, template compatibility와 validation invariant는 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다.
 
 ## Level 3 interactionProfile (Planned Candidate)
 

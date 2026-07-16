@@ -84,6 +84,8 @@ analysis_review_report.json
 - eligible candidate 기반 Structured Interaction Plan schema `2.0` implemented contract와 per-test `startUrl`
 - reconciliation/report exact join 기반 deterministic interaction plan builder
 - supported template/state/reset/eligibility/evidence를 strict하게 검증하는 interaction plan validator
+- validated schema `2.0` plan을 exact per-test `startUrl`/selector와 fixed state/reset assertion으로 변환하는 deterministic interaction renderer
+- generated interaction spec의 JavaScript syntax와 Playwright test discovery validation
 - project venv, requirements, fnm, repository Node version, local `.env` policy를 복원하는 documented environment bootstrap
 - generated artifact와 source/docs를 분리하는 ignore 정책
 
@@ -99,13 +101,13 @@ analysis_review_report.json
 - 특정 사이트명, URL, 메뉴명 전용 예외보다 DOM/evidence 기반 일반화 규칙을 우선한다.
 - interaction `candidateKey`와 deduplication은 동일 canonical identity를 사용한다. key는 classification이나 승인 상태에 의존하지 않는다.
 - `target.url`은 분석 scope, candidate `observedUrl`은 실제 관찰 위치, plan `startUrl`은 exact execution entry point다. pageContext나 target root에서 URL을 추론하지 않는다.
-- `safe` classification은 실행 승인과 동일하지 않다. 실제 Level 3 interaction 실행은 아직 구현되지 않았다.
+- `safe` classification은 실행 승인과 동일하지 않다. Level 3 spec rendering은 구현됐지만 실제 browser interaction 실행은 아직 검증되지 않았다.
 - interaction plan은 reconciliation eligible candidate만 exact `candidateKey`로 참조하고, free-form code 없이 bounded state/reset instruction만 표현한다.
 - generated artifact는 기본적으로 commit하지 않으며 tracked fixture 예외만 repository 정책에 따라 유지한다.
 
 ## Current Development Frontier
 
-현재 중심 frontier는 exact per-test `startUrl`을 가진 validated Structured Interaction Plan을 deterministic Level 3 renderer와 reset/restore execution으로 연결하는 경계다.
+현재 중심 frontier는 exact per-test `startUrl`을 가진 validated Structured Interaction Plan의 deterministic spec rendering 이후 실제 browser reset/restore transition을 검증하는 경계다.
 
 완료된 부분:
 
@@ -126,17 +128,31 @@ analysis_review_report.json
 - reconciliation `eligibleCandidates`와 Analysis Review Report exact evidence를 join하는 deterministic plan builder
 - `interaction.tabSelection`, `interaction.expandedToggle`만 생성하고 unsupported candidate를 CLI summary로 분리하는 bounded mapping
 - eligible membership, exact selector/context/kind, deterministic ID/order, bounded state/reset과 unknown field를 검증하는 strict plan validator
+- `interaction.tabSelection`과 `interaction.expandedToggle`만 fixed Playwright shape로 렌더링하는 deterministic interaction renderer
+- exact `startUrl`의 `page.goto`, exact selector locator, initial/expected/reset/restored assertion과 stable test traceability
+- timestamp/absolute path 없는 byte-stable UTF-8 generated spec과 JavaScript syntax/Playwright discovery 검증
 
 열린 boundary:
 
 - approval artifact writer/editor
-- Level 3 deterministic renderer와 reset/restore execution
+- 실제 Level 3 browser interaction과 reset/restore runtime validation
+- runtime failure evidence/screenshot/execution report
 
-이 frontier는 interaction을 즉시 클릭하는 작업과 다르다. Builder/validator는 validated JSON까지만 생성하며 Approval writer/editor와 Level 3 renderer/browser execution은 아직 구현되지 않았다.
+Renderer는 validated JSON을 executable source shape로 변환하지만 test body를 실행하지 않는다. Approval writer/editor와 Level 3 browser execution은 아직 구현되지 않았다.
 
 ## Latest Completed Work
 
-가장 최근 완료된 구현 작업은 candidate actual browser URL provenance를 discovery에서 validated Structured Interaction Plan까지 보존하는 작업이다.
+가장 최근 완료된 구현 작업은 validated Structured Interaction Plan을 deterministic Playwright interaction spec으로 렌더링하고 static discovery까지 검증하는 작업이다.
+
+Interaction renderer implementation:
+
+- default input/output: `tools/ai-generator/generated/interaction_plan.generated.json` → `tests/generated/generated_interaction_plan.spec.js`
+- 각 test의 exact `startUrl`과 selector를 semantic change 없이 JavaScript literal로 encoding
+- `interaction.tabSelection`: selected false → click → true → reload → target re-resolution → false
+- `interaction.expandedToggle`: expanded false → click → true → same target click → false
+- unsupported template와 malformed/missing renderer field에서 전체 fail-fast하고 output을 부분 갱신하지 않음
+- neutral fixture 반복 rendering byte equality, Node syntax와 Playwright `--list` discovery 통과
+- 실제 browser click, reload/toggle runtime transition과 screenshot/report는 실행하지 않음
 
 Execution URL provenance implementation:
 
@@ -175,13 +191,13 @@ Approval validation/reconciliation implementation:
 - `reconcile_interaction_approvals.py`의 valid/missingCandidate/evidenceChanged 판정과 deterministic result 생성
 - approval entry가 없는 current candidate의 별도 unreviewed output
 
-Approval writer/editor와 Level 3 renderer/browser interaction은 구현하지 않았다. Reconciliation result와 interaction plan은 generated artifact이며 human-authored review state와 분리된다.
+Approval writer/editor와 Level 3 browser interaction은 구현하지 않았다. Reconciliation result, interaction plan과 generated interaction spec은 human-authored review state와 분리된다.
 
 ## Open Questions / Next Decisions
 
 현재 frontier에서 바로 결정할 항목만 유지한다.
 
-1. Level 3 renderer가 각 test의 exact `startUrl`을 사용하는 fixed navigation/locator/assertion과 reset/restore execution contract
+1. Generated interaction spec의 실제 browser click/reset/restore transition validation
 2. Browser validation failure/evidence report contract
 3. Approval artifact writer/editor의 local review workflow와 overwrite/re-review 경계
 

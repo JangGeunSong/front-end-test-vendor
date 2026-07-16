@@ -10,6 +10,7 @@ from validate_interaction_approvals import (
     ROOT_DIR,
     display_path,
     is_absolute_http_url,
+    is_same_origin,
     is_non_empty_string,
     load_json,
     validate_approval_artifact,
@@ -22,12 +23,14 @@ DEFAULT_APPROVAL_PATH = (
     ROOT_DIR / "tools" / "ai-generator" / "review" / "interaction_approvals.json"
 )
 DEFAULT_OUTPUT_PATH = GENERATED_DIR / "interaction_approval_reconciliation.json"
-RESULT_SCHEMA_VERSION = "1.0"
+RESULT_SCHEMA_VERSION = "2.0"
+ANALYSIS_REPORT_VERSION = "2.0"
 
 REVIEW_CRITICAL_FIELDS = (
     "classification",
     "confidence",
     "pageContext",
+    "observedUrl",
     "selector",
     "text",
     "role",
@@ -89,7 +92,7 @@ def add_input_error(errors, code, path, message):
     errors.append((code, path, message))
 
 
-def current_candidate_snapshot(candidate, path, errors):
+def current_candidate_snapshot(candidate, path, target_url, errors):
     candidate_key = candidate.get("candidateKey")
     if not isinstance(candidate_key, str) or CANDIDATE_KEY_PATTERN.fullmatch(candidate_key) is None:
         add_input_error(
@@ -125,6 +128,22 @@ def current_candidate_snapshot(candidate, path, errors):
                 f"{path}.{field}",
                 "review-critical field is required and must be a string",
             )
+
+    observed_url = candidate.get("observedUrl")
+    if not is_absolute_http_url(observed_url):
+        add_input_error(
+            errors,
+            "C113",
+            f"{path}.observedUrl",
+            "observedUrl must be an absolute HTTP(S) URL without credentials",
+        )
+    elif is_absolute_http_url(target_url) and not is_same_origin(target_url, observed_url):
+        add_input_error(
+            errors,
+            "C114",
+            f"{path}.observedUrl",
+            "observedUrl must be same-origin with analysis targetUrl",
+        )
 
     tag_name = candidate.get("tagName")
     if isinstance(tag_name, str) and tag_name != tag_name.lower():
@@ -184,6 +203,14 @@ def extract_current_candidates(report):
         add_input_error(errors, "C001", "$", "analysis report top-level value must be an object")
         return "", [], errors
 
+    if report.get("version") != ANALYSIS_REPORT_VERSION:
+        add_input_error(
+            errors,
+            "C003",
+            "$.version",
+            f"analysis report version must be {ANALYSIS_REPORT_VERSION!r}",
+        )
+
     summary = report.get("summary")
     target_url = summary.get("targetUrl") if isinstance(summary, dict) else None
     if not is_absolute_http_url(target_url):
@@ -220,7 +247,7 @@ def extract_current_candidates(report):
                     f"{path}.classification",
                     f"section requires classification {expected_classification!r}",
                 )
-            snapshot = current_candidate_snapshot(candidate, path, errors)
+            snapshot = current_candidate_snapshot(candidate, path, target_url, errors)
             candidate_key = candidate.get("candidateKey")
             if isinstance(candidate_key, str):
                 if candidate_key in seen_keys:
@@ -262,6 +289,7 @@ def eligible_candidate_payload(candidate):
         "interactionKind": candidate["interactionKind"],
         "confidence": candidate["confidence"],
         "pageContext": candidate["pageContext"],
+        "observedUrl": candidate["observedUrl"],
         "selector": candidate["selector"],
         "text": candidate["text"],
     }
@@ -393,6 +421,11 @@ def validate_fixture(fixture):
     first = reconcile_approvals(target_url, current_items, approvals)
     second = reconcile_approvals(target_url, current_items, approvals)
     failures = []
+    if first.get("schemaVersion") != expected.get("schemaVersion"):
+        failures.append(
+            f"schemaVersion: expected {expected.get('schemaVersion')!r}, "
+            f"got {first.get('schemaVersion')!r}"
+        )
     if render_result(first) != render_result(second):
         failures.append("repeated reconciliation output is not byte-stable")
     try:
@@ -435,11 +468,34 @@ def validate_fixture(fixture):
         failures.append(
             f"eligibleCandidateKeys: expected {expected.get('eligibleCandidateKeys', [])!r}, got {eligible_keys!r}"
         )
+    eligible_observed_urls = {
+        item["candidateKey"]: item.get("observedUrl")
+        for item in first["eligibleCandidates"]
+    }
+    if eligible_observed_urls != expected.get("eligibleCandidateObservedUrls", {}):
+        failures.append(
+            "eligibleCandidateObservedUrls: expected "
+            f"{expected.get('eligibleCandidateObservedUrls', {})!r}, "
+            f"got {eligible_observed_urls!r}"
+        )
     unreviewed_keys = [item["candidateKey"] for item in first["unreviewedCandidates"]]
     if unreviewed_keys != expected.get("unreviewedCandidateKeys", []):
         failures.append(
             f"unreviewedCandidateKeys: expected {expected.get('unreviewedCandidateKeys', [])!r}, got {unreviewed_keys!r}"
         )
+
+    version_failure = fixture.get("reportVersionFailure")
+    if isinstance(version_failure, dict):
+        old_report = json.loads(json.dumps(report))
+        old_report["version"] = version_failure.get("version")
+        _, _, old_report_errors = extract_current_candidates(old_report)
+        actual_codes = [code for code, _, _ in old_report_errors]
+        expected_codes = version_failure.get("expectedCodes", [])
+        if actual_codes != expected_codes:
+            failures.append(
+                "reportVersionFailure: expected error codes "
+                f"{expected_codes!r}, got {actual_codes!r}"
+            )
     return failures, first
 
 

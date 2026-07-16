@@ -80,6 +80,7 @@ def build_test_case(candidate, report_candidate, template):
         "candidateKey": candidate_key,
         "template": template,
         "pageContext": candidate["pageContext"],
+        "startUrl": report_candidate["observedUrl"],
         "target": {
             "selector": candidate["selector"],
             "interactionKind": interaction_kind,
@@ -223,6 +224,11 @@ def validate_fixture(fixture):
     test_ids = [item["id"] for item in first_plan["tests"]]
     if test_ids != expected.get("testIds"):
         failures.append(f"testIds: expected {expected.get('testIds')!r}, got {test_ids!r}")
+    start_urls = [item["startUrl"] for item in first_plan["tests"]]
+    if start_urls != expected.get("startUrls"):
+        failures.append(
+            f"startUrls: expected {expected.get('startUrls')!r}, got {start_urls!r}"
+        )
     if first_unsupported != expected.get("unsupported"):
         failures.append(
             f"unsupported: expected {expected.get('unsupported')!r}, got {first_unsupported!r}"

@@ -1,7 +1,7 @@
 {
   "success": {
     "reconciliation": {
-      "schemaVersion": "1.0",
+      "schemaVersion": "2.0",
       "target": {
         "url": "https://example.test"
       },
@@ -12,6 +12,7 @@
           "interactionKind": "modalOpen",
           "confidence": "medium",
           "pageContext": "Dialog",
+          "observedUrl": "https://example.test/dialog",
           "selector": "main button.dialog",
           "text": "Open dialog"
         },
@@ -21,6 +22,7 @@
           "interactionKind": "tab",
           "confidence": "high",
           "pageContext": "Overview",
+          "observedUrl": "https://example.test/",
           "selector": "main [role='tab']:nth-of-type(1)",
           "text": "Overview"
         },
@@ -30,6 +32,7 @@
           "interactionKind": "accordion",
           "confidence": "high",
           "pageContext": "No selector",
+          "observedUrl": "https://example.test/no-selector",
           "selector": "",
           "text": "No selector"
         },
@@ -39,6 +42,7 @@
           "interactionKind": "expandCollapse",
           "confidence": "medium",
           "pageContext": "Advanced",
+          "observedUrl": "https://example.test/docs/api?mode=advanced#tabs",
           "selector": "main button.advanced",
           "text": "Advanced"
         },
@@ -48,6 +52,7 @@
           "interactionKind": "tab",
           "confidence": "high",
           "pageContext": "Selected",
+          "observedUrl": "https://example.test/selected",
           "selector": "main [role='tab'].selected",
           "text": "Selected"
         },
@@ -57,6 +62,7 @@
           "interactionKind": "accordion",
           "confidence": "high",
           "pageContext": "Details",
+          "observedUrl": "https://example.test/docs/intro",
           "selector": "main button.details",
           "text": "Details"
         },
@@ -66,13 +72,14 @@
           "interactionKind": "tab",
           "confidence": "medium",
           "pageContext": "Missing state",
+          "observedUrl": "https://example.test/missing-state",
           "selector": "main [role='tab'].missing-state",
           "text": "Missing state"
         }
       ]
     },
     "analysisReviewReport": {
-      "version": "1.0",
+      "version": "2.0",
       "summary": {
         "targetUrl": "https://example.test"
       },
@@ -82,6 +89,7 @@
           "classification": "safe",
           "confidence": "high",
           "pageContext": "Overview",
+          "observedUrl": "https://example.test/",
           "selector": "main [role='tab']:nth-of-type(1)",
           "text": "Overview",
           "ariaAttributes": {
@@ -94,6 +102,7 @@
           "classification": "safe",
           "confidence": "high",
           "pageContext": "Details",
+          "observedUrl": "https://example.test/docs/intro",
           "selector": "main button.details",
           "text": "Details",
           "ariaAttributes": {
@@ -106,6 +115,7 @@
           "classification": "safe",
           "confidence": "medium",
           "pageContext": "Advanced",
+          "observedUrl": "https://example.test/docs/api?mode=advanced#tabs",
           "selector": "main button.advanced",
           "text": "Advanced",
           "ariaAttributes": {
@@ -118,6 +128,7 @@
           "classification": "safe",
           "confidence": "medium",
           "pageContext": "Dialog",
+          "observedUrl": "https://example.test/dialog",
           "selector": "main button.dialog",
           "text": "Open dialog",
           "ariaAttributes": {
@@ -130,6 +141,7 @@
           "classification": "safe",
           "confidence": "medium",
           "pageContext": "Missing state",
+          "observedUrl": "https://example.test/missing-state",
           "selector": "main [role='tab'].missing-state",
           "text": "Missing state",
           "ariaAttributes": {},
@@ -140,6 +152,7 @@
           "classification": "safe",
           "confidence": "high",
           "pageContext": "Selected",
+          "observedUrl": "https://example.test/selected",
           "selector": "main [role='tab'].selected",
           "text": "Selected",
           "ariaAttributes": {
@@ -152,6 +165,7 @@
           "classification": "safe",
           "confidence": "high",
           "pageContext": "No selector",
+          "observedUrl": "https://example.test/no-selector",
           "selector": "",
           "text": "No selector",
           "ariaAttributes": {
@@ -178,6 +192,11 @@
         "interaction-test:selector:111111111111111111111111:tabSelection",
         "interaction-test:selector:222222222222222222222222:expandedToggle",
         "interaction-test:selector:333333333333333333333333:expandedToggle"
+      ],
+      "startUrls": [
+        "https://example.test/",
+        "https://example.test/docs/intro",
+        "https://example.test/docs/api?mode=advanced#tabs"
       ],
       "unsupported": [
         {
@@ -207,7 +226,7 @@
     {
       "scenario": "eligible-candidate-missing-from-report",
       "reconciliation": {
-        "schemaVersion": "1.0",
+        "schemaVersion": "2.0",
         "target": {
           "url": "https://example.test"
         },
@@ -218,13 +237,14 @@
             "interactionKind": "tab",
             "confidence": "high",
             "pageContext": "Missing",
+            "observedUrl": "https://example.test/missing",
             "selector": "main [role='tab'].missing",
             "text": "Missing"
           }
         ]
       },
       "analysisReviewReport": {
-        "version": "1.0",
+        "version": "2.0",
         "summary": {
           "targetUrl": "https://example.test"
         },
@@ -239,14 +259,14 @@
     {
       "scenario": "target-mismatch",
       "reconciliation": {
-        "schemaVersion": "1.0",
+        "schemaVersion": "2.0",
         "target": {
           "url": "https://other.example.test"
         },
         "eligibleCandidates": []
       },
       "analysisReviewReport": {
-        "version": "1.0",
+        "version": "2.0",
         "summary": {
           "targetUrl": "https://example.test"
         },
@@ -261,7 +281,7 @@
     {
       "scenario": "duplicate-eligible-candidate-key",
       "reconciliation": {
-        "schemaVersion": "1.0",
+        "schemaVersion": "2.0",
         "target": {
           "url": "https://example.test"
         },
@@ -272,6 +292,7 @@
             "interactionKind": "tab",
             "confidence": "high",
             "pageContext": "Duplicate",
+            "observedUrl": "https://example.test/duplicate",
             "selector": "main [role='tab'].duplicate",
             "text": "Duplicate"
           },
@@ -281,13 +302,14 @@
             "interactionKind": "tab",
             "confidence": "high",
             "pageContext": "Duplicate",
+            "observedUrl": "https://example.test/duplicate",
             "selector": "main [role='tab'].duplicate",
             "text": "Duplicate"
           }
         ]
       },
       "analysisReviewReport": {
-        "version": "1.0",
+        "version": "2.0",
         "summary": {
           "targetUrl": "https://example.test"
         },
@@ -297,6 +319,7 @@
             "classification": "safe",
             "confidence": "high",
             "pageContext": "Duplicate",
+            "observedUrl": "https://example.test/duplicate",
             "selector": "main [role='tab'].duplicate",
             "text": "Duplicate",
             "ariaAttributes": {
@@ -315,7 +338,7 @@
     {
       "scenario": "eligible-report-selector-mismatch",
       "reconciliation": {
-        "schemaVersion": "1.0",
+        "schemaVersion": "2.0",
         "target": {
           "url": "https://example.test"
         },
@@ -326,13 +349,14 @@
             "interactionKind": "tab",
             "confidence": "high",
             "pageContext": "Mismatch",
+            "observedUrl": "https://example.test/mismatch",
             "selector": "main [role='tab'].old",
             "text": "Mismatch"
           }
         ]
       },
       "analysisReviewReport": {
-        "version": "1.0",
+        "version": "2.0",
         "summary": {
           "targetUrl": "https://example.test"
         },
@@ -342,6 +366,7 @@
             "classification": "safe",
             "confidence": "high",
             "pageContext": "Mismatch",
+            "observedUrl": "https://example.test/mismatch",
             "selector": "main [role='tab'].current",
             "text": "Mismatch",
             "ariaAttributes": {
@@ -354,6 +379,53 @@
         "unresolvedCandidates": []
       },
       "expectedCodes": [
+        "I303"
+      ]
+    },
+    {
+      "scenario": "report-candidate-missing-observed-url",
+      "reconciliation": {
+        "schemaVersion": "2.0",
+        "target": {
+          "url": "https://example.test"
+        },
+        "eligibleCandidates": [
+          {
+            "candidateKey": "interaction:selector:bbbbbbbbbbbbbbbbbbbbbbbb",
+            "currentClassification": "safe",
+            "interactionKind": "tab",
+            "confidence": "high",
+            "pageContext": "Missing provenance",
+            "observedUrl": "https://example.test/docs/intro",
+            "selector": "main [role='tab'].missing-provenance",
+            "text": "Missing provenance"
+          }
+        ]
+      },
+      "analysisReviewReport": {
+        "version": "2.0",
+        "summary": {
+          "targetUrl": "https://example.test"
+        },
+        "safeInteractionCandidates": [
+          {
+            "candidateKey": "interaction:selector:bbbbbbbbbbbbbbbbbbbbbbbb",
+            "classification": "safe",
+            "confidence": "high",
+            "pageContext": "Missing provenance",
+            "selector": "main [role='tab'].missing-provenance",
+            "text": "Missing provenance",
+            "ariaAttributes": {
+              "selected": "false"
+            },
+            "interactionKind": "tab"
+          }
+        ],
+        "unsafeActionCandidates": [],
+        "unresolvedCandidates": []
+      },
+      "expectedCodes": [
+        "I214",
         "I303"
       ]
     }

@@ -2,6 +2,8 @@ import json
 import re
 from pathlib import Path, PurePosixPath
 
+from interaction_url import is_same_origin
+
 from validate_interaction_approvals import (
     CANDIDATE_KEY_PATTERN,
     CONFIDENCE_LEVELS,
@@ -16,9 +18,9 @@ DEFAULT_RECONCILIATION_PATH = GENERATED_DIR / "interaction_approval_reconciliati
 DEFAULT_ANALYSIS_REPORT_PATH = GENERATED_DIR / "analysis_review_report.json"
 DEFAULT_INTERACTION_PLAN_PATH = GENERATED_DIR / "interaction_plan.generated.json"
 
-PLAN_SCHEMA_VERSION = "1.0"
-RECONCILIATION_SCHEMA_VERSION = "1.0"
-ANALYSIS_REPORT_VERSION = "1.0"
+PLAN_SCHEMA_VERSION = "2.0"
+RECONCILIATION_SCHEMA_VERSION = "2.0"
+ANALYSIS_REPORT_VERSION = "2.0"
 
 TEMPLATE_BY_INTERACTION_KIND = {
     "tab": "interaction.tabSelection",
@@ -40,6 +42,7 @@ ELIGIBLE_FIELDS = {
     "interactionKind",
     "confidence",
     "pageContext",
+    "observedUrl",
     "selector",
     "text",
 }
@@ -52,6 +55,7 @@ PLAN_TEST_FIELDS = {
     "candidateKey",
     "template",
     "pageContext",
+    "startUrl",
     "target",
     "initialState",
     "expectedState",
@@ -139,7 +143,7 @@ def reject_unknown_fields(value, allowed, path, code, errors):
         add_input_error(errors, code, f"{path}.{field}", "unknown field")
 
 
-def validate_eligible_candidates(reconciliation, errors):
+def validate_eligible_candidates(reconciliation, target_url, errors):
     items = reconciliation.get("eligibleCandidates")
     if not isinstance(items, list):
         add_input_error(
@@ -181,6 +185,11 @@ def validate_eligible_candidates(reconciliation, errors):
         for field in ("pageContext", "selector", "text"):
             if not isinstance(item.get(field), str):
                 add_input_error(errors, "I108", f"{path}.{field}", "field is required and must be a string")
+        observed_url = item.get("observedUrl")
+        if not is_absolute_http_url(observed_url):
+            add_input_error(errors, "I109", f"{path}.observedUrl", "observedUrl must be an absolute HTTP(S) URL without credentials")
+        elif is_absolute_http_url(target_url) and not is_same_origin(target_url, observed_url):
+            add_input_error(errors, "I110", f"{path}.observedUrl", "observedUrl must be same-origin with target.url")
         eligible.append(item)
     return eligible
 
@@ -205,11 +214,11 @@ def validate_reconciliation_input(reconciliation, errors):
             "$.reconciliation.target.url",
             "target.url must be an absolute HTTP(S) URL",
         )
-    eligible = validate_eligible_candidates(reconciliation, errors)
+    eligible = validate_eligible_candidates(reconciliation, target_url, errors)
     return target_url if isinstance(target_url, str) else "", eligible
 
 
-def report_candidate_sections(report, errors):
+def report_candidate_sections(report, target_url, errors):
     sections = (
         ("safeInteractionCandidates", "safe", False),
         ("unsafeActionCandidates", "unsafe", False),
@@ -268,6 +277,11 @@ def report_candidate_sections(report, errors):
                         add_input_error(errors, "I212", f"{path}.{field}", "field is required and must be a string")
                 if not is_non_empty_string(item.get("interactionKind")):
                     add_input_error(errors, "I213", f"{path}.interactionKind", "safe candidate interactionKind is required")
+            observed_url = item.get("observedUrl")
+            if not is_absolute_http_url(observed_url):
+                add_input_error(errors, "I214", f"{path}.observedUrl", "observedUrl must be an absolute HTTP(S) URL without credentials")
+            elif is_absolute_http_url(target_url) and not is_same_origin(target_url, observed_url):
+                add_input_error(errors, "I215", f"{path}.observedUrl", "observedUrl must be same-origin with report targetUrl")
             candidates.append(item)
     candidates.sort(key=lambda item: item.get("candidateKey", ""))
     return candidates
@@ -293,7 +307,7 @@ def validate_report_input(report, errors):
             "$.report.summary.targetUrl",
             "targetUrl must be an absolute HTTP(S) URL",
         )
-    return target_url if isinstance(target_url, str) else "", report_candidate_sections(report, errors)
+    return target_url if isinstance(target_url, str) else "", report_candidate_sections(report, target_url, errors)
 
 
 def bind_plan_inputs(reconciliation, report):
@@ -315,6 +329,7 @@ def bind_plan_inputs(reconciliation, report):
         ("interactionKind", "interactionKind"),
         ("confidence", "confidence"),
         ("pageContext", "pageContext"),
+        ("observedUrl", "observedUrl"),
         ("selector", "selector"),
         ("text", "text"),
     )

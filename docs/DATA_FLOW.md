@@ -38,7 +38,7 @@ scout_result.json + menu_map.json + test_plan.llm.json
 
 classifier는 browser interaction을 실행하지 않는다. selector, role/type, ARIA state, form association, page context 같은 기존 evidence로 safe/unsafe/unknown 후보를 분류하며, unknown은 자동 실행 대상이 아니다.
 
-각 classified interaction candidate에는 deduplication과 동일한 canonical identity에서 만든 deterministic `candidateKey`가 포함된다. report JSON/Markdown은 이 key를 보존해 future human approval과 structured interaction plan이 배열 index나 selector 원문 대신 candidate를 참조할 수 있게 한다. key 보유와 safe classification은 실행 승인을 의미하지 않으며, selector 또는 page context가 바뀌면 key도 바뀔 수 있다.
+각 classified interaction candidate에는 deduplication과 동일한 canonical identity에서 만든 deterministic `candidateKey`와 실제 DOM 관찰 위치인 `observedUrl`이 포함된다. Root 후보는 scout final `window.location.href`, pageProfile 후보는 click 후 `page.url()`을 사용한다. Report JSON/Markdown은 두 값을 보존하며 target root, pageContext, menuPath 또는 href에서 URL을 추론하지 않는다. URL은 candidateKey digest에 포함하지 않으며 URL만 바뀌면 reconciliation evidence가 stale해진다.
 
 Human approval 이후의 validation/reconciliation boundary가 구현되어 있다.
 
@@ -50,7 +50,7 @@ current classified candidates / analysis_review_report.json
   -> generated/interaction_approval_reconciliation.json
   -> eligibleCandidates
   -> build_interaction_plan.py
-  -> generated/interaction_plan.generated.json
+  -> generated/interaction_plan.generated.json (`tests[].startUrl = observedUrl`)
   -> validate_interaction_plan.py
   -> validated structured interaction plan
   -> future deterministic Level 3 renderer
@@ -59,7 +59,7 @@ current classified candidates / analysis_review_report.json
 
 Approval artifact는 human decision, candidate reference, immutable evidence snapshot, review metadata만 소유한다. Reconciliation은 Analysis Review Report를 current candidate source로 사용하고 exact `candidateKey`, target scope, snapshot, current classification을 대조한다. Current `safe`와 human `approved`와 valid non-stale reference를 모두 만족한 candidate만 future plan 입력 eligibility를 갖는다.
 
-Structured Interaction Plan은 exact eligible `candidateKey`, eligible payload에서 복사한 target snapshot, bounded initial/expected state와 required UI reset/restore instruction만 소유한다. Schema `1.0` builder와 validator는 구현되었지만 renderer와 browser execution은 아직 구현되지 않았다. Approval 경계는 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md), plan 상세 계약은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)를 따른다.
+Structured Interaction Plan은 exact eligible `candidateKey`, current `observedUrl`에서 복사한 per-test `startUrl`, eligible payload에서 복사한 target snapshot, bounded initial/expected state와 required UI reset/restore instruction만 소유한다. Schema `2.0` builder와 validator는 implemented이며 target scope와 start URL의 same-origin 및 report/eligible exact equality를 검증한다. Renderer와 browser execution은 아직 구현되지 않았다. Approval 경계는 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md), plan 상세 계약은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)를 따른다.
 
 Approval artifact validation, current candidate input validation 또는 exact target scope match가 실패하면 partial reconciliation result를 만들지 않는다. `missingCandidate`는 similarity search 없이 exact key 부재로 판정하고, exact key가 있어도 review-critical evidence가 달라지면 `evidenceChanged`로 판정한다. Reconciliation result는 생성 시각을 포함하지 않고 candidate key 순서로 deterministic하게 생성한다.
 

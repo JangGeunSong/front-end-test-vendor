@@ -5,6 +5,8 @@ import re
 import sys
 from pathlib import Path
 
+from interaction_url import is_absolute_http_url, is_same_origin
+
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 GENERATED_DIR = ROOT_DIR / "tools" / "ai-generator" / "generated"
@@ -175,10 +177,22 @@ def is_action_candidate(candidate, force=False):
     )
 
 
-def normalize_candidate(candidate, source, page_context="", form_association=""):
+def normalize_candidate(
+    candidate,
+    source,
+    page_context="",
+    form_association="",
+    observed_url="",
+    target_url="",
+):
     aria = aria_attributes(candidate)
     text = first_string(candidate, "text", "ariaLabel", "aria-label", "title", "placeholder", "name")
     selector = first_string(candidate, "cssPath", "selector")
+    provenance_url = compact_string(observed_url or candidate.get("observedUrl"))
+    if not is_absolute_http_url(provenance_url):
+        raise ValueError(f"candidate observedUrl is required and must be an absolute HTTP(S) URL: {source}")
+    if not is_same_origin(target_url, provenance_url):
+        raise ValueError(f"candidate observedUrl must be same-origin with target URL: {source}")
     normalized = {
         "text": text,
         "selector": selector,
@@ -188,6 +202,7 @@ def normalize_candidate(candidate, source, page_context="", form_association="")
         "href": compact_string(candidate.get("href")),
         "semanticRegion": compact_string(candidate.get("semanticRegion")) or "unknown",
         "pageContext": page_context_text(page_context or candidate.get("pageContext")),
+        "observedUrl": provenance_url,
         "formAssociation": compact_string(form_association or candidate.get("formAssociation")),
         "surroundingText": first_string(candidate, "surroundingText", "parentText"),
         "className": compact_string(candidate.get("className")),
@@ -227,6 +242,12 @@ def candidate_key(candidate):
 
 
 def merge_candidate(existing, incoming):
+    if existing.get("observedUrl") != incoming.get("observedUrl"):
+        raise ValueError(
+            "candidate provenance conflict for canonical identity "
+            f"{existing.get('candidateKey', '')}: "
+            f"{existing.get('observedUrl')!r} != {incoming.get('observedUrl')!r}"
+        )
     for source in incoming.get("candidateSources", []):
         if source not in existing["candidateSources"]:
             existing["candidateSources"].append(source)
@@ -239,6 +260,7 @@ def merge_candidate(existing, incoming):
         "href",
         "semanticRegion",
         "pageContext",
+        "observedUrl",
         "formAssociation",
         "surroundingText",
         "className",
@@ -252,21 +274,43 @@ def merge_candidate(existing, incoming):
 
 def collect_candidates(scout_result, menu_map):
     collected = []
+    target_url = compact_string(menu_map.get("url") or scout_result.get("url"))
+    root_observed_url = compact_string(scout_result.get("url"))
+    if not is_absolute_http_url(target_url):
+        raise ValueError("interaction candidate target URL must be an absolute HTTP(S) URL")
+    if not is_absolute_http_url(root_observed_url):
+        raise ValueError("scout_result.url must preserve the observed absolute HTTP(S) URL")
 
-    def add(candidate, source, page_context="", form_association="", force=False):
+    def add(
+        candidate,
+        source,
+        page_context="",
+        form_association="",
+        observed_url="",
+        force=False,
+    ):
         if isinstance(candidate, dict) and is_action_candidate(candidate, force=force):
-            collected.append(normalize_candidate(candidate, source, page_context, form_association))
+            collected.append(
+                normalize_candidate(
+                    candidate,
+                    source,
+                    page_context,
+                    form_association,
+                    observed_url or candidate.get("observedUrl"),
+                    target_url,
+                )
+            )
 
     elements = scout_result.get("elements")
     if isinstance(elements, list):
         for candidate in elements:
-            add(candidate, "scout_result.elements")
+            add(candidate, "scout_result.elements", observed_url=root_observed_url)
 
     for list_name in ("nonPrimaryNavigationCandidates", "ctaCandidates"):
         candidates = menu_map.get(list_name)
         if isinstance(candidates, list):
             for candidate in candidates:
-                add(candidate, f"menu_map.{list_name}")
+                add(candidate, f"menu_map.{list_name}", observed_url=candidate.get("observedUrl"))
 
     profiles = menu_map.get("pageProfiles")
     if not isinstance(profiles, list):
@@ -278,6 +322,8 @@ def collect_candidates(scout_result, menu_map):
         if not isinstance(profile, dict):
             continue
         context = profile.get("menuPath")
+        navigation = profile.get("navigation")
+        observed_url = navigation.get("url") if isinstance(navigation, dict) else ""
         profile_data = profile.get("pageProfile")
         if not isinstance(profile_data, dict):
             continue
@@ -285,7 +331,13 @@ def collect_candidates(scout_result, menu_map):
             values = profile_data.get(field_name)
             if isinstance(values, list):
                 for candidate in values:
-                    add(candidate, f"menu_map.pageProfiles.{field_name}", context, force=True)
+                    add(
+                        candidate,
+                        f"menu_map.pageProfiles.{field_name}",
+                        context,
+                        observed_url=observed_url,
+                        force=True,
+                    )
         forms = profile_data.get("forms")
         if not isinstance(forms, list):
             continue
@@ -302,6 +354,7 @@ def collect_candidates(scout_result, menu_map):
                             f"menu_map.pageProfiles.forms.{field_name}",
                             context,
                             association,
+                            observed_url,
                             force=True,
                         )
 
@@ -362,6 +415,7 @@ def public_fields(candidate):
         "href": candidate.get("href", ""),
         "semanticRegion": candidate.get("semanticRegion", "unknown"),
         "pageContext": candidate.get("pageContext", ""),
+        "observedUrl": candidate.get("observedUrl", ""),
         "formAssociation": candidate.get("formAssociation", ""),
         "surroundingText": candidate.get("surroundingText", ""),
         "ariaAttributes": candidate.get("ariaAttributes", {}),
@@ -622,6 +676,18 @@ def validate_fixture(result, expected, repeated_result=None):
                 f"Fixture candidate {fixture_id!r} expected candidateKey prefix {key_prefix!r}, "
                 f"got {actual.get('candidateKey')!r}."
             )
+        expected_key = expected_candidate.get("candidateKey")
+        if expected_key and actual.get("candidateKey") != expected_key:
+            errors.append(
+                f"Fixture candidate {fixture_id!r} expected candidateKey {expected_key!r}, "
+                f"got {actual.get('candidateKey')!r}."
+            )
+        expected_observed_url = expected_candidate.get("observedUrl")
+        if expected_observed_url and actual.get("observedUrl") != expected_observed_url:
+            errors.append(
+                f"Fixture candidate {fixture_id!r} expected observedUrl {expected_observed_url!r}, "
+                f"got {actual.get('observedUrl')!r}."
+            )
         for source in expected_candidate.get("candidateSources", []):
             if source not in actual.get("candidateSources", []):
                 errors.append(f"Fixture candidate {fixture_id!r} is missing candidate source {source!r}.")
@@ -639,6 +705,27 @@ def validate_fixture(result, expected, repeated_result=None):
             for required_key in ("candidateKey", "reason", "confidence", "evidence", "suggestedAction"):
                 if not item.get(required_key):
                     errors.append(f"{result_key}[{index}] is missing {required_key}.")
+    return errors
+
+
+def validate_failure_cases(cases):
+    if not isinstance(cases, list):
+        return ["failureCases must be an array"]
+    errors = []
+    for index, case in enumerate(cases):
+        if not isinstance(case, dict):
+            errors.append(f"failureCases[{index}] must be an object")
+            continue
+        try:
+            classify_interaction_candidates(case.get("scoutResult"), case.get("menuMap"))
+        except (TypeError, ValueError) as error:
+            expected = case.get("expectedMessage", "")
+            if expected not in str(error):
+                errors.append(
+                    f"{case.get('scenario')}: expected message containing {expected!r}, got {str(error)!r}"
+                )
+        else:
+            errors.append(f"{case.get('scenario')}: expected classification failure")
     return errors
 
 
@@ -662,6 +749,7 @@ def main():
         if expected is not None:
             repeated_result = classify_interaction_candidates(scout_result, menu_map)
             errors = validate_fixture(result, expected, repeated_result)
+            errors.extend(validate_failure_cases(fixture.get("failureCases", [])))
             if errors:
                 for error in errors:
                     print(f"[E001] {error}", file=sys.stderr)

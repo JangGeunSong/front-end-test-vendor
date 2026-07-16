@@ -1,5 +1,6 @@
 {
   "scoutResult": {
+    "url": "https://example.test/",
     "elements": [
       {
         "fixtureId": "safe-tab",
@@ -150,10 +151,12 @@
     ]
   },
   "menuMap": {
+    "url": "https://example.test/",
     "pageProfiles": [],
     "nonPrimaryNavigationCandidates": [
       {
         "fixtureId": "safe-tab",
+        "observedUrl": "https://example.test/",
         "text": "Overview",
         "tagName": "LI",
         "role": "tab",
@@ -204,6 +207,8 @@
     "candidates": [
       {
         "fixtureId": "safe-tab",
+        "candidateKey": "interaction:selector:890470bbfca306f2feb84c3c",
+        "observedUrl": "https://example.test/",
         "classification": "safe",
         "interactionKind": "tab",
         "candidateSources": [
@@ -300,5 +305,58 @@
         "classification": "unknown"
       }
     ]
-  }
+  },
+  "failureCases": [
+    {
+      "scenario": "missing-root-observed-url",
+      "scoutResult": {
+        "elements": [
+          {
+            "text": "Missing provenance",
+            "tagName": "BUTTON",
+            "role": "button",
+            "cssPath": "main button.missing",
+            "isVisible": true
+          }
+        ]
+      },
+      "menuMap": {
+        "url": "https://example.test/",
+        "pageProfiles": []
+      },
+      "expectedMessage": "scout_result.url must preserve"
+    },
+    {
+      "scenario": "canonical-candidate-observed-url-conflict",
+      "scoutResult": {
+        "url": "https://example.test/",
+        "elements": [
+          {
+            "text": "Overview",
+            "tagName": "LI",
+            "role": "tab",
+            "ariaSelected": "false",
+            "cssPath": "main [role='tab']",
+            "isVisible": true
+          }
+        ]
+      },
+      "menuMap": {
+        "url": "https://example.test/",
+        "pageProfiles": [],
+        "nonPrimaryNavigationCandidates": [
+          {
+            "observedUrl": "https://example.test/nested",
+            "text": "Overview",
+            "tagName": "LI",
+            "role": "tab",
+            "ariaSelected": "false",
+            "cssPath": "main [role='tab']",
+            "isVisible": true
+          }
+        ]
+      },
+      "expectedMessage": "candidate provenance conflict"
+    }
+  ]
 }

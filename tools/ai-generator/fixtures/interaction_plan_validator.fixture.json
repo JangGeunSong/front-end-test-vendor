@@ -1,6 +1,6 @@
 {
   "reconciliation": {
-    "schemaVersion": "1.0",
+    "schemaVersion": "2.0",
     "target": {
       "url": "https://example.test"
     },
@@ -11,6 +11,7 @@
         "interactionKind": "tab",
         "confidence": "high",
         "pageContext": "Overview",
+        "observedUrl": "https://example.test/",
         "selector": "main [role='tab']:nth-of-type(1)",
         "text": "Overview"
       },
@@ -20,13 +21,14 @@
         "interactionKind": "accordion",
         "confidence": "high",
         "pageContext": "Details",
+        "observedUrl": "https://example.test/docs/api?mode=advanced#tabs",
         "selector": "main button.details",
         "text": "Details"
       }
     ]
   },
   "analysisReviewReport": {
-    "version": "1.0",
+    "version": "2.0",
     "summary": {
       "targetUrl": "https://example.test"
     },
@@ -36,6 +38,7 @@
         "classification": "safe",
         "confidence": "high",
         "pageContext": "Overview",
+        "observedUrl": "https://example.test/",
         "selector": "main [role='tab']:nth-of-type(1)",
         "text": "Overview",
         "ariaAttributes": {
@@ -48,6 +51,7 @@
         "classification": "safe",
         "confidence": "high",
         "pageContext": "Details",
+        "observedUrl": "https://example.test/docs/api?mode=advanced#tabs",
         "selector": "main button.details",
         "text": "Details",
         "ariaAttributes": {
@@ -60,7 +64,7 @@
     "unresolvedCandidates": []
   },
   "validPlan": {
-    "schemaVersion": "1.0",
+    "schemaVersion": "2.0",
     "target": {
       "url": "https://example.test"
     },
@@ -75,6 +79,7 @@
         "candidateKey": "interaction:selector:111111111111111111111111",
         "template": "interaction.tabSelection",
         "pageContext": "Overview",
+        "startUrl": "https://example.test/",
         "target": {
           "selector": "main [role='tab']:nth-of-type(1)",
           "interactionKind": "tab"
@@ -99,6 +104,7 @@
         "candidateKey": "interaction:selector:222222222222222222222222",
         "template": "interaction.expandedToggle",
         "pageContext": "Details",
+        "startUrl": "https://example.test/docs/api?mode=advanced#tabs",
         "target": {
           "selector": "main button.details",
           "interactionKind": "accordion"
@@ -120,7 +126,7 @@
     ]
   },
   "emptyPlan": {
-    "schemaVersion": "1.0",
+    "schemaVersion": "2.0",
     "target": {
       "url": "https://example.test"
     },
@@ -138,7 +144,7 @@
         "path": [
           "schemaVersion"
         ],
-        "value": "2.0"
+        "value": "1.0"
       },
       "expectedCodes": [
         "P003"
@@ -204,6 +210,8 @@
         "P202",
         "P203",
         "P204",
+        "P207",
+        "P208",
         "P105",
         "P206"
       ]
@@ -288,6 +296,59 @@
       "expectedCodes": [
         "P204"
       ]
+    },
+    {
+      "scenario": "missing-start-url",
+      "mutation": {
+        "operation": "remove",
+        "path": ["tests", 0, "startUrl"]
+      },
+      "expectedCodes": ["P115", "P207", "P208"]
+    },
+    {
+      "scenario": "start-url-replaced-with-target-root",
+      "mutation": {
+        "operation": "set",
+        "path": ["tests", 1, "startUrl"],
+        "value": "https://example.test"
+      },
+      "expectedCodes": ["P207", "P208"]
+    },
+    {
+      "scenario": "start-url-query-differs",
+      "mutation": {
+        "operation": "set",
+        "path": ["tests", 1, "startUrl"],
+        "value": "https://example.test/docs/api?mode=basic#tabs"
+      },
+      "expectedCodes": ["P207", "P208"]
+    },
+    {
+      "scenario": "start-url-hash-differs",
+      "mutation": {
+        "operation": "set",
+        "path": ["tests", 1, "startUrl"],
+        "value": "https://example.test/docs/api?mode=advanced#other"
+      },
+      "expectedCodes": ["P207", "P208"]
+    },
+    {
+      "scenario": "start-url-trailing-slash-differs",
+      "mutation": {
+        "operation": "set",
+        "path": ["tests", 0, "startUrl"],
+        "value": "https://example.test"
+      },
+      "expectedCodes": ["P207", "P208"]
+    },
+    {
+      "scenario": "cross-origin-start-url",
+      "mutation": {
+        "operation": "set",
+        "path": ["tests", 1, "startUrl"],
+        "value": "https://external.test/docs/api?mode=advanced#tabs"
+      },
+      "expectedCodes": ["P116", "P207", "P208"]
     },
     {
       "scenario": "invalid-initial-state",

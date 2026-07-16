@@ -30,7 +30,7 @@
 
 ## Established Architecture Baseline
 
-Level 1 navigation과 Level 2 Page Identity, structured plan validation, deterministic rendering, evidence-based review artifact는 현재 architecture baseline이다. Interaction 후보 분류, human approval validation/reconciliation, deterministic Structured Interaction Plan builder와 strict validator도 구현되어 있지만 실제 Level 3 renderer/browser execution은 baseline에 포함되지 않는다.
+Level 1 navigation과 Level 2 Page Identity, structured plan validation, deterministic rendering, evidence-based review artifact는 현재 architecture baseline이다. Interaction 후보 분류, actual observed URL provenance, human approval validation/reconciliation, deterministic Structured Interaction Plan builder와 strict validator도 구현되어 있지만 실제 Level 3 renderer/browser execution은 baseline에 포함되지 않는다.
 
 현재 capability checklist, active frontier, latest completed work는 [CURRENT_STATE.md](CURRENT_STATE.md)에 유지한다.
 
@@ -70,7 +70,7 @@ target URL
 - `tools/ai-generator/validate_test_plan.py`: structured test plan schema와 coverage를 검증한다.
 - `tools/ai-generator/render_test_plan.py`: structured test plan을 Playwright spec으로 렌더링한다.
 - `tools/ai-generator/compare_test_plans.py`: deterministic plan과 LLM plan의 meaningful quality difference를 비교한다.
-- `tools/ai-generator/classify_interaction_candidates.py`: 기존 artifact의 action 후보를 safe, unsafe, unknown으로 분류하고 deterministic `candidateKey`를 부여한다.
+- `tools/ai-generator/classify_interaction_candidates.py`: 기존 artifact의 action 후보를 safe, unsafe, unknown으로 분류하고 deterministic `candidateKey`와 source-provided `observedUrl`을 보존한다.
 - `tools/ai-generator/build_analysis_review_report.py`: navigation, Page Identity, interaction 분류 evidence를 JSON review artifact로 구성한다.
 - `tools/ai-generator/render_analysis_review_report.py`: Analysis Review Report JSON을 사람이 읽을 수 있는 Markdown으로 렌더링한다.
 - `tools/ai-generator/validate_interaction_approvals.py`: human approval artifact를 strict하게 검증한다.
@@ -93,7 +93,7 @@ target URL
 - Analysis Review Report JSON/Markdown
 - safe/unsafe/unknown interaction candidate classification, stable identity, and report integration
 - versioned interaction approval validation과 exact key/evidence 기반 reconciliation
-- eligible candidate를 bounded state/reset instruction으로 전달하는 Structured Interaction Plan contract
+- eligible candidate를 exact per-test `startUrl`과 bounded state/reset instruction으로 전달하는 Structured Interaction Plan contract
 - deterministic Structured Interaction Plan builder와 strict validator
 
 ## Current Unsupported Scope

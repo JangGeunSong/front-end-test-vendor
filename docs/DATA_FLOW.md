@@ -56,12 +56,13 @@ current classified candidates / analysis_review_report.json
   -> render_interaction_plan.py
   -> tests/generated/generated_interaction_plan.spec.js
   -> JavaScript syntax / Playwright test discovery
-  -> future browser execution / execution report
+  -> browser runtime validation (tab restore contract gap identified)
+  -> future repeatable execution / execution report
 ```
 
 Approval artifact는 human decision, candidate reference, immutable evidence snapshot, review metadata만 소유한다. Reconciliation은 Analysis Review Report를 current candidate source로 사용하고 exact `candidateKey`, target scope, snapshot, current classification을 대조한다. Current `safe`와 human `approved`와 valid non-stale reference를 모두 만족한 candidate만 future plan 입력 eligibility를 갖는다.
 
-Structured Interaction Plan은 exact eligible `candidateKey`, current `observedUrl`에서 복사한 per-test `startUrl`, eligible payload에서 복사한 target snapshot, bounded initial/expected state와 required UI reset/restore instruction만 소유한다. Schema `2.0` builder와 validator는 target scope, start URL same-origin과 report/eligible exact equality를 검증한다. Renderer는 plan만 읽어 exact URL/selector와 두 fixed transition을 byte-stable spec으로 생성하며 classification/approval/evidence를 재계산하지 않는다. JavaScript syntax와 test discovery는 검증됐지만 browser execution은 아직 수행하지 않았다. Approval 경계는 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md), plan 상세 계약은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)를 따른다.
+Structured Interaction Plan은 exact eligible `candidateKey`, current `observedUrl`에서 복사한 per-test `startUrl`, eligible payload에서 복사한 target snapshot, bounded initial/expected state와 required UI reset/restore instruction만 소유한다. Schema `2.0` builder와 validator는 target scope, start URL same-origin과 report/eligible exact equality를 검증한다. Renderer는 plan만 읽어 exact URL/selector와 두 fixed transition을 byte-stable spec으로 생성하며 classification/approval/evidence를 재계산하지 않는다. JavaScript syntax와 test discovery는 검증됐다. 첫 tab browser run은 navigation과 false → true transition을 통과했지만 reload 후 selected state가 지속돼 restore contract gap을 확인했다. Approval 경계는 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md), plan 상세 계약은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)를 따른다.
 
 Approval artifact validation, current candidate input validation 또는 exact target scope match가 실패하면 partial reconciliation result를 만들지 않는다. `missingCandidate`는 similarity search 없이 exact key 부재로 판정하고, exact key가 있어도 review-critical evidence가 달라지면 `evidenceChanged`로 판정한다. Reconciliation result는 생성 시각을 포함하지 않고 candidate key 순서로 deterministic하게 생성한다.
 

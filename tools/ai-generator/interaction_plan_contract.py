@@ -18,9 +18,9 @@ DEFAULT_RECONCILIATION_PATH = GENERATED_DIR / "interaction_approval_reconciliati
 DEFAULT_ANALYSIS_REPORT_PATH = GENERATED_DIR / "analysis_review_report.json"
 DEFAULT_INTERACTION_PLAN_PATH = GENERATED_DIR / "interaction_plan.generated.json"
 
-PLAN_SCHEMA_VERSION = "2.0"
-RECONCILIATION_SCHEMA_VERSION = "2.0"
-ANALYSIS_REPORT_VERSION = "2.0"
+PLAN_SCHEMA_VERSION = "3.0"
+RECONCILIATION_SCHEMA_VERSION = "3.0"
+ANALYSIS_REPORT_VERSION = "2.1"
 
 TEMPLATE_BY_INTERACTION_KIND = {
     "tab": "interaction.tabSelection",
@@ -45,6 +45,7 @@ ELIGIBLE_FIELDS = {
     "observedUrl",
     "selector",
     "text",
+    "tabRestore",
 }
 PLAN_TOP_LEVEL_FIELDS = {"schemaVersion", "target", "source", "tests"}
 PLAN_TARGET_FIELDS = {"url"}
@@ -59,10 +60,37 @@ PLAN_TEST_FIELDS = {
     "target",
     "initialState",
     "expectedState",
+    "restore",
+    "restoredState",
     "reset",
 }
-PLAN_TEST_TARGET_FIELDS = {"selector", "interactionKind"}
+PLAN_TEST_TARGET_FIELDS = {"selector", "interactionKind", "tabGroupSelector"}
 PLAN_RESET_FIELDS = {"required", "strategy", "restoredState"}
+PLAN_RESTORE_FIELDS = {"strategy", "target"}
+PLAN_RESTORE_TARGET_FIELDS = {"candidateKey", "selector"}
+TAB_RESTORE_FIELDS = {"strategy", "tabGroupSelector", "target"}
+TAB_RESTORE_TARGET_FIELDS = {
+    "candidateKey",
+    "selector",
+    "observedUrl",
+    "pageContext",
+    "role",
+    "tagName",
+    "text",
+    "ariaAttributes",
+}
+
+TAB_INITIAL_STATE = {
+    "interactionTarget": {"selected": False},
+    "restoreTarget": {"selected": True},
+}
+TAB_EXPECTED_STATE = {
+    "interactionTarget": {"selected": True},
+    "restoreTarget": {"selected": False},
+}
+TAB_RESTORED_STATE = TAB_INITIAL_STATE
+EXPANDED_INITIAL_STATE = {"expanded": False}
+EXPANDED_EXPECTED_STATE = {"expanded": True}
 
 TEST_ID_PATTERN = re.compile(
     r"^interaction-test:(selector|fallback):([0-9a-f]{24}):(tabSelection|expandedToggle)$"
@@ -119,7 +147,13 @@ def render_json(value):
 
 def write_json(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_json(value), encoding="utf-8")
+    temporary_path = path.with_name(f"{path.name}.tmp")
+    try:
+        temporary_path.write_text(render_json(value), encoding="utf-8", newline="\n")
+        temporary_path.replace(path)
+    finally:
+        if temporary_path.exists():
+            temporary_path.unlink()
 
 
 def stable_test_id(candidate_key, template):
@@ -141,6 +175,53 @@ def reject_unknown_fields(value, allowed, path, code, errors):
         return
     for field in sorted(set(value) - allowed):
         add_input_error(errors, code, f"{path}.{field}", "unknown field")
+
+
+def nested_value(value, path):
+    current = value
+    for part in path.split("."):
+        if not isinstance(current, dict) or part not in current:
+            return None
+        current = current[part]
+    return current
+
+
+def validate_tab_restore_evidence(restore, candidate, path, target_url, errors):
+    if not isinstance(restore, dict):
+        add_input_error(errors, "I113", path, "tabRestore must be an object")
+        return False
+    reject_unknown_fields(restore, TAB_RESTORE_FIELDS, path, "I113", errors)
+    target = restore.get("target")
+    valid = (
+        restore.get("strategy") == "restorePreviousSelection"
+        and is_non_empty_string(restore.get("tabGroupSelector"))
+        and isinstance(target, dict)
+    )
+    if not isinstance(target, dict):
+        add_input_error(errors, "I113", f"{path}.target", "restore target must be an object")
+        return False
+    reject_unknown_fields(target, TAB_RESTORE_TARGET_FIELDS, f"{path}.target", "I113", errors)
+    aria = target.get("ariaAttributes")
+    valid = valid and (
+        isinstance(target.get("candidateKey"), str)
+        and CANDIDATE_KEY_PATTERN.fullmatch(target.get("candidateKey", "")) is not None
+        and is_non_empty_string(target.get("selector"))
+        and target.get("selector") != candidate.get("selector")
+        and target.get("observedUrl") == candidate.get("observedUrl")
+        and target.get("pageContext") == candidate.get("pageContext")
+        and target.get("role") == "tab"
+        and is_non_empty_string(target.get("tagName"))
+        and target.get("tagName") == target.get("tagName", "").lower()
+        and isinstance(target.get("text"), str)
+        and isinstance(aria, dict)
+        and set(aria) == {"selected"}
+        and aria.get("selected") == "true"
+        and is_absolute_http_url(target.get("observedUrl"))
+        and is_same_origin(target_url, target.get("observedUrl"))
+    )
+    if not valid:
+        add_input_error(errors, "I113", path, "invalid bounded tab restore evidence")
+    return valid
 
 
 def validate_eligible_candidates(reconciliation, target_url, errors):
@@ -190,6 +271,15 @@ def validate_eligible_candidates(reconciliation, target_url, errors):
             add_input_error(errors, "I109", f"{path}.observedUrl", "observedUrl must be an absolute HTTP(S) URL without credentials")
         elif is_absolute_http_url(target_url) and not is_same_origin(target_url, observed_url):
             add_input_error(errors, "I110", f"{path}.observedUrl", "observedUrl must be same-origin with target.url")
+        interaction_kind = item.get("interactionKind")
+        restore = item.get("tabRestore")
+        if interaction_kind == "tab":
+            if restore is None:
+                add_input_error(errors, "I111", f"{path}.tabRestore", "eligible tab requires tabRestore")
+            else:
+                validate_tab_restore_evidence(restore, item, f"{path}.tabRestore", target_url, errors)
+        elif restore is not None:
+            add_input_error(errors, "I112", f"{path}.tabRestore", "tabRestore is only allowed for tab candidates")
         eligible.append(item)
     return eligible
 
@@ -277,6 +367,12 @@ def report_candidate_sections(report, target_url, errors):
                         add_input_error(errors, "I212", f"{path}.{field}", "field is required and must be a string")
                 if not is_non_empty_string(item.get("interactionKind")):
                     add_input_error(errors, "I213", f"{path}.interactionKind", "safe candidate interactionKind is required")
+                restore = item.get("tabRestore")
+                selected = aria.get("selected") if isinstance(aria, dict) else None
+                if item.get("interactionKind") == "tab" and selected == "false" and restore is not None:
+                    validate_tab_restore_evidence(restore, item, f"{path}.tabRestore", target_url, errors)
+                elif restore is not None:
+                    add_input_error(errors, "I216", f"{path}.tabRestore", "tabRestore is only allowed for a safe unselected tab")
             observed_url = item.get("observedUrl")
             if not is_absolute_http_url(observed_url):
                 add_input_error(errors, "I214", f"{path}.observedUrl", "observedUrl must be an absolute HTTP(S) URL without credentials")
@@ -355,6 +451,59 @@ def bind_plan_inputs(reconciliation, report):
                     f"$.reconciliation.eligibleCandidates[{candidate_key}].{eligible_field}",
                     f"eligible/report exact evidence mismatch for {report_field}",
                 )
+        if item.get("interactionKind") == "tab":
+            eligible_restore = item.get("tabRestore")
+            report_restore = current.get("tabRestore")
+            if not isinstance(report_restore, dict):
+                add_input_error(
+                    errors,
+                    "I304",
+                    f"$.report.safeInteractionCandidates[{candidate_key}].tabRestore",
+                    "eligible tab exact restore evidence is missing from the analysis report",
+                )
+                continue
+            restore_paths = (
+                "strategy",
+                "tabGroupSelector",
+                "target.candidateKey",
+                "target.selector",
+                "target.observedUrl",
+                "target.pageContext",
+                "target.role",
+                "target.tagName",
+                "target.text",
+                "target.ariaAttributes.selected",
+            )
+            if isinstance(eligible_restore, dict):
+                for restore_path in restore_paths:
+                    if nested_value(eligible_restore, restore_path) != nested_value(report_restore, restore_path):
+                        add_input_error(
+                            errors,
+                            "I304",
+                            f"$.reconciliation.eligibleCandidates[{candidate_key}].tabRestore.{restore_path}",
+                            "eligible/report exact tab restore evidence mismatch",
+                        )
+            aria = current.get("ariaAttributes")
+            if not isinstance(aria, dict) or aria.get("selected") != "false":
+                add_input_error(errors, "I305", f"$.report.safeInteractionCandidates[{candidate_key}].ariaAttributes.selected", "interaction target must currently be selected=false")
+            restore_key = nested_value(report_restore, "target.candidateKey")
+            peer = report_by_key.get(restore_key)
+            peer_aria = peer.get("ariaAttributes") if isinstance(peer, dict) else None
+            peer_target = report_restore.get("target") if isinstance(report_restore, dict) else {}
+            peer_matches = isinstance(peer, dict) and (
+                peer.get("classification") == "safe"
+                and peer.get("interactionKind") == "tab"
+                and peer.get("selector") == peer_target.get("selector")
+                and peer.get("observedUrl") == peer_target.get("observedUrl")
+                and peer.get("pageContext") == peer_target.get("pageContext")
+                and peer.get("role") == peer_target.get("role")
+                and peer.get("tagName") == peer_target.get("tagName")
+                and peer.get("text") == peer_target.get("text")
+                and isinstance(peer_aria, dict)
+                and peer_aria.get("selected") == "true"
+            )
+            if not peer_matches:
+                add_input_error(errors, "I306", f"$.report.safeInteractionCandidates[{restore_key}]", "exact current selected restore peer is missing or changed")
     return {
         "targetUrl": reconciliation_target,
         "eligibleByKey": eligible_by_key,

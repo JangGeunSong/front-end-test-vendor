@@ -30,7 +30,7 @@
 
 ## Established Architecture Baseline
 
-Level 1 navigation과 Level 2 Page Identity, structured plan validation, deterministic rendering, evidence-based review artifact는 현재 architecture baseline이다. Interaction 후보 분류, actual observed URL provenance, tab group/previous selected peer evidence, Analysis Review Report `2.1`, human approval/reconciliation `3.0`이 구현되어 있다. Structured Interaction Plan builder/validator와 fixed Level 3 renderer는 아직 schema `2.0`이며 첫 tab runtime은 `reloadPage` restore failure를 확인했다. Previous-selection Plan schema `3.0`과 renderer/runtime은 documentation contract만 완료됐다.
+Level 1 navigation과 Level 2 Page Identity, structured plan validation, deterministic rendering, evidence-based review artifact는 현재 architecture baseline이다. Interaction 후보 분류, actual observed URL provenance, tab group/previous selected peer evidence, Analysis Review Report `2.1`, human approval/reconciliation `3.0`, Structured Interaction Plan `3.0` builder/validator와 fixed restore renderer가 구현되어 있다. Generated interaction spec syntax/static discovery는 검증됐고 actual previous-selection browser runtime PASS는 아직 완료되지 않았다.
 
 현재 capability checklist, active frontier, latest completed work는 [CURRENT_STATE.md](CURRENT_STATE.md)에 유지한다.
 
@@ -109,8 +109,7 @@ target URL
 - full test management dashboard
 - 완성된 검수 UI
 - repeatable Level 3 interaction runtime PASS와 reset/restore validation
-- Structured Interaction Plan schema `3.0` builder/validator implementation
-- documentation으로만 정의된 previous-selection `restorePreviousSelection` renderer/runtime capability
+- previous-selection `restorePreviousSelection` actual browser runtime capability
 
 ## Verified Site Types
 

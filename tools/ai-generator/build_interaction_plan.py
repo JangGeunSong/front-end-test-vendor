@@ -1,4 +1,5 @@
 import argparse
+import copy
 import json
 import sys
 
@@ -7,6 +8,11 @@ from interaction_plan_contract import (
     DEFAULT_INTERACTION_PLAN_PATH,
     DEFAULT_RECONCILIATION_PATH,
     PLAN_SCHEMA_VERSION,
+    EXPANDED_EXPECTED_STATE,
+    EXPANDED_INITIAL_STATE,
+    TAB_EXPECTED_STATE,
+    TAB_INITIAL_STATE,
+    TAB_RESTORED_STATE,
     TEMPLATE_BY_INTERACTION_KIND,
     bind_plan_inputs,
     display_path,
@@ -87,26 +93,37 @@ def build_test_case(candidate, report_candidate, template):
         },
     }
     if template == "interaction.tabSelection":
+        restore = candidate.get("tabRestore")
+        if not isinstance(restore, dict) or not isinstance(restore.get("target"), dict):
+            raise ValueError(f"eligible tab is missing bounded tabRestore evidence: {candidate_key}")
         common.update(
             {
-                "initialState": {"selected": False},
-                "expectedState": {"selected": True},
-                "reset": {
-                    "required": True,
-                    "strategy": "reloadPage",
-                    "restoredState": {"selected": False},
+                "target": {
+                    "selector": candidate["selector"],
+                    "interactionKind": interaction_kind,
+                    "tabGroupSelector": restore["tabGroupSelector"],
                 },
+                "initialState": TAB_INITIAL_STATE,
+                "expectedState": TAB_EXPECTED_STATE,
+                "restore": {
+                    "strategy": "restorePreviousSelection",
+                    "target": {
+                        "candidateKey": restore["target"]["candidateKey"],
+                        "selector": restore["target"]["selector"],
+                    },
+                },
+                "restoredState": TAB_RESTORED_STATE,
             }
         )
     else:
         common.update(
             {
-                "initialState": {"expanded": False},
-                "expectedState": {"expanded": True},
+                "initialState": EXPANDED_INITIAL_STATE,
+                "expectedState": EXPANDED_EXPECTED_STATE,
                 "reset": {
                     "required": True,
                     "strategy": "toggleSameTarget",
-                    "restoredState": {"expanded": False},
+                    "restoredState": EXPANDED_INITIAL_STATE,
                 },
             }
         )
@@ -136,6 +153,8 @@ def build_interaction_plan(bound_inputs, reconciliation_path, report_path):
             unsupported.append(unsupported_candidate(candidate, "missingStateEvidence"))
             continue
         if aria[state_name] != "false":
+            if template == "interaction.tabSelection":
+                raise ValueError(f"eligible tab target must be selected=false: {candidate_key}")
             unsupported.append(unsupported_candidate(candidate, "initialStateNotSupported"))
             continue
 
@@ -172,6 +191,24 @@ def summary_counts(plan, unsupported):
     for item in unsupported:
         reason_counts[item["reason"]] += 1
     return template_counts, reason_counts
+
+
+def apply_fixture_mutation(value, mutation):
+    mutated = copy.deepcopy(value)
+    current = mutated
+    path = mutation.get("path")
+    if not isinstance(path, list) or not path:
+        raise ValueError("mutation path must be a non-empty array")
+    for part in path[:-1]:
+        current = current[part]
+    operation = mutation.get("operation")
+    if operation == "set":
+        current[path[-1]] = mutation.get("value")
+    elif operation == "remove":
+        del current[path[-1]]
+    else:
+        raise ValueError(f"unsupported fixture mutation operation: {operation!r}")
+    return mutated
 
 
 def validate_fixture(fixture):
@@ -239,9 +276,24 @@ def validate_fixture(fixture):
             failures.append(f"failureCases[{index}] must be an object")
             continue
         scenario = case.get("scenario")
-        case_bound = bind_plan_inputs(
-            case.get("reconciliation"), case.get("analysisReviewReport")
-        )
+        case_reconciliation = reconciliation
+        case_report = report
+        mutation = case.get("mutation")
+        try:
+            if isinstance(mutation, dict):
+                if mutation.get("input") == "reconciliation":
+                    case_reconciliation = apply_fixture_mutation(reconciliation, mutation)
+                elif mutation.get("input") == "analysisReviewReport":
+                    case_report = apply_fixture_mutation(report, mutation)
+                else:
+                    raise ValueError("mutation input must be reconciliation or analysisReviewReport")
+            else:
+                case_reconciliation = case.get("reconciliation")
+                case_report = case.get("analysisReviewReport")
+        except (KeyError, IndexError, TypeError, ValueError) as error:
+            failures.append(f"{scenario}: invalid fixture mutation: {error}")
+            continue
+        case_bound = bind_plan_inputs(case_reconciliation, case_report)
         actual_codes = [code for code, _, _ in case_bound["errors"]]
         if actual_codes != case.get("expectedCodes"):
             failures.append(
@@ -292,9 +344,13 @@ def main():
         print_input_errors(bound["errors"])
         return 1
 
-    plan, unsupported = build_interaction_plan(
-        bound, reconciliation_source, report_source
-    )
+    try:
+        plan, unsupported = build_interaction_plan(
+            bound, reconciliation_source, report_source
+        )
+    except ValueError as error:
+        print(f"Structured interaction plan build failed: {error}", file=sys.stderr)
+        return 1
     try:
         write_json(output_path, plan)
     except OSError as error:

@@ -4,7 +4,7 @@
 
 이 문서는 AI generated Playwright spec 생성 규칙을 정의한다.
 
-현재 안정 실행 검증 범위는 Level 1 Navigation Smoke Test와 Level 2 Page Identity Test MVP까지이다. Level 3 schema `2.0`은 두 safe template을 deterministic spec으로 렌더링하고 static discovery하는 단계까지 구현됐다. 첫 tab runtime은 `reloadPage` restore mismatch를 확인했다. Schema `3.0` previous-selection restore contract는 정의됐지만 아직 생성/실행되지 않았으므로 안정 실행 범위로 승격되지 않았다. Level 4 Business Scenario Test는 자동 생성 대상이 아니다.
+현재 안정 실행 검증 범위는 Level 1 Navigation Smoke Test와 Level 2 Page Identity Test MVP까지이다. Level 3 schema `3.0`은 두 safe template을 deterministic spec으로 렌더링하고 static discovery하는 단계까지 구현됐다. Previous-selection browser runtime PASS는 아직 확인되지 않았으므로 안정 실행 범위로 승격되지 않았다. Level 4 Business Scenario Test는 자동 생성 대상이 아니다.
 
 ## Generated Spec Scope
 
@@ -21,7 +21,7 @@ generated spec이 자동 생성할 수 있는 범위:
 - 보수적인 Page Identity highlight
 - 안정적인 후보가 없을 때 TODO 주석
 - validated interaction plan의 exact `startUrl`/selector와 `interaction.tabSelection`/`interaction.expandedToggle` bounded transition rendering
-- future schema `3.0`에서 approved exact interaction/restore selector pair만 사용하는 tab restore rendering
+- schema `3.0`에서 approved exact interaction/restore selector pair만 사용하는 tab restore rendering
 
 `menus` 전체 후보를 그대로 generated spec 대상으로 사용하지 않는다. `linkCandidates`, `ctaCandidates`, `footerLinks`, `nonPrimaryNavigationCandidates`는 Level 1/2 generated spec 대상이 아니며 추후 Level 3/link check 확장 후보로 보존한다.
 

@@ -1,11 +1,57 @@
 {
   "success": {
     "reconciliation": {
-      "schemaVersion": "2.0",
-      "target": {
-        "url": "https://example.test"
-      },
+      "schemaVersion": "3.0",
+      "target": { "url": "https://example.test" },
       "eligibleCandidates": [
+        {
+          "candidateKey": "interaction:selector:333333333333333333333333",
+          "currentClassification": "safe",
+          "interactionKind": "tab",
+          "confidence": "high",
+          "pageContext": "패키지 \"β\"",
+          "observedUrl": "https://example.test/docs/tabs?mode=β#패키지",
+          "selector": "section[data-title='패키지\\그룹'] button[data-tab='β']",
+          "text": "패키지 β",
+          "tabRestore": {
+            "strategy": "restorePreviousSelection",
+            "tabGroupSelector": "section[data-title='패키지\\그룹'] [role='tablist']",
+            "target": {
+              "candidateKey": "interaction:selector:933333333333333333333333",
+              "selector": "section[data-title='패키지\\그룹'] button[data-tab='α']",
+              "observedUrl": "https://example.test/docs/tabs?mode=β#패키지",
+              "pageContext": "패키지 \"β\"",
+              "role": "tab",
+              "tagName": "button",
+              "text": "기본 α",
+              "ariaAttributes": { "selected": "true" }
+            }
+          }
+        },
+        {
+          "candidateKey": "interaction:selector:111111111111111111111111",
+          "currentClassification": "safe",
+          "interactionKind": "tab",
+          "confidence": "high",
+          "pageContext": "Package manager",
+          "observedUrl": "https://example.test/docs/tabs",
+          "selector": "#tab-yarn",
+          "text": "yarn",
+          "tabRestore": {
+            "strategy": "restorePreviousSelection",
+            "tabGroupSelector": "main [role='tablist']",
+            "target": {
+              "candidateKey": "interaction:selector:911111111111111111111111",
+              "selector": "#tab-npm",
+              "observedUrl": "https://example.test/docs/tabs",
+              "pageContext": "Package manager",
+              "role": "tab",
+              "tagName": "button",
+              "text": "npm",
+              "ariaAttributes": { "selected": "true" }
+            }
+          }
+        },
         {
           "candidateKey": "interaction:selector:444444444444444444444444",
           "currentClassification": "safe",
@@ -17,161 +63,76 @@
           "text": "Open dialog"
         },
         {
-          "candidateKey": "interaction:selector:111111111111111111111111",
-          "currentClassification": "safe",
-          "interactionKind": "tab",
-          "confidence": "high",
-          "pageContext": "Overview",
-          "observedUrl": "https://example.test/",
-          "selector": "main [role='tab']:nth-of-type(1)",
-          "text": "Overview"
-        },
-        {
-          "candidateKey": "interaction:selector:777777777777777777777777",
-          "currentClassification": "safe",
-          "interactionKind": "accordion",
-          "confidence": "high",
-          "pageContext": "No selector",
-          "observedUrl": "https://example.test/no-selector",
-          "selector": "",
-          "text": "No selector"
-        },
-        {
-          "candidateKey": "interaction:selector:333333333333333333333333",
-          "currentClassification": "safe",
-          "interactionKind": "expandCollapse",
-          "confidence": "medium",
-          "pageContext": "Advanced",
-          "observedUrl": "https://example.test/docs/api?mode=advanced#tabs",
-          "selector": "main button.advanced",
-          "text": "Advanced"
-        },
-        {
-          "candidateKey": "interaction:selector:666666666666666666666666",
-          "currentClassification": "safe",
-          "interactionKind": "tab",
-          "confidence": "high",
-          "pageContext": "Selected",
-          "observedUrl": "https://example.test/selected",
-          "selector": "main [role='tab'].selected",
-          "text": "Selected"
-        },
-        {
           "candidateKey": "interaction:selector:222222222222222222222222",
           "currentClassification": "safe",
           "interactionKind": "accordion",
           "confidence": "high",
-          "pageContext": "Details",
-          "observedUrl": "https://example.test/docs/intro",
+          "pageContext": "Settings panels",
+          "observedUrl": "https://example.test/settings/panels",
           "selector": "main button.details",
           "text": "Details"
-        },
-        {
-          "candidateKey": "interaction:selector:555555555555555555555555",
-          "currentClassification": "safe",
-          "interactionKind": "tab",
-          "confidence": "medium",
-          "pageContext": "Missing state",
-          "observedUrl": "https://example.test/missing-state",
-          "selector": "main [role='tab'].missing-state",
-          "text": "Missing state"
         }
       ]
     },
     "analysisReviewReport": {
-      "version": "2.0",
-      "summary": {
-        "targetUrl": "https://example.test"
-      },
+      "version": "2.1",
+      "summary": { "targetUrl": "https://example.test" },
       "safeInteractionCandidates": [
         {
           "candidateKey": "interaction:selector:111111111111111111111111",
-          "classification": "safe",
-          "confidence": "high",
-          "pageContext": "Overview",
-          "observedUrl": "https://example.test/",
-          "selector": "main [role='tab']:nth-of-type(1)",
-          "text": "Overview",
-          "ariaAttributes": {
-            "selected": "false"
-          },
-          "interactionKind": "tab"
+          "classification": "safe", "confidence": "high", "pageContext": "Package manager",
+          "observedUrl": "https://example.test/docs/tabs", "selector": "#tab-yarn", "text": "yarn",
+          "role": "tab", "tagName": "button", "ariaAttributes": { "selected": "false" }, "interactionKind": "tab",
+          "tabRestore": {
+            "strategy": "restorePreviousSelection", "tabGroupSelector": "main [role='tablist']",
+            "target": {
+              "candidateKey": "interaction:selector:911111111111111111111111", "selector": "#tab-npm",
+              "observedUrl": "https://example.test/docs/tabs", "pageContext": "Package manager",
+              "role": "tab", "tagName": "button", "text": "npm", "ariaAttributes": { "selected": "true" }
+            }
+          }
         },
         {
           "candidateKey": "interaction:selector:222222222222222222222222",
-          "classification": "safe",
-          "confidence": "high",
-          "pageContext": "Details",
-          "observedUrl": "https://example.test/docs/intro",
-          "selector": "main button.details",
-          "text": "Details",
-          "ariaAttributes": {
-            "expanded": "false"
-          },
-          "interactionKind": "accordion"
+          "classification": "safe", "confidence": "high", "pageContext": "Settings panels",
+          "observedUrl": "https://example.test/settings/panels", "selector": "main button.details", "text": "Details",
+          "role": "button", "tagName": "button", "ariaAttributes": { "expanded": "false" }, "interactionKind": "accordion"
         },
         {
           "candidateKey": "interaction:selector:333333333333333333333333",
-          "classification": "safe",
-          "confidence": "medium",
-          "pageContext": "Advanced",
-          "observedUrl": "https://example.test/docs/api?mode=advanced#tabs",
-          "selector": "main button.advanced",
-          "text": "Advanced",
-          "ariaAttributes": {
-            "expanded": "false"
-          },
-          "interactionKind": "expandCollapse"
+          "classification": "safe", "confidence": "high", "pageContext": "패키지 \"β\"",
+          "observedUrl": "https://example.test/docs/tabs?mode=β#패키지",
+          "selector": "section[data-title='패키지\\그룹'] button[data-tab='β']", "text": "패키지 β",
+          "role": "tab", "tagName": "button", "ariaAttributes": { "selected": "false" }, "interactionKind": "tab",
+          "tabRestore": {
+            "strategy": "restorePreviousSelection",
+            "tabGroupSelector": "section[data-title='패키지\\그룹'] [role='tablist']",
+            "target": {
+              "candidateKey": "interaction:selector:933333333333333333333333",
+              "selector": "section[data-title='패키지\\그룹'] button[data-tab='α']",
+              "observedUrl": "https://example.test/docs/tabs?mode=β#패키지", "pageContext": "패키지 \"β\"",
+              "role": "tab", "tagName": "button", "text": "기본 α", "ariaAttributes": { "selected": "true" }
+            }
+          }
         },
         {
           "candidateKey": "interaction:selector:444444444444444444444444",
-          "classification": "safe",
-          "confidence": "medium",
-          "pageContext": "Dialog",
-          "observedUrl": "https://example.test/dialog",
-          "selector": "main button.dialog",
-          "text": "Open dialog",
-          "ariaAttributes": {
-            "haspopup": "dialog"
-          },
-          "interactionKind": "modalOpen"
+          "classification": "safe", "confidence": "medium", "pageContext": "Dialog",
+          "observedUrl": "https://example.test/dialog", "selector": "main button.dialog", "text": "Open dialog",
+          "role": "button", "tagName": "button", "ariaAttributes": { "haspopup": "dialog" }, "interactionKind": "modalOpen"
         },
         {
-          "candidateKey": "interaction:selector:555555555555555555555555",
-          "classification": "safe",
-          "confidence": "medium",
-          "pageContext": "Missing state",
-          "observedUrl": "https://example.test/missing-state",
-          "selector": "main [role='tab'].missing-state",
-          "text": "Missing state",
-          "ariaAttributes": {},
-          "interactionKind": "tab"
+          "candidateKey": "interaction:selector:911111111111111111111111",
+          "classification": "safe", "confidence": "high", "pageContext": "Package manager",
+          "observedUrl": "https://example.test/docs/tabs", "selector": "#tab-npm", "text": "npm",
+          "role": "tab", "tagName": "button", "ariaAttributes": { "selected": "true" }, "interactionKind": "tab"
         },
         {
-          "candidateKey": "interaction:selector:666666666666666666666666",
-          "classification": "safe",
-          "confidence": "high",
-          "pageContext": "Selected",
-          "observedUrl": "https://example.test/selected",
-          "selector": "main [role='tab'].selected",
-          "text": "Selected",
-          "ariaAttributes": {
-            "selected": "true"
-          },
-          "interactionKind": "tab"
-        },
-        {
-          "candidateKey": "interaction:selector:777777777777777777777777",
-          "classification": "safe",
-          "confidence": "high",
-          "pageContext": "No selector",
-          "observedUrl": "https://example.test/no-selector",
-          "selector": "",
-          "text": "No selector",
-          "ariaAttributes": {
-            "expanded": "false"
-          },
-          "interactionKind": "accordion"
+          "candidateKey": "interaction:selector:933333333333333333333333",
+          "classification": "safe", "confidence": "high", "pageContext": "패키지 \"β\"",
+          "observedUrl": "https://example.test/docs/tabs?mode=β#패키지",
+          "selector": "section[data-title='패키지\\그룹'] button[data-tab='α']", "text": "기본 α",
+          "role": "tab", "tagName": "button", "ariaAttributes": { "selected": "true" }, "interactionKind": "tab"
         }
       ],
       "unsafeActionCandidates": [],
@@ -183,251 +144,38 @@
         "interaction:selector:222222222222222222222222",
         "interaction:selector:333333333333333333333333"
       ],
-      "templates": [
-        "interaction.tabSelection",
-        "interaction.expandedToggle",
-        "interaction.expandedToggle"
-      ],
+      "templates": ["interaction.tabSelection", "interaction.expandedToggle", "interaction.tabSelection"],
       "testIds": [
         "interaction-test:selector:111111111111111111111111:tabSelection",
         "interaction-test:selector:222222222222222222222222:expandedToggle",
-        "interaction-test:selector:333333333333333333333333:expandedToggle"
+        "interaction-test:selector:333333333333333333333333:tabSelection"
       ],
       "startUrls": [
-        "https://example.test/",
-        "https://example.test/docs/intro",
-        "https://example.test/docs/api?mode=advanced#tabs"
+        "https://example.test/docs/tabs",
+        "https://example.test/settings/panels",
+        "https://example.test/docs/tabs?mode=β#패키지"
       ],
       "unsupported": [
         {
           "candidateKey": "interaction:selector:444444444444444444444444",
           "interactionKind": "modalOpen",
           "reason": "unsupportedInteractionKind"
-        },
-        {
-          "candidateKey": "interaction:selector:555555555555555555555555",
-          "interactionKind": "tab",
-          "reason": "missingStateEvidence"
-        },
-        {
-          "candidateKey": "interaction:selector:666666666666666666666666",
-          "interactionKind": "tab",
-          "reason": "initialStateNotSupported"
-        },
-        {
-          "candidateKey": "interaction:selector:777777777777777777777777",
-          "interactionKind": "accordion",
-          "reason": "missingSelector"
         }
       ]
     }
   },
   "failureCases": [
-    {
-      "scenario": "eligible-candidate-missing-from-report",
-      "reconciliation": {
-        "schemaVersion": "2.0",
-        "target": {
-          "url": "https://example.test"
-        },
-        "eligibleCandidates": [
-          {
-            "candidateKey": "interaction:selector:888888888888888888888888",
-            "currentClassification": "safe",
-            "interactionKind": "tab",
-            "confidence": "high",
-            "pageContext": "Missing",
-            "observedUrl": "https://example.test/missing",
-            "selector": "main [role='tab'].missing",
-            "text": "Missing"
-          }
-        ]
-      },
-      "analysisReviewReport": {
-        "version": "2.0",
-        "summary": {
-          "targetUrl": "https://example.test"
-        },
-        "safeInteractionCandidates": [],
-        "unsafeActionCandidates": [],
-        "unresolvedCandidates": []
-      },
-      "expectedCodes": [
-        "I302"
-      ]
-    },
-    {
-      "scenario": "target-mismatch",
-      "reconciliation": {
-        "schemaVersion": "2.0",
-        "target": {
-          "url": "https://other.example.test"
-        },
-        "eligibleCandidates": []
-      },
-      "analysisReviewReport": {
-        "version": "2.0",
-        "summary": {
-          "targetUrl": "https://example.test"
-        },
-        "safeInteractionCandidates": [],
-        "unsafeActionCandidates": [],
-        "unresolvedCandidates": []
-      },
-      "expectedCodes": [
-        "I301"
-      ]
-    },
-    {
-      "scenario": "duplicate-eligible-candidate-key",
-      "reconciliation": {
-        "schemaVersion": "2.0",
-        "target": {
-          "url": "https://example.test"
-        },
-        "eligibleCandidates": [
-          {
-            "candidateKey": "interaction:selector:999999999999999999999999",
-            "currentClassification": "safe",
-            "interactionKind": "tab",
-            "confidence": "high",
-            "pageContext": "Duplicate",
-            "observedUrl": "https://example.test/duplicate",
-            "selector": "main [role='tab'].duplicate",
-            "text": "Duplicate"
-          },
-          {
-            "candidateKey": "interaction:selector:999999999999999999999999",
-            "currentClassification": "safe",
-            "interactionKind": "tab",
-            "confidence": "high",
-            "pageContext": "Duplicate",
-            "observedUrl": "https://example.test/duplicate",
-            "selector": "main [role='tab'].duplicate",
-            "text": "Duplicate"
-          }
-        ]
-      },
-      "analysisReviewReport": {
-        "version": "2.0",
-        "summary": {
-          "targetUrl": "https://example.test"
-        },
-        "safeInteractionCandidates": [
-          {
-            "candidateKey": "interaction:selector:999999999999999999999999",
-            "classification": "safe",
-            "confidence": "high",
-            "pageContext": "Duplicate",
-            "observedUrl": "https://example.test/duplicate",
-            "selector": "main [role='tab'].duplicate",
-            "text": "Duplicate",
-            "ariaAttributes": {
-              "selected": "false"
-            },
-            "interactionKind": "tab"
-          }
-        ],
-        "unsafeActionCandidates": [],
-        "unresolvedCandidates": []
-      },
-      "expectedCodes": [
-        "I104"
-      ]
-    },
-    {
-      "scenario": "eligible-report-selector-mismatch",
-      "reconciliation": {
-        "schemaVersion": "2.0",
-        "target": {
-          "url": "https://example.test"
-        },
-        "eligibleCandidates": [
-          {
-            "candidateKey": "interaction:selector:aaaaaaaaaaaaaaaaaaaaaaaa",
-            "currentClassification": "safe",
-            "interactionKind": "tab",
-            "confidence": "high",
-            "pageContext": "Mismatch",
-            "observedUrl": "https://example.test/mismatch",
-            "selector": "main [role='tab'].old",
-            "text": "Mismatch"
-          }
-        ]
-      },
-      "analysisReviewReport": {
-        "version": "2.0",
-        "summary": {
-          "targetUrl": "https://example.test"
-        },
-        "safeInteractionCandidates": [
-          {
-            "candidateKey": "interaction:selector:aaaaaaaaaaaaaaaaaaaaaaaa",
-            "classification": "safe",
-            "confidence": "high",
-            "pageContext": "Mismatch",
-            "observedUrl": "https://example.test/mismatch",
-            "selector": "main [role='tab'].current",
-            "text": "Mismatch",
-            "ariaAttributes": {
-              "selected": "false"
-            },
-            "interactionKind": "tab"
-          }
-        ],
-        "unsafeActionCandidates": [],
-        "unresolvedCandidates": []
-      },
-      "expectedCodes": [
-        "I303"
-      ]
-    },
-    {
-      "scenario": "report-candidate-missing-observed-url",
-      "reconciliation": {
-        "schemaVersion": "2.0",
-        "target": {
-          "url": "https://example.test"
-        },
-        "eligibleCandidates": [
-          {
-            "candidateKey": "interaction:selector:bbbbbbbbbbbbbbbbbbbbbbbb",
-            "currentClassification": "safe",
-            "interactionKind": "tab",
-            "confidence": "high",
-            "pageContext": "Missing provenance",
-            "observedUrl": "https://example.test/docs/intro",
-            "selector": "main [role='tab'].missing-provenance",
-            "text": "Missing provenance"
-          }
-        ]
-      },
-      "analysisReviewReport": {
-        "version": "2.0",
-        "summary": {
-          "targetUrl": "https://example.test"
-        },
-        "safeInteractionCandidates": [
-          {
-            "candidateKey": "interaction:selector:bbbbbbbbbbbbbbbbbbbbbbbb",
-            "classification": "safe",
-            "confidence": "high",
-            "pageContext": "Missing provenance",
-            "selector": "main [role='tab'].missing-provenance",
-            "text": "Missing provenance",
-            "ariaAttributes": {
-              "selected": "false"
-            },
-            "interactionKind": "tab"
-          }
-        ],
-        "unsafeActionCandidates": [],
-        "unresolvedCandidates": []
-      },
-      "expectedCodes": [
-        "I214",
-        "I303"
-      ]
-    }
+    { "scenario": "old-reconciliation-schema", "mutation": { "input": "reconciliation", "operation": "set", "path": ["schemaVersion"], "value": "2.0" }, "expectedCodes": ["I002"] },
+    { "scenario": "old-report-version", "mutation": { "input": "analysisReviewReport", "operation": "set", "path": ["version"], "value": "2.0" }, "expectedCodes": ["I202"] },
+    { "scenario": "eligible-tab-missing-restore", "mutation": { "input": "reconciliation", "operation": "remove", "path": ["eligibleCandidates", 1, "tabRestore"] }, "expectedCodes": ["I111"] },
+    { "scenario": "report-tab-missing-restore", "mutation": { "input": "analysisReviewReport", "operation": "remove", "path": ["safeInteractionCandidates", 0, "tabRestore"] }, "expectedCodes": ["I304"] },
+    { "scenario": "group-selector-mismatch", "mutation": { "input": "reconciliation", "operation": "set", "path": ["eligibleCandidates", 1, "tabRestore", "tabGroupSelector"], "value": "aside [role='tablist']" }, "expectedCodes": ["I304"] },
+    { "scenario": "restore-selector-mismatch", "mutation": { "input": "reconciliation", "operation": "set", "path": ["eligibleCandidates", 1, "tabRestore", "target", "selector"], "value": "#tab-other" }, "expectedCodes": ["I304"] },
+    { "scenario": "restore-selected-state-mismatch", "mutation": { "input": "reconciliation", "operation": "set", "path": ["eligibleCandidates", 1, "tabRestore", "target", "ariaAttributes", "selected"], "value": "false" }, "expectedCodes": ["I113", "I304"] },
+    { "scenario": "restore-url-mismatch", "mutation": { "input": "reconciliation", "operation": "set", "path": ["eligibleCandidates", 1, "tabRestore", "target", "observedUrl"], "value": "https://example.test/docs/other" }, "expectedCodes": ["I113", "I304"] },
+    { "scenario": "restore-context-mismatch", "mutation": { "input": "reconciliation", "operation": "set", "path": ["eligibleCandidates", 1, "tabRestore", "target", "pageContext"], "value": "Other" }, "expectedCodes": ["I113", "I304"] },
+    { "scenario": "same-target-restore-selector", "mutation": { "input": "reconciliation", "operation": "set", "path": ["eligibleCandidates", 1, "tabRestore", "target", "selector"], "value": "#tab-yarn" }, "expectedCodes": ["I113", "I304"] },
+    { "scenario": "invalid-restore-strategy", "mutation": { "input": "reconciliation", "operation": "set", "path": ["eligibleCandidates", 1, "tabRestore", "strategy"], "value": "reloadPage" }, "expectedCodes": ["I113", "I304"] },
+    { "scenario": "eligible-target-missing-from-report", "mutation": { "input": "analysisReviewReport", "operation": "remove", "path": ["safeInteractionCandidates", 0] }, "expectedCodes": ["I302"] }
   ]
 }

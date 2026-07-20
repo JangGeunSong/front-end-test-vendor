@@ -1,137 +1,34 @@
 {
-  "validPlan": {
-    "schemaVersion": "2.0",
-    "target": {
-      "url": "https://example.test"
-    },
-    "source": {
-      "reconciliationPath": "tools/ai-generator/fixtures/interaction_plan_renderer.fixture.json",
-      "analysisReportPath": "tools/ai-generator/fixtures/interaction_plan_renderer.fixture.json"
-    },
-    "tests": [
-      {
-        "id": "interaction-test:selector:111111111111111111111111:tabSelection",
-        "title": "Interaction: 탭 \"A\" selection",
-        "candidateKey": "interaction:selector:111111111111111111111111",
-        "template": "interaction.tabSelection",
-        "pageContext": "Tabs",
-        "startUrl": "https://example.test/docs/tabs?mode=quoted#examples",
-        "target": {
-          "selector": "main [data-label=\"A 'quoted' \\\\ path\n한글\"] [role='tab']",
-          "interactionKind": "tab"
-        },
-        "initialState": {
-          "selected": false
-        },
-        "expectedState": {
-          "selected": true
-        },
-        "reset": {
-          "required": true,
-          "strategy": "reloadPage",
-          "restoredState": {
-            "selected": false
-          }
-        }
-      },
-      {
-        "id": "interaction-test:selector:222222222222222222222222:expandedToggle",
-        "title": "Interaction: Details expanded toggle",
-        "candidateKey": "interaction:selector:222222222222222222222222",
-        "template": "interaction.expandedToggle",
-        "pageContext": "Details",
-        "startUrl": "https://example.test/settings/panel",
-        "target": {
-          "selector": "main button.details[data-state='closed']",
-          "interactionKind": "expandCollapse"
-        },
-        "initialState": {
-          "expanded": false
-        },
-        "expectedState": {
-          "expanded": true
-        },
-        "reset": {
-          "required": true,
-          "strategy": "toggleSameTarget",
-          "restoredState": {
-            "expanded": false
-          }
-        }
-      }
-    ]
-  },
+  "validatorFixture": "tools/ai-generator/fixtures/interaction_plan_validator.fixture.json",
   "expectedFragments": [
-    "await expect(target).toHaveAttribute('aria-selected', \"false\");",
-    "await expect(target).toHaveAttribute('aria-selected', \"true\");",
-    "await page.reload();",
-    "const restoredTarget = page.locator(",
-    "await expect(restoredTarget).toHaveAttribute('aria-selected', \"false\");",
+    "const interactionTarget = page.locator(\"#tab-yarn\");",
+    "const restoreTarget = page.locator(\"#tab-npm\");",
+    "await expect(interactionTarget).toHaveAttribute('aria-selected', 'false');",
+    "await expect(restoreTarget).toHaveAttribute('aria-selected', 'true');",
+    "await expect(restoreTarget).toHaveAttribute('aria-selected', 'false');",
+    "await restoreTarget.click();",
+    "const target = page.locator(\"main button.details\");",
     "await expect(target).toHaveAttribute('aria-expanded', \"false\");",
-    "await expect(target).toHaveAttribute('aria-expanded', \"true\");"
+    "section[data-title='패키지\\\\그룹'] button[data-tab='β']",
+    "section[data-title='패키지\\\\그룹'] button[data-tab='α']"
   ],
   "expectedCounts": {
-    "await target.click();": 3,
-    "await page.reload();": 1,
-    "const restoredTarget = page.locator(": 1
+    "test(": 3,
+    "await interactionTarget.click();": 2,
+    "await restoreTarget.click();": 2,
+    "await target.click();": 2,
+    "await page.reload();": 0,
+    "[role=\"tab\"][aria-selected=\"true\"]": 0
   },
   "failureCases": [
-    {
-      "scenario": "unsupported-schema-version",
-      "mutation": {
-        "operation": "set",
-        "path": [
-          "schemaVersion"
-        ],
-        "value": "1.0"
-      },
-      "expectedCodes": [
-        "R003"
-      ]
-    },
-    {
-      "scenario": "unsupported-template",
-      "mutation": {
-        "operation": "set",
-        "path": [
-          "tests",
-          0,
-          "template"
-        ],
-        "value": "interaction.dialogOpenClose"
-      },
-      "expectedCodes": [
-        "R109"
-      ]
-    },
-    {
-      "scenario": "missing-start-url",
-      "mutation": {
-        "operation": "remove",
-        "path": [
-          "tests",
-          0,
-          "startUrl"
-        ]
-      },
-      "expectedCodes": [
-        "R115"
-      ]
-    },
-    {
-      "scenario": "missing-selector",
-      "mutation": {
-        "operation": "remove",
-        "path": [
-          "tests",
-          1,
-          "target",
-          "selector"
-        ]
-      },
-      "expectedCodes": [
-        "R113"
-      ]
-    }
+    { "scenario": "old-schema", "mutation": { "operation": "set", "path": ["schemaVersion"], "value": "2.0" }, "expectedCodes": ["R003"] },
+    { "scenario": "unsupported-template", "mutation": { "operation": "set", "path": ["tests", 0, "template"], "value": "interaction.custom" }, "expectedCodes": ["R109"] },
+    { "scenario": "missing-restore-selector", "mutation": { "operation": "remove", "path": ["tests", 0, "restore", "target", "selector"] }, "expectedCodes": ["R311"] },
+    { "scenario": "same-selectors", "mutation": { "operation": "set", "path": ["tests", 0, "restore", "target", "selector"], "value": "#tab-yarn" }, "expectedCodes": ["R312"] },
+    { "scenario": "invalid-initial-pair", "mutation": { "operation": "set", "path": ["tests", 0, "initialState", "restoreTarget", "selected"], "value": false }, "expectedCodes": ["R301"] },
+    { "scenario": "invalid-restore-strategy", "mutation": { "operation": "set", "path": ["tests", 0, "restore", "strategy"], "value": "reloadPage" }, "expectedCodes": ["R306"] },
+    { "scenario": "missing-tab-group", "mutation": { "operation": "remove", "path": ["tests", 0, "target", "tabGroupSelector"] }, "expectedCodes": ["R116"] },
+    { "scenario": "arbitrary-code", "mutation": { "operation": "set", "path": ["tests", 0, "code"], "value": "await page.click('body')" }, "expectedCodes": ["R102"] },
+    { "scenario": "expanded-invalid-state", "mutation": { "operation": "set", "path": ["tests", 1, "initialState", "expanded"], "value": true }, "expectedCodes": ["R301"] }
   ]
 }

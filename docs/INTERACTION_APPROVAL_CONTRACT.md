@@ -2,7 +2,7 @@
 
 ## Purpose
 
-이 문서는 classified interaction candidate와 future Level 3 structured interaction plan 사이의 human approval boundary를 정의한다. Implemented approval schema `3.0`은 interaction target과 previous selected restore target을 bounded pair로 검토한다. 첫 tab runtime에서 확인된 restore gap을 human approval과 execution eligibility 경계 안에서 해결하며, Plan schema `3.0`과 renderer는 아직 구현되지 않았다.
+이 문서는 classified interaction candidate와 Level 3 structured interaction plan 사이의 human approval boundary를 정의한다. Implemented approval schema `3.0`은 interaction target과 previous selected restore target을 bounded pair로 검토한다. Plan schema `3.0`과 deterministic renderer가 이 pair를 exact 소비하며 browser runtime PASS는 아직 완료되지 않았다.
 
 목표는 사람이 현재 candidate evidence를 검토해 내린 결정을 versioned JSON artifact로 보존하고, future reconciliation 단계가 승인된 후보만 interaction plan 입력 후보로 전달할 수 있게 하는 것이다. 이 계약은 browser interaction, executable Playwright instruction, interaction plan template을 정의하지 않는다.
 
@@ -400,13 +400,13 @@ Future structured interaction plan이 소유할 정보:
 - approved pair에서 exact copy한 page UI restore target과 bounded state
 - execution validation 및 failure evidence contract
 
-Approval artifact에는 Playwright step, click sequence나 assertion code를 추가하지 않는다. `tabRestore.target.selector`는 실행 script가 아니라 실제 restore click을 사람이 검토하고 stale comparison하기 위한 immutable evidence다. Future Structured Interaction Plan schema `3.0`의 per-test restore instruction은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다. Current renderer는 schema `2.0` `reloadPage`를 구현하고 있으며 schema `3.0` pair는 아직 구현되지 않았다.
+Approval artifact에는 Playwright step, click sequence나 assertion code를 추가하지 않는다. `tabRestore.target.selector`는 실행 script가 아니라 실제 restore click을 사람이 검토하고 stale comparison하기 위한 immutable evidence다. Structured Interaction Plan schema `3.0`의 per-test restore instruction은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다. Current renderer는 validated schema `3.0` pair만 소비한다.
 
 ## MVP Non-Goals
 
 - approval CLI 또는 editor/UI
 - approval artifact writer
-- `restorePreviousSelection` renderer와 browser runtime revalidation
+- browser runtime revalidation
 - reviewer authentication 또는 account management
 - heuristic approval migration
 - workspace history management
@@ -420,4 +420,4 @@ Approval artifact에는 Playwright step, click sequence나 assertion code를 추
 - evidence snapshot은 classifier output 전체 복사본이 아니다.
 - approval artifact는 executable interaction detail을 소유하지 않는다.
 - current `safe`, human `approved`, valid non-stale reference가 모두 eligibility에 필요하다.
-- Tab restore pair approval/validation/reconciliation은 구현됐지만 Plan schema `3.0`, renderer와 runtime PASS는 아직 구현되지 않았다.
+- Tab restore pair approval/validation/reconciliation과 Plan schema `3.0` renderer는 구현됐지만 runtime PASS는 아직 완료되지 않았다.

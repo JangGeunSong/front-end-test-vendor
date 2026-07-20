@@ -7,8 +7,12 @@ from interaction_plan_contract import (
     DEFAULT_ANALYSIS_REPORT_PATH,
     DEFAULT_INTERACTION_PLAN_PATH,
     DEFAULT_RECONCILIATION_PATH,
+    EXPANDED_EXPECTED_STATE,
+    EXPANDED_INITIAL_STATE,
     INTERACTION_KINDS_BY_TEMPLATE,
     PLAN_RESET_FIELDS,
+    PLAN_RESTORE_FIELDS,
+    PLAN_RESTORE_TARGET_FIELDS,
     PLAN_SCHEMA_VERSION,
     PLAN_SOURCE_FIELDS,
     PLAN_TARGET_FIELDS,
@@ -16,6 +20,9 @@ from interaction_plan_contract import (
     PLAN_TEST_TARGET_FIELDS,
     PLAN_TOP_LEVEL_FIELDS,
     SUPPORTED_TEMPLATES,
+    TAB_EXPECTED_STATE,
+    TAB_INITIAL_STATE,
+    TAB_RESTORED_STATE,
     TEST_ID_PATTERN,
     bind_plan_inputs,
     display_path,
@@ -117,43 +124,70 @@ def validate_exact_state(value, expected, path, code, errors):
         add_error(errors, code, path, f"state must exactly equal {expected!r}")
 
 
-def validate_template_state(test_case, index, template, report_candidate, errors):
+def validate_tab_state(test_case, index, eligible, report_candidate, errors):
     path = f"$.tests[{index}]"
-    reset = test_case.get("reset")
-    if template == "interaction.tabSelection":
-        state_name = "selected"
-        initial = {"selected": False}
-        expected = {"selected": True}
-        strategy = "reloadPage"
-    else:
-        state_name = "expanded"
-        initial = {"expanded": False}
-        expected = {"expanded": True}
-        strategy = "toggleSameTarget"
-
     aria = report_candidate.get("ariaAttributes") if isinstance(report_candidate, dict) else None
-    if not isinstance(aria, dict) or aria.get(state_name) != "false":
-        add_error(
-            errors,
-            "P206",
-            f"{path}.initialState.{state_name}",
-            f"current report must contain ariaAttributes.{state_name} == 'false'",
-        )
+    if not isinstance(aria, dict) or aria.get("selected") != "false":
+        add_error(errors, "P206", f"{path}.initialState.interactionTarget.selected", "current report must contain ariaAttributes.selected == 'false'")
 
-    validate_exact_state(test_case.get("initialState"), initial, f"{path}.initialState", "P301", errors)
-    validate_exact_state(test_case.get("expectedState"), expected, f"{path}.expectedState", "P302", errors)
+    validate_exact_state(test_case.get("initialState"), TAB_INITIAL_STATE, f"{path}.initialState", "P301", errors)
+    validate_exact_state(test_case.get("expectedState"), TAB_EXPECTED_STATE, f"{path}.expectedState", "P302", errors)
+    validate_exact_state(test_case.get("restoredState"), TAB_RESTORED_STATE, f"{path}.restoredState", "P307", errors)
 
+    if "reset" in test_case:
+        add_error(errors, "P308", f"{path}.reset", "reset is not allowed for tabSelection")
+    restore = test_case.get("restore")
+    if not isinstance(restore, dict):
+        add_error(errors, "P303", f"{path}.restore", "restore is required and must be an object")
+        return
+    reject_unknown_fields(restore, PLAN_RESTORE_FIELDS, f"{path}.restore", "P304", errors)
+    if restore.get("strategy") != "restorePreviousSelection":
+        add_error(errors, "P306", f"{path}.restore.strategy", "restore.strategy must be 'restorePreviousSelection'")
+    restore_target = restore.get("target")
+    if not isinstance(restore_target, dict):
+        add_error(errors, "P309", f"{path}.restore.target", "restore target is required and must be an object")
+        return
+    reject_unknown_fields(restore_target, PLAN_RESTORE_TARGET_FIELDS, f"{path}.restore.target", "P310", errors)
+    restore_candidate_key = restore_target.get("candidateKey")
+    if not isinstance(restore_candidate_key, str) or CANDIDATE_KEY_PATTERN.fullmatch(restore_candidate_key) is None:
+        add_error(errors, "P313", f"{path}.restore.target.candidateKey", "valid restore candidateKey is required")
+    if not is_non_empty_string(restore_target.get("selector")):
+        add_error(errors, "P311", f"{path}.restore.target.selector", "restore selector is required and must be non-empty")
+    if restore_target.get("selector") == test_case.get("target", {}).get("selector"):
+        add_error(errors, "P312", f"{path}.restore.target.selector", "restore selector must differ from interaction selector")
+
+    upstream_restore = eligible.get("tabRestore") if isinstance(eligible, dict) else None
+    upstream_target = upstream_restore.get("target") if isinstance(upstream_restore, dict) else None
+    exact_pairs = (
+        (test_case.get("target", {}).get("tabGroupSelector"), upstream_restore.get("tabGroupSelector") if isinstance(upstream_restore, dict) else None, f"{path}.target.tabGroupSelector", "P209"),
+        (restore_target.get("candidateKey"), upstream_target.get("candidateKey") if isinstance(upstream_target, dict) else None, f"{path}.restore.target.candidateKey", "P210"),
+        (restore_target.get("selector"), upstream_target.get("selector") if isinstance(upstream_target, dict) else None, f"{path}.restore.target.selector", "P211"),
+    )
+    for actual, expected, field_path, code in exact_pairs:
+        if actual != expected:
+            add_error(errors, code, field_path, "field must exactly match eligible/report restore evidence")
+
+
+def validate_expanded_state(test_case, index, report_candidate, errors):
+    path = f"$.tests[{index}]"
+    aria = report_candidate.get("ariaAttributes") if isinstance(report_candidate, dict) else None
+    if not isinstance(aria, dict) or aria.get("expanded") != "false":
+        add_error(errors, "P206", f"{path}.initialState.expanded", "current report must contain ariaAttributes.expanded == 'false'")
+    validate_exact_state(test_case.get("initialState"), EXPANDED_INITIAL_STATE, f"{path}.initialState", "P301", errors)
+    validate_exact_state(test_case.get("expectedState"), EXPANDED_EXPECTED_STATE, f"{path}.expectedState", "P302", errors)
+    if "restore" in test_case or "restoredState" in test_case:
+        add_error(errors, "P308", path, "tab restore fields are not allowed for expandedToggle")
+
+    reset = test_case.get("reset")
     if not isinstance(reset, dict):
         add_error(errors, "P303", f"{path}.reset", "reset is required and must be an object")
         return
     reject_unknown_fields(reset, PLAN_RESET_FIELDS, f"{path}.reset", "P304", errors)
     if reset.get("required") is not True:
         add_error(errors, "P305", f"{path}.reset.required", "reset.required must be true")
-    if reset.get("strategy") != strategy:
-        add_error(errors, "P306", f"{path}.reset.strategy", f"reset.strategy must be {strategy!r}")
-    validate_exact_state(
-        reset.get("restoredState"), initial, f"{path}.reset.restoredState", "P307", errors
-    )
+    if reset.get("strategy") != "toggleSameTarget":
+        add_error(errors, "P306", f"{path}.reset.strategy", "reset.strategy must be 'toggleSameTarget'")
+    validate_exact_state(reset.get("restoredState"), EXPANDED_INITIAL_STATE, f"{path}.reset.restoredState", "P307", errors)
 
 
 def validate_test_case(test_case, index, bound, seen_ids, seen_keys, errors):
@@ -230,7 +264,14 @@ def validate_test_case(test_case, index, bound, seen_ids, seen_keys, errors):
             expected_id = stable_test_id(candidate_key, template)
             if test_id != expected_id:
                 add_error(errors, "P105", f"{path}.id", f"id must exactly equal {expected_id!r}")
-        validate_template_state(test_case, index, template, report_candidate, errors)
+        if template == "interaction.tabSelection":
+            if not is_non_empty_string(target.get("tabGroupSelector")):
+                add_error(errors, "P117", f"{path}.target.tabGroupSelector", "tabGroupSelector is required for tabSelection")
+            validate_tab_state(test_case, index, eligible, report_candidate, errors)
+        else:
+            if "tabGroupSelector" in target:
+                add_error(errors, "P118", f"{path}.target.tabGroupSelector", "tabGroupSelector is not allowed for expandedToggle")
+            validate_expanded_state(test_case, index, report_candidate, errors)
 
 
 def validate_plan(plan, bound, expected_sources=None):
@@ -291,6 +332,14 @@ def validate_fixture(fixture):
         raise ValueError("interaction plan validator fixture top-level value must be an object")
     reconciliation = fixture.get("reconciliation")
     report = fixture.get("analysisReviewReport")
+    builder_fixture_path = fixture.get("builderFixture")
+    if builder_fixture_path:
+        builder_fixture = load_json(resolve_path(builder_fixture_path), "interaction plan builder fixture")
+        success = builder_fixture.get("success") if isinstance(builder_fixture, dict) else None
+        if not isinstance(success, dict):
+            raise ValueError("referenced builder fixture requires success object")
+        reconciliation = success.get("reconciliation")
+        report = success.get("analysisReviewReport")
     valid_plan = fixture.get("validPlan")
     empty_plan = fixture.get("emptyPlan")
     failure_cases = fixture.get("failureCases")

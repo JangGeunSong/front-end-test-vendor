@@ -71,6 +71,16 @@ npm --version
 
 `fnm use`는 repository root의 `.node-version`을 읽는다. 현재 fnm CLI에서 `fnm use --lts`는 지원되는 syntax가 아니므로 사용하지 않는다.
 
+Sandbox가 fnm multishell symlink 생성을 차단해 `fnm env`가 실패하면 repository 안에 임시 multishell directory나 Node binary를 만들지 않는다. Installed repository version을 다음처럼 직접 실행한다.
+
+```powershell
+fnm exec --using=24.15.0 node --version
+fnm exec --using=24.15.0 npm.cmd --version
+fnm exec --using=24.15.0 npx.cmd playwright test <spec-path> --list
+```
+
+이 fallback은 `.node-version`과 일치하는 installed version이 있을 때만 사용한다.
+
 선언된 version이 local fnm installation에 없을 때만 설치한다.
 
 ```powershell

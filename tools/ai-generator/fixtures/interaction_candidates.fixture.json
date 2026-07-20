@@ -9,7 +9,98 @@
         "role": "tab",
         "ariaSelected": "false",
         "cssPath": "main [role='tab']:nth-of-type(1)",
+        "isVisible": true,
+        "tabRestore": {
+          "strategy": "restorePreviousSelection",
+          "tabGroupSelector": "main [role='tablist']",
+          "target": {
+            "observedUrl": "https://example.test/",
+            "text": "Details tab",
+            "tagName": "LI",
+            "role": "tab",
+            "selected": "true",
+            "cssPath": "main [role='tab']:nth-of-type(2)"
+          }
+        }
+      },
+      {
+        "fixtureId": "selected-tab",
+        "text": "Details tab",
+        "tagName": "LI",
+        "role": "tab",
+        "ariaSelected": "true",
+        "cssPath": "main [role='tab']:nth-of-type(2)",
         "isVisible": true
+      },
+      {
+        "fixtureId": "unicode-tab",
+        "text": "패키지 \"β\"",
+        "tagName": "BUTTON",
+        "role": "tab",
+        "ariaSelected": "false",
+        "cssPath": "section[data-title='패키지\\\\그룹'] button[data-tab='β']",
+        "isVisible": true,
+        "tabRestore": {
+          "strategy": "restorePreviousSelection",
+          "tabGroupSelector": "section[data-title='패키지\\\\그룹'] [role='tablist']",
+          "target": {
+            "observedUrl": "https://example.test/",
+            "text": "기본 \"α\"",
+            "tagName": "BUTTON",
+            "role": "tab",
+            "selected": "true",
+            "cssPath": "section[data-title='패키지\\\\그룹'] button[data-tab='α']"
+          }
+        }
+      },
+      {
+        "fixtureId": "unicode-selected-tab",
+        "text": "기본 \"α\"",
+        "tagName": "BUTTON",
+        "role": "tab",
+        "ariaSelected": "true",
+        "cssPath": "section[data-title='패키지\\\\그룹'] button[data-tab='α']",
+        "isVisible": true
+      },
+      {
+        "fixtureId": "tab-no-explicit-group",
+        "text": "No explicit group",
+        "tagName": "BUTTON",
+        "role": "tab",
+        "ariaSelected": "false",
+        "cssPath": "main #tab-no-group",
+        "isVisible": true,
+        "tabRestoreUnavailableReason": "missingTabGroupEvidence"
+      },
+      {
+        "fixtureId": "tab-no-selected-peer",
+        "text": "No selected peer",
+        "tagName": "BUTTON",
+        "role": "tab",
+        "ariaSelected": "false",
+        "cssPath": "main #tab-no-selected",
+        "isVisible": true,
+        "tabRestoreUnavailableReason": "missingPreviousSelection"
+      },
+      {
+        "fixtureId": "tab-ambiguous-selected-peer",
+        "text": "Ambiguous selected peer",
+        "tagName": "BUTTON",
+        "role": "tab",
+        "ariaSelected": "false",
+        "cssPath": "main #tab-ambiguous-selected",
+        "isVisible": true,
+        "tabRestoreUnavailableReason": "ambiguousPreviousSelection"
+      },
+      {
+        "fixtureId": "tab-invalid-restore-target",
+        "text": "Invalid restore target",
+        "tagName": "BUTTON",
+        "role": "tab",
+        "ariaSelected": "false",
+        "cssPath": "main #tab-invalid-restore",
+        "isVisible": true,
+        "tabRestoreUnavailableReason": "invalidRestoreTarget"
       },
       {
         "fixtureId": "safe-accordion",
@@ -162,13 +253,31 @@
         "role": "tab",
         "ariaSelected": "false",
         "cssPath": "main [role='tab']:nth-of-type(1)",
-        "isVisible": true
+        "isVisible": true,
+        "tabRestore": {
+          "strategy": "restorePreviousSelection",
+          "tabGroupSelector": "main [role='tablist']",
+          "target": {
+            "observedUrl": "https://example.test/",
+            "text": "Details tab",
+            "tagName": "LI",
+            "role": "tab",
+            "selected": "true",
+            "cssPath": "main [role='tab']:nth-of-type(2)"
+          }
+        }
       }
     ]
   },
   "expected": {
     "safeTexts": [
       "Overview",
+      "패키지 \"β\"",
+      "기본 \"α\"",
+      "No explicit group",
+      "No selected peer",
+      "Ambiguous selected peer",
+      "Invalid restore target",
       "Details",
       "Open dialog",
       "Close dialog"
@@ -211,10 +320,55 @@
         "observedUrl": "https://example.test/",
         "classification": "safe",
         "interactionKind": "tab",
+        "tabRestoreStrategy": "restorePreviousSelection",
+        "tabRestoreGroupSelector": "main [role='tablist']",
+        "tabRestoreTargetSelector": "main [role='tab']:nth-of-type(2)",
         "candidateSources": [
           "scout_result.elements",
           "menu_map.nonPrimaryNavigationCandidates"
         ]
+      },
+      {
+        "fixtureId": "selected-tab",
+        "classification": "safe",
+        "interactionKind": "tab"
+      },
+      {
+        "fixtureId": "unicode-tab",
+        "classification": "safe",
+        "interactionKind": "tab",
+        "tabRestoreStrategy": "restorePreviousSelection",
+        "tabRestoreGroupSelector": "section[data-title='패키지\\\\그룹'] [role='tablist']",
+        "tabRestoreTargetSelector": "section[data-title='패키지\\\\그룹'] button[data-tab='α']"
+      },
+      {
+        "fixtureId": "unicode-selected-tab",
+        "classification": "safe",
+        "interactionKind": "tab"
+      },
+      {
+        "fixtureId": "tab-no-explicit-group",
+        "classification": "safe",
+        "interactionKind": "tab",
+        "tabRestoreUnavailableReason": "missingTabGroupEvidence"
+      },
+      {
+        "fixtureId": "tab-no-selected-peer",
+        "classification": "safe",
+        "interactionKind": "tab",
+        "tabRestoreUnavailableReason": "missingPreviousSelection"
+      },
+      {
+        "fixtureId": "tab-ambiguous-selected-peer",
+        "classification": "safe",
+        "interactionKind": "tab",
+        "tabRestoreUnavailableReason": "ambiguousPreviousSelection"
+      },
+      {
+        "fixtureId": "tab-invalid-restore-target",
+        "classification": "safe",
+        "interactionKind": "tab",
+        "tabRestoreUnavailableReason": "invalidRestoreTarget"
       },
       {
         "fixtureId": "safe-accordion",
@@ -307,6 +461,40 @@
     ]
   },
   "failureCases": [
+    {
+      "scenario": "canonical-candidate-tab-restore-conflict",
+      "scoutResult": {
+        "url": "https://example.test/",
+        "elements": [
+          {
+            "text": "Overview",
+            "tagName": "LI",
+            "role": "tab",
+            "ariaSelected": "false",
+            "cssPath": "main [role='tab']",
+            "isVisible": true,
+            "tabRestoreUnavailableReason": "missingTabGroupEvidence"
+          }
+        ]
+      },
+      "menuMap": {
+        "url": "https://example.test/",
+        "pageProfiles": [],
+        "nonPrimaryNavigationCandidates": [
+          {
+            "observedUrl": "https://example.test/",
+            "text": "Overview",
+            "tagName": "LI",
+            "role": "tab",
+            "ariaSelected": "false",
+            "cssPath": "main [role='tab']",
+            "isVisible": true,
+            "tabRestoreUnavailableReason": "missingPreviousSelection"
+          }
+        ]
+      },
+      "expectedMessage": "candidate tab restore evidence conflict"
+    },
     {
       "scenario": "missing-root-observed-url",
       "scoutResult": {

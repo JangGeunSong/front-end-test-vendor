@@ -7,6 +7,7 @@ from validate_interaction_approvals import (
     CANDIDATE_KEY_PATTERN,
     CLASSIFICATIONS,
     CONFIDENCE_LEVELS,
+    TAB_RESTORE_UNAVAILABLE_REASONS,
     ROOT_DIR,
     display_path,
     is_absolute_http_url,
@@ -23,8 +24,8 @@ DEFAULT_APPROVAL_PATH = (
     ROOT_DIR / "tools" / "ai-generator" / "review" / "interaction_approvals.json"
 )
 DEFAULT_OUTPUT_PATH = GENERATED_DIR / "interaction_approval_reconciliation.json"
-RESULT_SCHEMA_VERSION = "2.0"
-ANALYSIS_REPORT_VERSION = "2.0"
+RESULT_SCHEMA_VERSION = "3.0"
+ANALYSIS_REPORT_VERSION = "2.1"
 
 REVIEW_CRITICAL_FIELDS = (
     "classification",
@@ -40,6 +41,19 @@ REVIEW_CRITICAL_FIELDS = (
     "interactionKind",
     "actionKind",
     "riskLevel",
+    "tabRestore",
+)
+TAB_RESTORE_CHANGED_PATHS = (
+    "tabRestore.strategy",
+    "tabRestore.tabGroupSelector",
+    "tabRestore.target.candidateKey",
+    "tabRestore.target.selector",
+    "tabRestore.target.observedUrl",
+    "tabRestore.target.pageContext",
+    "tabRestore.target.role",
+    "tabRestore.target.tagName",
+    "tabRestore.target.text",
+    "tabRestore.target.ariaAttributes.selected",
 )
 CURRENT_REQUIRED_STRING_FIELDS = (
     "pageContext",
@@ -90,6 +104,70 @@ def resolve_path(value):
 
 def add_input_error(errors, code, path, message):
     errors.append((code, path, message))
+
+
+def nested_value(value, path):
+    current = value
+    for part in path.split("."):
+        if not isinstance(current, dict) or part not in current:
+            return None
+        current = current[part]
+    return current
+
+
+def validate_current_tab_restore(candidate, path, errors):
+    classification = candidate.get("classification")
+    interaction_kind = candidate.get("interactionKind")
+    aria = candidate.get("ariaAttributes")
+    selected = aria.get("selected") if isinstance(aria, dict) else None
+    restore = candidate.get("tabRestore")
+    reason = candidate.get("tabRestoreUnavailableReason")
+    is_unselected_tab = classification == "safe" and interaction_kind == "tab" and selected == "false"
+
+    if not is_unselected_tab:
+        if restore is not None or reason is not None:
+            add_input_error(errors, "C115", path, "tab restore fields are only allowed on a safe unselected tab")
+        return
+    if restore is None:
+        if reason not in TAB_RESTORE_UNAVAILABLE_REASONS:
+            add_input_error(errors, "C116", f"{path}.tabRestoreUnavailableReason", "valid restore readiness reason is required")
+        return
+    if reason is not None:
+        add_input_error(errors, "C117", path, "tabRestore and unavailable reason cannot coexist")
+    if not isinstance(restore, dict):
+        add_input_error(errors, "C118", f"{path}.tabRestore", "tabRestore must be an object")
+        return
+    expected_restore_fields = {"strategy", "tabGroupSelector", "target"}
+    if set(restore) != expected_restore_fields:
+        add_input_error(errors, "C119", f"{path}.tabRestore", "tabRestore must contain exact bounded fields")
+    target = restore.get("target")
+    if restore.get("strategy") != "restorePreviousSelection" or not is_non_empty_string(restore.get("tabGroupSelector")):
+        add_input_error(errors, "C120", f"{path}.tabRestore", "invalid restore strategy or group selector")
+    if not isinstance(target, dict):
+        add_input_error(errors, "C121", f"{path}.tabRestore.target", "restore target must be an object")
+        return
+    expected_target_fields = {
+        "candidateKey", "selector", "observedUrl", "pageContext",
+        "role", "tagName", "text", "ariaAttributes",
+    }
+    if set(target) != expected_target_fields:
+        add_input_error(errors, "C122", f"{path}.tabRestore.target", "restore target must contain exact bounded fields")
+    target_aria = target.get("ariaAttributes")
+    if (
+        not isinstance(target.get("candidateKey"), str)
+        or CANDIDATE_KEY_PATTERN.fullmatch(target.get("candidateKey", "")) is None
+        or not is_non_empty_string(target.get("selector"))
+        or target.get("selector") == candidate.get("selector")
+        or target.get("observedUrl") != candidate.get("observedUrl")
+        or target.get("pageContext") != candidate.get("pageContext")
+        or target.get("role") != "tab"
+        or not is_non_empty_string(target.get("tagName"))
+        or target.get("tagName") != target.get("tagName", "").lower()
+        or not isinstance(target_aria, dict)
+        or set(target_aria) != {"selected"}
+        or target_aria.get("selected") != "true"
+    ):
+        add_input_error(errors, "C123", f"{path}.tabRestore.target", "invalid bounded restore target evidence")
 
 
 def current_candidate_snapshot(candidate, path, target_url, errors):
@@ -190,6 +268,8 @@ def current_candidate_snapshot(candidate, path, target_url, errors):
                 f"{field} is not allowed for current {classification!r} candidate",
             )
 
+    validate_current_tab_restore(candidate, path, errors)
+
     snapshot = {}
     for field in REVIEW_CRITICAL_FIELDS:
         if field in candidate:
@@ -263,9 +343,14 @@ def extract_current_candidates(report):
 def changed_fields(snapshot, current_snapshot):
     changed = []
     for field in REVIEW_CRITICAL_FIELDS:
+        if field == "tabRestore":
+            continue
         if field in snapshot or field in current_snapshot:
             if snapshot.get(field) != current_snapshot.get(field):
                 changed.append(field)
+    for path in TAB_RESTORE_CHANGED_PATHS:
+        if nested_value(snapshot, path) != nested_value(current_snapshot, path):
+            changed.append(path)
     return changed
 
 
@@ -283,7 +368,7 @@ def ordered_ineligibility_reasons(reference_status, current_classification, deci
 
 
 def eligible_candidate_payload(candidate):
-    return {
+    payload = {
         "candidateKey": candidate["candidateKey"],
         "currentClassification": candidate["classification"],
         "interactionKind": candidate["interactionKind"],
@@ -293,6 +378,9 @@ def eligible_candidate_payload(candidate):
         "selector": candidate["selector"],
         "text": candidate["text"],
     }
+    if candidate.get("tabRestore") is not None:
+        payload["tabRestore"] = candidate["tabRestore"]
+    return payload
 
 
 def unreviewed_candidate_payload(candidate):
@@ -326,6 +414,20 @@ def reconcile_approvals(target_url, current_items, approval_artifact):
         else:
             current_classification = current_item["candidate"]["classification"]
             changed = changed_fields(entry["evidenceSnapshot"], current_item["snapshot"])
+            current_restore = current_item["candidate"].get("tabRestore")
+            if isinstance(current_restore, dict):
+                restore_key = nested_value(current_restore, "target.candidateKey")
+                restore_item = current_by_key.get(restore_key)
+                restore_candidate = restore_item["candidate"] if restore_item else None
+                restore_aria = restore_candidate.get("ariaAttributes") if isinstance(restore_candidate, dict) else {}
+                if (
+                    not isinstance(restore_candidate, dict)
+                    or restore_candidate.get("classification") != "safe"
+                    or restore_candidate.get("interactionKind") != "tab"
+                    or restore_aria.get("selected") != "true"
+                ):
+                    if "tabRestore.target.candidateKey" not in changed:
+                        changed.append("tabRestore.target.candidateKey")
             reference_status = "evidenceChanged" if changed else "valid"
 
         reasons = ordered_ineligibility_reasons(
@@ -477,6 +579,17 @@ def validate_fixture(fixture):
             "eligibleCandidateObservedUrls: expected "
             f"{expected.get('eligibleCandidateObservedUrls', {})!r}, "
             f"got {eligible_observed_urls!r}"
+        )
+    eligible_restore_keys = {
+        item["candidateKey"]: nested_value(item, "tabRestore.target.candidateKey")
+        for item in first["eligibleCandidates"]
+        if isinstance(item.get("tabRestore"), dict)
+    }
+    if eligible_restore_keys != expected.get("eligibleCandidateTabRestoreKeys", {}):
+        failures.append(
+            "eligibleCandidateTabRestoreKeys: expected "
+            f"{expected.get('eligibleCandidateTabRestoreKeys', {})!r}, "
+            f"got {eligible_restore_keys!r}"
         )
     unreviewed_keys = [item["candidateKey"] for item in first["unreviewedCandidates"]]
     if unreviewed_keys != expected.get("unreviewedCandidateKeys", []):

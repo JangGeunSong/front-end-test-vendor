@@ -448,6 +448,14 @@ def build_report(scout_result, menu_map, test_plan, warnings, source_paths=None)
     safe_interactions = interaction_result["safeInteractionCandidates"]
     unsafe_actions = interaction_result["unsafeActionCandidates"]
     unknown_interactions = interaction_result["unknownInteractionCandidates"]
+    tab_restore_ready = [
+        item for item in safe_interactions
+        if item.get("interactionKind") == "tab" and isinstance(item.get("tabRestore"), dict)
+    ]
+    tab_restore_unavailable = [
+        item for item in safe_interactions
+        if item.get("interactionKind") == "tab" and item.get("tabRestoreUnavailableReason")
+    ]
     unresolved_output = navigation_unresolved + unknown_interactions
     actions = recommended_actions(
         identities,
@@ -473,7 +481,7 @@ def build_report(scout_result, menu_map, test_plan, warnings, source_paths=None)
     }
 
     return {
-        "version": "2.0",
+        "version": "2.1",
         "sources": sources,
         "summary": {
             "targetUrl": target_url,
@@ -482,6 +490,8 @@ def build_report(scout_result, menu_map, test_plan, warnings, source_paths=None)
             "pageProfileCount": len(profiles),
             "excludedCandidateCount": len(non_primary),
             "safeInteractionCandidateCount": len(safe_interactions),
+            "tabRestoreReadyCandidateCount": len(tab_restore_ready),
+            "tabRestoreUnavailableCandidateCount": len(tab_restore_unavailable),
             "unsafeActionCandidateCount": len(unsafe_actions),
             "unresolvedCandidateCount": len(unresolved_output),
             "recommendedActionCount": len(actions),

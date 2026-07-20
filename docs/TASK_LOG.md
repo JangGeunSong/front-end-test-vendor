@@ -1,5 +1,38 @@
 # Task Log
 
+## 2026-07-20 - Implement previous tab selection evidence and approval reconciliation
+
+### 작업 목적
+
+- Closest explicit tablist와 exactly-one selected peer evidence를 producer에서 bounded `tabRestore`로 수집한다.
+- Analysis Review Report `2.1`, Interaction Approval `3.0`, Approval Reconciliation `3.0`까지 target/restore pair를 exact하게 전달하고 stale 처리한다.
+- Structured Interaction Plan과 renderer는 schema `2.0`에 유지해 다음 implementation boundary를 분리한다.
+
+### 구현 결과
+
+- `scout.js`는 unselected exact `role=tab`에서 closest explicit `[role="tablist"]`를 찾고 group selector가 document에서 unique하며 visible selected peer가 정확히 하나일 때만 restore evidence를 만든다.
+- Group/peer evidence가 없거나 모호하면 `missingTabGroupEvidence`, `missingPreviousSelection`, `ambiguousPreviousSelection`, `invalidRestoreTarget`을 기록한다. Parent, sibling, class, text, index 또는 DOM-wide selected tab fallback은 사용하지 않는다.
+- Classifier는 target identity algorithm을 변경하지 않고 restore peer에 같은 algorithm의 `candidateKey`를 부여한다. 같은 canonical target의 restore evidence가 source 사이에서 다르면 fail-fast한다.
+- Report `2.1` JSON/Markdown은 bounded pair와 restore-ready/unavailable count를 표시한다. Restore readiness는 safe classification과 분리된다.
+- Approval `3.0` validator는 approved safe unselected tab에 human-reviewed `tabRestore` snapshot을 required로 하고 nested unknown field, URL/context/state/selector invariant를 strict하게 검증한다. Old `2.0`은 unsupported다.
+- Reconciliation `3.0`은 current report의 restore snapshot과 selected peer를 exact 검증한다. Primary target 부재만 `missingCandidate`이며 restore peer/evidence 문제는 stable bounded path의 `evidenceChanged`다. Eligible tab payload는 exact `tabRestore`를 보존한다.
+- Neutral fixtures는 valid pair, no group/no peer/ambiguous/invalid reason, restore conflict, stale group/peer, missing peer와 quote/backslash/Unicode selector/text preservation을 포함한다.
+
+### 검증 및 제한
+
+- Python compile, Node syntax, JSON parse, candidate/approval/reconciliation fixtures와 기존 Structured Interaction Plan `2.0` builder/validator/renderer fixtures를 통과했다.
+- Existing ignored public artifact를 재분류한 결과 unselected tab 12개는 모두 `missingTabGroupEvidence`였고 ready pair는 0개였다. 이 결과는 fresh DOM observation이 아니다.
+- Fresh public-site deterministic analysis는 sandbox outbound network 차단으로 `ERR_NETWORK_ACCESS_DENIED`에 실패했고 권한 상승 요청도 승인되지 않아 완료하지 못했다. 따라서 public DOM의 current tablist distribution이나 temporary approval success를 주장하지 않는다.
+- Plan schema `3.0`, `restorePreviousSelection` renderer, browser runtime과 expandedToggle runtime은 구현하거나 실행하지 않았다.
+
+### 다음 작업
+
+```text
+Structured Interaction Plan schema 3.0 builder/validator
+  -> exact restorePreviousSelection renderer
+  -> Playwright public-site runtime revalidation
+```
+
 ## 2026-07-20 - Define previous tab selection restore contract
 
 ### 작업 목적

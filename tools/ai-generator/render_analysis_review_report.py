@@ -17,6 +17,8 @@ SUMMARY_FIELDS = [
     ("pageProfileCount", "Page profiles"),
     ("excludedCandidateCount", "Excluded candidates"),
     ("safeInteractionCandidateCount", "Safe interaction candidates"),
+    ("tabRestoreReadyCandidateCount", "Tab restore ready candidates"),
+    ("tabRestoreUnavailableCandidateCount", "Tab restore unavailable candidates"),
     ("unsafeActionCandidateCount", "Unsafe action candidates"),
     ("unresolvedCandidateCount", "Unresolved candidates"),
     ("recommendedActionCount", "Recommended actions"),
@@ -143,6 +145,30 @@ def append_mapping(lines, label, value):
 
 def close_detail(lines):
     lines.extend(["", "</details>", ""])
+
+
+def append_tab_restore(lines, item):
+    restore = item.get("tabRestore")
+    if isinstance(restore, dict):
+        target = restore.get("target")
+        target = target if isinstance(target, dict) else {}
+        append_value(lines, "Restore readiness", "ready")
+        append_code_value(lines, "Tab group", restore.get("tabGroupSelector"))
+        append_value(lines, "Restore strategy", restore.get("strategy"))
+        append_value(lines, "Previous selected tab", target.get("text"))
+        append_code_value(lines, "Restore candidate key", target.get("candidateKey"))
+        append_code_value(lines, "Restore selector", target.get("selector"))
+        append_code_value(lines, "Restore observed URL", target.get("observedUrl"))
+        append_value(lines, "Restore page context", target.get("pageContext"))
+        append_value(lines, "Restore role", target.get("role"))
+        append_value(lines, "Restore tag name", target.get("tagName"))
+        append_mapping(lines, "Restore ARIA attributes", target.get("ariaAttributes"))
+    else:
+        append_value(
+            lines,
+            "Restore readiness",
+            item.get("tabRestoreUnavailableReason"),
+        )
 
 
 def render_warnings(report):
@@ -322,6 +348,8 @@ def render_candidate_section(report, key, heading, mode):
         append_value(lines, "Surrounding text", item.get("surroundingText"))
         append_mapping(lines, "ARIA attributes", item.get("ariaAttributes"))
         append_code_value(lines, "Selector", item.get("selector"))
+        if item.get("interactionKind") == "tab":
+            append_tab_restore(lines, item)
         append_list(lines, "Candidate sources", item.get("candidateSources"))
         append_list(lines, "Evidence", item.get("evidence"))
         append_list(lines, "Signals", item.get("signals"))

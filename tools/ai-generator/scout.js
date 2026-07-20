@@ -336,10 +336,79 @@ async function collectPageProfile(page) {
       return uniqueBy(
         Array.from(document.querySelectorAll('[role="tab"], [role="tablist"] [role="tab"], .tabs a, .tab a, .tabMenu a, .tab li'))
           .filter(el => isElementVisible(el) && !isInsideCommonLayout(el))
-          .map(el => ({
-            ...summarizeElement(el),
-            selected: el.getAttribute('aria-selected') || ''
-          }))
+          .map(el => {
+            const summary = {
+              ...summarizeElement(el),
+              selected: el.getAttribute('aria-selected') || ''
+            };
+
+            if (summary.role !== 'tab' || summary.selected !== 'false') {
+              return summary;
+            }
+
+            const tablist = el.closest('[role="tablist"]');
+            if (!tablist) {
+              return {
+                ...summary,
+                tabRestoreUnavailableReason: 'missingTabGroupEvidence'
+              };
+            }
+
+            const tabGroupSelector = getCssPath(tablist);
+            if (
+              !tabGroupSelector ||
+              document.querySelectorAll(tabGroupSelector).length !== 1
+            ) {
+              return {
+                ...summary,
+                tabRestoreUnavailableReason: 'missingTabGroupEvidence'
+              };
+            }
+
+            const selectedPeers = Array.from(
+              tablist.querySelectorAll('[role="tab"][aria-selected="true"]')
+            ).filter(peer => peer.closest('[role="tablist"]') === tablist);
+            if (selectedPeers.length === 0) {
+              return {
+                ...summary,
+                tabRestoreUnavailableReason: 'missingPreviousSelection'
+              };
+            }
+            if (selectedPeers.length > 1) {
+              return {
+                ...summary,
+                tabRestoreUnavailableReason: 'ambiguousPreviousSelection'
+              };
+            }
+
+            const restoreTarget = selectedPeers[0];
+            const restoreSelector = getCssPath(restoreTarget);
+            if (
+              !isElementVisible(restoreTarget) ||
+              restoreTarget.getAttribute('role') !== 'tab' ||
+              restoreTarget.getAttribute('aria-selected') !== 'true' ||
+              !restoreSelector ||
+              restoreSelector === summary.cssPath ||
+              document.querySelectorAll(restoreSelector).length !== 1
+            ) {
+              return {
+                ...summary,
+                tabRestoreUnavailableReason: 'invalidRestoreTarget'
+              };
+            }
+
+            return {
+              ...summary,
+              tabRestore: {
+                strategy: 'restorePreviousSelection',
+                tabGroupSelector,
+                target: {
+                  ...summarizeElement(restoreTarget),
+                  selected: 'true'
+                }
+              }
+            };
+          })
           .filter(item => item.text.length > 0),
         item => `${item.text}:${item.cssPath}`,
         20

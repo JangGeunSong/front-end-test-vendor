@@ -15,6 +15,15 @@ DEFAULT_MENU_MAP_PATH = GENERATED_DIR / "menu_map.json"
 
 ACTION_TAGS = {"button", "input", "select", "textarea", "summary"}
 ACTION_ROLES = {"button", "tab", "checkbox", "radio", "combobox", "switch", "menuitem"}
+TAB_RESTORE_UNAVAILABLE_REASONS = {
+    "missingTabGroupEvidence",
+    "missingPreviousSelection",
+    "ambiguousPreviousSelection",
+    "invalidRestoreTarget",
+}
+CANDIDATE_KEY_PATTERN = re.compile(
+    r"^interaction:(?:selector|fallback):[0-9a-f]{24}$"
+)
 
 UNSAFE_KEYWORDS = [
     ("delete", "critical", ["delete", "remove", "삭제"]),
@@ -177,6 +186,84 @@ def is_action_candidate(candidate, force=False):
     )
 
 
+def normalize_tab_restore(candidate, normalized, source, target_url):
+    raw_restore = candidate.get("tabRestore")
+    raw_reason = compact_string(candidate.get("tabRestoreUnavailableReason"))
+    role = normalized["role"]
+    selected = normalized["ariaAttributes"].get("selected")
+
+    if role != "tab" or selected != "false":
+        if raw_restore is not None or raw_reason:
+            raise ValueError(
+                f"tab restore evidence is only allowed on an unselected role=tab candidate: {source}"
+            )
+        return
+
+    if raw_restore is None:
+        reason = raw_reason or "missingTabGroupEvidence"
+        if reason not in TAB_RESTORE_UNAVAILABLE_REASONS:
+            raise ValueError(f"unsupported tab restore readiness reason {reason!r}: {source}")
+        normalized["tabRestoreUnavailableReason"] = reason
+        return
+
+    if raw_reason:
+        raise ValueError(f"tab restore evidence and unavailable reason cannot coexist: {source}")
+    if not isinstance(raw_restore, dict):
+        raise ValueError(f"tabRestore must be an object: {source}")
+    if set(raw_restore) != {"strategy", "tabGroupSelector", "target"}:
+        raise ValueError(f"tabRestore must contain exact bounded fields: {source}")
+    if raw_restore.get("strategy") != "restorePreviousSelection":
+        raise ValueError(f"tabRestore strategy must be restorePreviousSelection: {source}")
+
+    group_selector = compact_string(raw_restore.get("tabGroupSelector"))
+    raw_target = raw_restore.get("target")
+    if not group_selector or not isinstance(raw_target, dict):
+        raise ValueError(f"tabRestore group selector and target are required: {source}")
+
+    restore_url = compact_string(raw_target.get("observedUrl"))
+    if not is_absolute_http_url(restore_url):
+        raise ValueError(f"tab restore target observedUrl must be absolute HTTP(S): {source}")
+    if not is_same_origin(target_url, restore_url):
+        raise ValueError(f"tab restore target observedUrl must be same-origin: {source}")
+
+    restore_target = {
+        "selector": first_string(raw_target, "cssPath", "selector"),
+        "observedUrl": restore_url,
+        "pageContext": normalized["pageContext"],
+        "role": compact_string(raw_target.get("role")).lower(),
+        "tagName": compact_string(raw_target.get("tagName")).lower(),
+        "text": first_string(raw_target, "text"),
+        "ariaAttributes": {
+            "selected": first_string(raw_target, "ariaSelected", "aria-selected", "selected")
+        },
+    }
+    if (
+        not restore_target["selector"]
+        or restore_target["selector"] == normalized["selector"]
+        or restore_target["observedUrl"] != normalized["observedUrl"]
+        or restore_target["role"] != "tab"
+        or not restore_target["tagName"]
+        or restore_target["ariaAttributes"]["selected"] != "true"
+    ):
+        raise ValueError(f"invalid bounded tab restore target: {source}")
+
+    restore_target["candidateKey"] = candidate_key(restore_target)
+    normalized["tabRestore"] = {
+        "strategy": "restorePreviousSelection",
+        "tabGroupSelector": group_selector,
+        "target": {
+            "candidateKey": restore_target["candidateKey"],
+            "selector": restore_target["selector"],
+            "observedUrl": restore_target["observedUrl"],
+            "pageContext": restore_target["pageContext"],
+            "role": restore_target["role"],
+            "tagName": restore_target["tagName"],
+            "text": restore_target["text"],
+            "ariaAttributes": restore_target["ariaAttributes"],
+        },
+    }
+
+
 def normalize_candidate(
     candidate,
     source,
@@ -212,6 +299,7 @@ def normalize_candidate(
     }
     if "fixtureId" in candidate:
         normalized["fixtureId"] = compact_string(candidate.get("fixtureId"))
+    normalize_tab_restore(candidate, normalized, source, target_url)
     return normalized
 
 
@@ -248,6 +336,29 @@ def merge_candidate(existing, incoming):
             f"{existing.get('candidateKey', '')}: "
             f"{existing.get('observedUrl')!r} != {incoming.get('observedUrl')!r}"
         )
+    existing_restore = existing.get("tabRestore")
+    incoming_restore = incoming.get("tabRestore")
+    existing_reason = existing.get("tabRestoreUnavailableReason")
+    incoming_reason = incoming.get("tabRestoreUnavailableReason")
+    if existing_restore is not None and incoming_restore is not None and existing_restore != incoming_restore:
+        raise ValueError(
+            "candidate tab restore evidence conflict for canonical identity "
+            f"{existing.get('candidateKey', '')}"
+        )
+    if (
+        (existing_restore is not None and incoming_reason)
+        or (incoming_restore is not None and existing_reason)
+        or (existing_reason and incoming_reason and existing_reason != incoming_reason)
+    ):
+        raise ValueError(
+            "candidate tab restore evidence conflict for canonical identity "
+            f"{existing.get('candidateKey', '')}"
+        )
+    if existing_restore is None and incoming_restore is not None:
+        existing["tabRestore"] = incoming_restore
+        existing.pop("tabRestoreUnavailableReason", None)
+    elif not existing_reason and incoming_reason and existing_restore is None:
+        existing["tabRestoreUnavailableReason"] = incoming_reason
     for source in incoming.get("candidateSources", []):
         if source not in existing["candidateSources"]:
             existing["candidateSources"].append(source)
@@ -424,6 +535,10 @@ def public_fields(candidate):
     }
     if candidate.get("fixtureId"):
         result["fixtureId"] = candidate["fixtureId"]
+    if candidate.get("tabRestore") is not None:
+        result["tabRestore"] = candidate["tabRestore"]
+    if candidate.get("tabRestoreUnavailableReason"):
+        result["tabRestoreUnavailableReason"] = candidate["tabRestoreUnavailableReason"]
     return result
 
 
@@ -496,11 +611,19 @@ def safe_classification(candidate):
     if not selector or candidate.get("isVisible") is False or candidate.get("formAssociation"):
         return None
     if role == "tab" and "selected" in aria:
+        restore_evidence = []
+        if aria.get("selected") == "false":
+            if candidate.get("tabRestore") is not None:
+                restore_evidence.append("tab-restore:ready")
+            else:
+                restore_evidence.append(
+                    f"tab-restore-unavailable:{candidate.get('tabRestoreUnavailableReason', 'missingTabGroupEvidence')}"
+                )
         return {
             "interactionKind": "tab",
             "confidence": "high",
             "reason": "The candidate has role=tab, state evidence, and a stable selector.",
-            "evidence": evidence + ["safe-structure:tab"],
+            "evidence": evidence + ["safe-structure:tab"] + restore_evidence,
         }
     if "expanded" in aria and button_like:
         kind = "accordion" if "accordion" in class_name else "expandCollapse"
@@ -573,11 +696,21 @@ def classify_candidate(candidate):
 
     safe = safe_classification(candidate)
     if safe:
+        suggested_action = "Review and approve before adding to a structured interaction plan."
+        if (
+            safe.get("interactionKind") == "tab"
+            and candidate.get("ariaAttributes", {}).get("selected") == "false"
+            and candidate.get("tabRestore") is None
+        ):
+            suggested_action = (
+                "Safe candidate, but deterministic previous-selection restore evidence is unavailable; "
+                "do not approve for executable tabSelection."
+            )
         return {
             **public_fields(candidate),
             "classification": "safe",
             **safe,
-            "suggestedAction": "Review and approve before adding to a structured interaction plan.",
+            "suggestedAction": suggested_action,
         }
 
     evidence = evidence_base(candidate)
@@ -688,6 +821,27 @@ def validate_fixture(result, expected, repeated_result=None):
                 f"Fixture candidate {fixture_id!r} expected observedUrl {expected_observed_url!r}, "
                 f"got {actual.get('observedUrl')!r}."
             )
+        if "tabRestoreUnavailableReason" in expected_candidate:
+            if actual.get("tabRestoreUnavailableReason") != expected_candidate["tabRestoreUnavailableReason"]:
+                errors.append(
+                    f"Fixture candidate {fixture_id!r} expected tabRestoreUnavailableReason "
+                    f"{expected_candidate['tabRestoreUnavailableReason']!r}, "
+                    f"got {actual.get('tabRestoreUnavailableReason')!r}."
+                )
+        if expected_candidate.get("tabRestoreStrategy"):
+            restore = actual.get("tabRestore")
+            restore_target = restore.get("target") if isinstance(restore, dict) else {}
+            if not isinstance(restore, dict):
+                errors.append(f"Fixture candidate {fixture_id!r} is missing tabRestore.")
+            else:
+                if restore.get("strategy") != expected_candidate.get("tabRestoreStrategy"):
+                    errors.append(f"Fixture candidate {fixture_id!r} has unexpected restore strategy.")
+                if restore.get("tabGroupSelector") != expected_candidate.get("tabRestoreGroupSelector"):
+                    errors.append(f"Fixture candidate {fixture_id!r} has unexpected tab group selector.")
+                if restore_target.get("selector") != expected_candidate.get("tabRestoreTargetSelector"):
+                    errors.append(f"Fixture candidate {fixture_id!r} has unexpected restore target selector.")
+                if not CANDIDATE_KEY_PATTERN.fullmatch(restore_target.get("candidateKey", "")):
+                    errors.append(f"Fixture candidate {fixture_id!r} has invalid restore target candidateKey.")
         for source in expected_candidate.get("candidateSources", []):
             if source not in actual.get("candidateSources", []):
                 errors.append(f"Fixture candidate {fixture_id!r} is missing candidate source {source!r}.")

@@ -107,7 +107,7 @@ analysis_review_report.json
 
 ## Current Development Frontier
 
-현재 중심 frontier는 첫 `tabSelection` runtime에서 드러난 persistent tab state와 schema `2.0`의 `reloadPage` reset 가정 사이의 계약 gap을 해결하는 것이다.
+현재 중심 frontier는 documentation으로 확정된 previous-selection restore contract를 source에 구현하는 것이다. 첫 `tabSelection` runtime에서 persistent tab state가 확인되어 schema `2.0`의 `reloadPage`는 tab restore strategy로 폐기하기로 결정했다.
 
 완료된 부분:
 
@@ -132,19 +132,48 @@ analysis_review_report.json
 - exact `startUrl`의 `page.goto`, exact selector locator, initial/expected/reset/restored assertion과 stable test traceability
 - timestamp/absolute path 없는 byte-stable UTF-8 generated spec과 JavaScript syntax/Playwright discovery 검증
 
-열린 boundary:
+이번 architecture task에서 추가로 완료된 contract:
+
+- tab runtime navigation, exact locator, initial false, target click과 expected true transition 확인
+- reload action과 post-reload locator re-resolution 확인
+- reload 후 target true 지속으로 `reloadPage` restore failure 확인
+- closest explicit `role=tablist` ancestor exact selector를 사용하는 tab group identity
+- same group의 exactly-one selected peer와 exact restore selector evidence
+- interaction target + restore target bounded human-approved execution pair
+- Analysis Review Report `2.1`, approval/reconciliation `3.0`, plan `3.0` version 결정
+- plan `restore.strategy = restorePreviousSelection`과 paired initial/expected/restored state
+- builder/validator/renderer가 DOM/runtime inference를 하지 않는 책임 경계
+
+구현되지 않은 boundary:
 
 - approval artifact writer/editor
-- previous selected tab의 exact evidence/approval과 bounded restore target을 보존하는 reset strategy contract
-- `tabSelection` reset/restore runtime validation 완료
+- tab group evidence producer와 previous selected tab evidence collection
+- Analysis Review Report `2.1` producer
+- approval/reconciliation schema `3.0` implementation
+- interaction plan builder/validator schema `3.0` implementation
+- renderer `restorePreviousSelection` implementation
+- `tabSelection` runtime PASS
 - `expandedToggle` runtime validation
 - runtime failure evidence/screenshot/execution report
 
-Renderer는 validated JSON을 executable source shape로 변환한다. Approval writer/editor와 repeatable Level 3 browser execution/reset capability는 아직 완료되지 않았다.
+Renderer는 validated JSON을 executable source shape로 변환한다. Current renderer는 여전히 schema `2.0` `reloadPage`를 구현하며, approval writer/editor와 repeatable Level 3 browser restore capability는 아직 완료되지 않았다.
 
 ## Latest Completed Work
 
-가장 최근 완료된 구현 작업은 validated Structured Interaction Plan을 deterministic Playwright interaction spec으로 렌더링하고 static discovery까지 검증하는 작업이다.
+가장 최근 완료된 작업은 runtime restore failure에서 도출된 previous selected tab evidence, approval/reconciliation, plan과 renderer 책임을 documentation contract로 확정한 architecture task다. Source implementation이나 runtime PASS를 완료한 것은 아니다.
+
+Tab previous-selection restore contract:
+
+- 별도 permanent group ID 없이 closest explicit `role=tablist` ancestor의 exact `tabGroupSelector`를 사용
+- explicit group relation이 없는 tab-like UI는 MVP execution restore에서 제외
+- current same-group `aria-selected=true` peer가 정확히 하나일 때만 bounded `tabRestore` evidence 생성
+- restore peer는 existing candidateKey를 nested snapshot에 보존하지만 별도 approval decision을 요구하지 않음
+- interaction target과 restore target의 두 selector/click을 하나의 human-reviewed pair로 승인
+- pair evidence 변경/누락은 primary target이 존재하는 한 existing `evidenceChanged`; primary target key 부재만 `missingCandidate`
+- future report `2.1`, approval/reconciliation `3.0`, plan `3.0` 결정
+- tab plan의 `reset.reloadPage`를 제거하고 `restorePreviousSelection` 및 paired state assertions 정의
+- expandedToggle `reset.toggleSameTarget` contract는 유지
+- first/sibling/text/index/common-class/runtime selected search와 renderer selector inference 금지
 
 Interaction renderer implementation:
 
@@ -154,7 +183,7 @@ Interaction renderer implementation:
 - `interaction.expandedToggle`: expanded false → click → true → same target click → false
 - unsupported template와 malformed/missing renderer field에서 전체 fail-fast하고 output을 부분 갱신하지 않음
 - neutral fixture 반복 rendering byte equality, Node syntax와 Playwright `--list` discovery 통과
-- 실제 browser click, reload/toggle runtime transition과 screenshot/report는 실행하지 않음
+- Renderer implementation task에서는 browser를 실행하지 않았고, subsequent tab runtime task에서 click transition 성공과 reload restore failure를 확인
 
 Execution URL provenance implementation:
 
@@ -205,18 +234,19 @@ Playwright public-site의 approved `Product A` tab generated spec 한 건을 ret
 - page가 selected tab state를 reload 사이에 보존해 restored `aria-selected=false` assertion 실패
 - screenshot, trace, HTML report와 DOM snapshot으로 동일 target이 `aria-selected=true`인 상태를 확인
 
-이는 renderer가 plan을 잘못 해석한 문제가 아니라 `reloadPage`를 generic tab restore로 정의한 template/reset contract gap이다. Storage clear, selector fallback, assertion 완화 또는 generated spec hand edit로 우회하지 않는다. Correct fix는 previous selected tab의 exact evidence와 승인 경계를 plan에 보존하고 bounded restore action을 검증하는 schema decision이 필요하다.
+이는 renderer가 plan을 잘못 해석한 문제가 아니라 `reloadPage`를 generic tab restore로 정의한 template/reset contract gap이다. Storage clear, selector fallback, assertion 완화 또는 generated spec hand edit로 우회하지 않는다. Documentation contract는 explicit same-group previous selected tab evidence를 approval pair와 plan에 보존하고 exact restore target을 click하는 `restorePreviousSelection`으로 결정했다. Source와 runtime은 아직 이 결정을 구현하지 않았다.
 
-## Open Questions / Next Decisions
+## Next Implementation Frontier
 
-현재 frontier에서 바로 결정할 항목만 유지한다.
+```text
+tab group + previous selected peer evidence
+  -> approval/reconciliation implementation
+  -> interaction plan restorePreviousSelection
+  -> deterministic renderer
+  -> Playwright public-site runtime revalidation
+```
 
-1. `tabSelection` previous selected target evidence와 approval/reset strategy contract
-2. Correct reset contract 적용 후 동일 single-test runtime 재검증
-3. Browser validation failure/evidence report contract
-4. Approval artifact writer/editor의 local review workflow와 overwrite/re-review 경계
-
-검수 UI, workspace history, Level 3 execution은 위 계약 이후의 단계다.
+그 다음 분리된 결정은 browser validation execution report contract와 approval writer/editor local workflow다. ExpandedToggle runtime, 검수 UI와 workspace history는 이번 frontier에 포함하지 않는다.
 
 ## Recommended Reading by Task
 

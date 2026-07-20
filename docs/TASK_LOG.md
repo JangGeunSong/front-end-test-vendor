@@ -1,5 +1,50 @@
 # Task Log
 
+## 2026-07-20 - Define previous tab selection restore contract
+
+### 작업 목적
+
+- First tab runtime에서 확인된 `reloadPage` restore failure를 evidence, approval, reconciliation, plan, validator와 renderer 책임으로 분해한다.
+- Interaction 실행 전 같은 tab group에서 selected였던 exact peer를 human-reviewed structured evidence로 보존하는 future contract를 확정한다.
+
+### 확인 결과
+
+- Runtime은 exact navigation/locator, initial `aria-selected=false`, target click, expected `true`와 reload 후 locator re-resolution까지 통과했다.
+- Page가 selection을 reload 사이에 유지해 restored false가 실패했으며 `reloadPage`는 reset action일 수 있어도 deterministic tab restore strategy가 아니다.
+- Current scout/pageProfile/report는 individual tab의 selector, role, tagName, selected state와 observed URL을 보존하지만 explicit tablist ancestor selector나 deterministic same-group relation은 보존하지 않는다.
+- Existing ignored public artifact에는 같은 URL의 여러 tab 묶음과 selected/unselected peers가 있지만 common selector prefix, parent/class/text/sibling을 durable group proof로 사용하지 않았다.
+
+### Architecture Decision
+
+- Tab group identity는 새 permanent key가 아니라 closest explicit `role=tablist` ancestor의 exact `tabGroupSelector`를 사용한다.
+- Explicit tablist relation, target selected false, same-group selected true peer exactly one, distinct exact selectors와 same observed URL/context가 모두 있을 때만 `restorePreviousSelection`을 지원한다.
+- Explicit group relation이 없는 tab-like UI는 MVP execution restore에서 제외한다. First tab, nearest sibling, DOM-wide selected tab, text/index/class 추론과 storage/hash 초기화는 금지한다.
+- Previous selected peer는 target approval entry의 bounded `tabRestore` snapshot으로 보존한다. Peer의 existing `candidateKey`를 포함하지만 별도 approval decision entry를 만들지 않는다.
+- Interaction target click과 restore target click은 하나의 human-reviewed execution pair다. Approval evidence 밖의 restore element를 renderer가 선택하지 않는다.
+- Primary target key 부재는 existing `missingCandidate`다. Primary target은 존재하지만 restore peer/group/selected evidence가 바뀌거나 없어지면 existing `evidenceChanged`이며 eligibility가 없다.
+- Safety classification과 restore readiness를 분리한다. Candidate가 `safe`여도 deterministic restore evidence가 없으면 approved executable tab plan이 될 수 없다.
+- Analysis Review Report는 optional evidence addition이므로 future `2.1`, approval/reconciliation과 Structured Interaction Plan은 required shape/eligibility 변경이므로 future `3.0`으로 결정했다.
+- Plan `3.0` tabSelection은 `reset.reloadPage`를 제거하고 exact restore selector의 `restorePreviousSelection`과 interaction/restore target의 paired initial, expected, restored state를 요구한다.
+- ExpandedToggle의 existing `reset.toggleSameTarget` contract는 변경하지 않는다.
+
+### Future Implementation Boundary
+
+- Producer는 explicit group selector와 exactly-one selected peer evidence를 수집한다.
+- Approval validator/reconciler는 bounded pair shape와 exact stale comparison을 구현한다.
+- Builder/validator는 eligible/report evidence를 exact copy/검증하며 missing/ambiguous evidence에서는 fake plan을 만들지 않는다.
+- Renderer는 validated selector 두 개만 click하고 selected peer search, selector healing이나 reload fallback을 하지 않는다.
+- Current source, fixture와 renderer는 여전히 schema `2.0`/`reloadPage`다. Source implementation, schema validator 변경, browser re-run과 runtime PASS는 후속 task다.
+
+### 다음 작업
+
+```text
+tab group + previous selected peer evidence
+  -> approval/reconciliation implementation
+  -> interaction plan restorePreviousSelection
+  -> deterministic renderer
+  -> Playwright public-site runtime revalidation
+```
+
 ## 2026-07-16 - Validate first tab interaction runtime path
 
 ### 작업 목적

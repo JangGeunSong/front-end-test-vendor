@@ -64,6 +64,25 @@ Approval artifact는 human decision, candidate reference, immutable evidence sna
 
 Structured Interaction Plan은 exact eligible `candidateKey`, current `observedUrl`에서 복사한 per-test `startUrl`, eligible payload에서 복사한 target snapshot, bounded initial/expected state와 required UI reset/restore instruction만 소유한다. Schema `2.0` builder와 validator는 target scope, start URL same-origin과 report/eligible exact equality를 검증한다. Renderer는 plan만 읽어 exact URL/selector와 두 fixed transition을 byte-stable spec으로 생성하며 classification/approval/evidence를 재계산하지 않는다. JavaScript syntax와 test discovery는 검증됐다. 첫 tab browser run은 navigation과 false → true transition을 통과했지만 reload 후 selected state가 지속돼 restore contract gap을 확인했다. Approval 경계는 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md), plan 상세 계약은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)를 따른다.
 
+Future tab restore flow는 다음 contract로 확정됐다. Source는 아직 구현되지 않았다.
+
+```text
+pageProfile tab evidence
+  + closest explicit role=tablist selector
+  + exactly-one selected peer
+  -> Analysis Review Report 2.1 optional tabRestore
+  -> human-reviewed interaction target + restore target pair
+  -> approval/reconciliation 3.0 exact stale comparison
+  -> eligible pair
+  -> Structured Interaction Plan 3.0 restorePreviousSelection
+  -> deterministic two-selector renderer
+  -> browser runtime revalidation
+```
+
+`tabGroupSelector`는 별도 business ID가 아니라 exact explicit tablist selector다. Interaction target과 restore target은 exact `observedUrl`, `pageContext`와 group evidence를 공유해야 한다. Missing/ambiguous group evidence는 safety classification을 바꾸지 않지만 approval/plan eligibility를 막는다. Reconciliation은 primary target 부재만 `missingCandidate`로, primary target이 존재한 채 restore evidence가 바뀐 경우는 `evidenceChanged`로 처리한다.
+
+Builder와 validator는 artifact pair를 exact copy/검증할 뿐 DOM을 다시 방문하지 않는다. Renderer는 selected tab 검색, first/sibling/text/index 추론, reload fallback, storage/hash 초기화 또는 selector healing을 수행하지 않는다. ExpandedToggle의 existing `toggleSameTarget` reset 흐름은 변경하지 않는다.
+
 Approval artifact validation, current candidate input validation 또는 exact target scope match가 실패하면 partial reconciliation result를 만들지 않는다. `missingCandidate`는 similarity search 없이 exact key 부재로 판정하고, exact key가 있어도 review-critical evidence가 달라지면 `evidenceChanged`로 판정한다. Reconciliation result는 생성 시각을 포함하지 않고 candidate key 순서로 deterministic하게 생성한다.
 
 ## Step Details

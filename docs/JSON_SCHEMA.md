@@ -13,10 +13,10 @@ The current implementation includes:
 - deterministic Safe Interaction candidate classification MVP
 - versioned Interaction Approval artifact validation
 - deterministic Interaction Approval reconciliation result
-- Structured Interaction Plan schema `2.0`, deterministic builder, and strict validator
-- deterministic Structured Interaction Plan renderer and generated interaction spec static validation
+- Structured Interaction Plan schema `2.0`, deterministic builder, strict validator와 renderer
+- contract-defined Analysis Review Report `2.1`, Interaction Approval/Reconciliation `3.0`, Structured Interaction Plan `3.0` tab restore pair
 
-The approval artifact writer/editor, `Level 3 interactionProfile` producer, browser Safe Interaction execution, and runtime evidence report remain planned work. This document distinguishes implemented schemas, contract-defined schemas, and future candidate schemas.
+The approval artifact writer/editor, tab group/previous selection evidence producer, schema `3.0` source implementation, browser Safe Interaction PASS, and runtime evidence report remain planned work. This document distinguishes implemented schemas, contract-defined schemas, and future candidate schemas.
 
 ## Data Policy
 
@@ -334,7 +334,7 @@ safe 후보는 `interactionKind`를 포함한다. unsafe 후보는 `actionKind`�
 
 분류는 실행 승인이 아니다. safe 후보도 사람이 검수하기 전에는 Level 3 자동 실행 대상으로 사용하지 않는다.
 
-## Interaction Approval Artifact (Validation Implemented)
+## Interaction Approval Artifact (Schema `2.0` Validation Implemented)
 
 Human approval artifact의 상세 source of truth는 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md)다.
 
@@ -363,9 +363,11 @@ Approval entry contract:
 
 Schema `2.0`은 required `evidenceSnapshot.observedUrl`을 추가한다. 이 값은 absolute credential-free HTTP(S) URL이고 artifact target과 same-origin이어야 하며 query, fragment, trailing slash를 normalize하지 않는다. URL 변경은 candidateKey를 변경하지 않고 reconciliation `evidenceChanged`를 발생시킨다. Approval `1.0`은 지원하지 않는다.
 
+Future approval schema `3.0`은 approved unselected tab의 `evidenceSnapshot.tabRestore`를 required로 추가한다. `tabRestore`는 exact `restorePreviousSelection` strategy, explicit `tabGroupSelector`와 bounded selected peer target snapshot을 소유한다. Restore peer는 existing `candidateKey`를 포함하지만 별도 approval decision entry가 아니다. Exact shape와 conditional/unknown-field contract는 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md)를 따른다. Current validator는 아직 `3.0`을 지원하지 않는다.
+
 Stale은 human decision 값이 아니라 reconciliation에서 계산하는 reference status다. Current `safe`, human `approved`, valid non-stale reference가 모두 충족되어야 future interaction plan eligibility가 있다.
 
-## Interaction Approval Reconciliation Result (Implemented)
+## Interaction Approval Reconciliation Result (Schema `2.0` Implemented)
 
 기본 generated artifact 경로:
 
@@ -412,7 +414,9 @@ Top-level schema:
 
 Approval entry와 current candidate는 `candidateKey` 오름차순으로 처리한다. 생성 시각을 포함하지 않으며 같은 input은 byte-stable JSON을 생성한다. Invalid approval, invalid current report, target scope mismatch에서는 result를 생성하지 않는다.
 
-## Structured Interaction Plan (Implemented Through Validation)
+Future reconciliation schema `3.0`은 tab eligibility를 target-only가 아니라 approved/current bounded pair로 계산한다. Primary target key가 없으면 existing `missingCandidate`; primary target은 있지만 restore peer/group/state evidence가 missing 또는 changed이면 existing `evidenceChanged`를 사용한다. `referenceStatus` enum은 확장하지 않는다. Eligible tab payload는 approval/report exact-copy `tabRestore`를 required로 전달하며 safe target, safe restore peer, exact URL/context/group와 exactly-one selected peer가 모두 유효해야 한다.
+
+## Structured Interaction Plan (Schema `2.0` Implemented)
 
 Structured Interaction Plan은 reconciliation `eligibleCandidates[]`와 Analysis Review Report의 exact current evidence를 future deterministic Level 3 renderer에 전달하는 generated intermediate artifact다. Deterministic builder의 기본 output path는 `tools/ai-generator/generated/interaction_plan.generated.json`이다.
 
@@ -435,6 +439,57 @@ Top-level outline:
 Schema `2.0`은 `interaction.tabSelection`과 `interaction.expandedToggle` template만 정의한다. 각 test는 exact eligible `candidateKey`, current `observedUrl`의 exact copy인 required `startUrl`, target snapshot, bounded initial/expected state, required reset/restored state를 소유한다. Human approval metadata, classifier 전체 output, free-form JavaScript/Playwright code와 runtime result는 포함하지 않는다.
 
 `build_interaction_plan.py`와 `validate_interaction_plan.py`가 builder/validator 계약을 구현한다. `render_interaction_plan.py`는 validated plan만 소비해 generated CommonJS Playwright spec을 만들며 JSON artifact schema를 새로 소유하지 않는다. Browser execution은 아직 구현·검증되지 않았다. 상세 field, ordering, unknown-field policy, template compatibility와 validation invariant는 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다.
+
+첫 tab runtime에서 schema `2.0`의 target false → click → true는 통과했지만 `reloadPage` 후 target이 true로 유지되어 restore가 실패했다. Future plan schema `3.0`은 tabSelection의 `reset.reloadPage`를 제거하고 exact selected peer를 클릭하는 required `restore.strategy == "restorePreviousSelection"`과 paired initial/expected/restored state를 추가한다. ExpandedToggle의 `reset.toggleSameTarget` contract는 유지한다. Current builder/validator/renderer source와 fixtures는 여전히 `2.0`이다.
+
+## Tab Previous-Selection Restore Schema Decisions (Contract-Defined)
+
+Artifact version matrix:
+
+| Artifact | Implemented | Future contract | Change type |
+| --- | --- | --- | --- |
+| Analysis Review Report | `2.0` | `2.1` | Optional `tabRestore` evidence; classification meaning unchanged |
+| Interaction Approval artifact | `2.0` | `3.0` | Approved tab required bounded pair evidence |
+| Approval Reconciliation result | `2.0` | `3.0` | Eligibility/payload becomes pair-aware |
+| Structured Interaction Plan | `2.0` | `3.0` | Tab reload reset replaced by exact peer restore |
+| Generated interaction spec | source only | source only | No independent JSON schema |
+
+Report/approval bounded restore evidence:
+
+```json
+{
+  "tabRestore": {
+    "strategy": "restorePreviousSelection",
+    "tabGroupSelector": "main [role='tablist']",
+    "target": {
+      "candidateKey": "interaction:selector:89abcdef0123456789abcdef",
+      "selector": "#tab-product-b",
+      "observedUrl": "https://example.test/sample/tabs",
+      "pageContext": "Sample tabs",
+      "role": "tab",
+      "tagName": "button",
+      "text": "Product B",
+      "ariaAttributes": {
+        "selected": "true"
+      }
+    }
+  }
+}
+```
+
+Plan schema `3.0` tab-specific fields:
+
+- `target.tabGroupSelector`: upstream exact group selector
+- `initialState.interactionTarget.selected == false`
+- `initialState.restoreTarget.selected == true`
+- `expectedState.interactionTarget.selected == true`
+- `expectedState.restoreTarget.selected == false`
+- `restore.strategy == "restorePreviousSelection"`
+- `restore.target.candidateKey` and `restore.target.selector`: upstream exact selected peer reference
+- `restoredState.interactionTarget.selected == false`
+- `restoredState.restoreTarget.selected == true`
+
+All nested objects reject unknown fields. Explicit `role=tablist` ancestor evidence, exactly one selected peer, exact same `observedUrl`/`pageContext` and different target selectors are required. Missing/ambiguous group evidence does not change a candidate from `safe` to `unsafe`; it prevents approval/plan execution readiness.
 
 ## Level 3 interactionProfile (Planned Candidate)
 
@@ -569,7 +624,7 @@ Legacy cautions:
 
 주요 top-level 필드:
 
-- `version`: report 계약 버전, current `2.0`
+- `version`: implemented report 계약 버전 `2.0`; future optional tab restore evidence contract `2.1`
 - `sources`: report 생성에 사용한 artifact 경로
 - `summary`: test, primary navigation, pageProfile, 제외 및 unresolved 후보 count
 - `generatedNavigationTests`: structured plan과 primary menu evidence를 결합한 navigation test 검수 항목
@@ -585,3 +640,5 @@ Legacy cautions:
 배열 순서는 입력 artifact의 deterministic 순서를 유지한다. report에는 생성 시각을 넣지 않으므로 동일 입력으로 반복 생성하면 동일한 JSON을 얻는다. 구조 근거가 부족한 interaction 의미는 임의 추론하지 않고 unknown/unresolved로 유지하며, 후보가 없는 section도 빈 배열로 보존한다.
 
 interaction candidate의 `candidateKey`와 `observedUrl`은 classifier 결과에서 report의 safe/unsafe/unresolved section으로 변경 없이 전달된다. Report `2.0`은 모든 interaction candidate에 `observedUrl`을 요구한다. navigation candidate에는 이 interaction identity/provenance field가 필수 필드가 아니다.
+
+Future report `2.1`은 deterministic same-group selected peer를 증명할 수 있는 unselected tab에만 optional `tabRestore`를 추가한다. Explicit `role=tablist` group selector가 없거나 selected peer가 0개/여러 개인 경우 field를 생략하며 classification은 그대로 유지한다. Current report builder는 아직 `2.0`만 생성한다.

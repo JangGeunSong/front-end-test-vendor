@@ -84,7 +84,7 @@ Current Structured Interaction Plan schema `3.0` renderer는 test별 exact `star
 
 Tab renderer는 selected tab 검색, tablist first tab, sibling/parent traversal, text/index lookup, reload fallback, storage/hash reset 또는 selector healing을 생성하지 않는다. Restore selector는 approved/validated plan의 exact copy만 사용한다.
 
-Generated interaction spec은 syntax와 Playwright discovery를 통과한 source artifact다. 실제 browser transition 성공은 별도 runtime validation 단계에서 확인하며 tab runtime PASS를 아직 주장하지 않는다. 상세 template/restore 계약은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)를 따른다.
+Generated interaction spec은 syntax와 Playwright discovery를 통과한 뒤 별도 runtime validation 단계에서 실행한다. `interaction.tabSelection` previous-selection path는 fresh public evidence에서 retry 없이 2회 PASS했으며, 이 결과를 expandedToggle이나 cross-site interaction 전체의 검증으로 확대하지 않는다. 상세 template/restore 계약은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)를 따른다.
 
 ## Visual Debug
 

@@ -8,7 +8,7 @@
         "tagName": "LI",
         "role": "tab",
         "ariaSelected": "false",
-        "cssPath": "main [role='tab']:nth-of-type(1)",
+        "cssPath": "main [role='tablist'] > li:nth-of-type(1)",
         "isVisible": true,
         "tabRestore": {
           "strategy": "restorePreviousSelection",
@@ -19,7 +19,7 @@
             "tagName": "LI",
             "role": "tab",
             "selected": "true",
-            "cssPath": "main [role='tab']:nth-of-type(2)"
+            "cssPath": "main [role='tablist'] > li:nth-of-type(2)"
           }
         }
       },
@@ -29,7 +29,7 @@
         "tagName": "LI",
         "role": "tab",
         "ariaSelected": "true",
-        "cssPath": "main [role='tab']:nth-of-type(2)",
+        "cssPath": "main [role='tablist'] > li:nth-of-type(2)",
         "isVisible": true
       },
       {
@@ -252,7 +252,7 @@
         "tagName": "LI",
         "role": "tab",
         "ariaSelected": "false",
-        "cssPath": "main [role='tab']:nth-of-type(1)",
+        "cssPath": "main [role='tablist'] > li:nth-of-type(1)",
         "isVisible": true,
         "tabRestore": {
           "strategy": "restorePreviousSelection",
@@ -263,7 +263,7 @@
             "tagName": "LI",
             "role": "tab",
             "selected": "true",
-            "cssPath": "main [role='tab']:nth-of-type(2)"
+            "cssPath": "main [role='tablist'] > li:nth-of-type(2)"
           }
         }
       }
@@ -316,13 +316,13 @@
     "candidates": [
       {
         "fixtureId": "safe-tab",
-        "candidateKey": "interaction:selector:890470bbfca306f2feb84c3c",
+        "candidateKey": "interaction:selector:04eb841daf5301921a2ad9fe",
         "observedUrl": "https://example.test/",
         "classification": "safe",
         "interactionKind": "tab",
         "tabRestoreStrategy": "restorePreviousSelection",
         "tabRestoreGroupSelector": "main [role='tablist']",
-        "tabRestoreTargetSelector": "main [role='tab']:nth-of-type(2)",
+        "tabRestoreTargetSelector": "main [role='tablist'] > li:nth-of-type(2)",
         "candidateSources": [
           "scout_result.elements",
           "menu_map.nonPrimaryNavigationCandidates"

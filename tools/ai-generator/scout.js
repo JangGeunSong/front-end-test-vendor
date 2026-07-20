@@ -156,6 +156,46 @@ async function collectPageProfile(page) {
       return path.join(' > ');
     }
 
+    function getScopedStructuralPath(el, ancestor, ancestorSelector) {
+      if (
+        !(el instanceof Element) ||
+        !(ancestor instanceof Element) ||
+        !ancestorSelector ||
+        !ancestor.contains(el) ||
+        el === ancestor
+      ) {
+        return '';
+      }
+
+      const path = [];
+      let current = el;
+
+      while (current && current !== ancestor) {
+        let selector = current.nodeName.toLowerCase();
+        const parent = current.parentElement;
+        if (!parent) {
+          return '';
+        }
+
+        const siblings = Array.from(parent.children).filter(
+          sibling => sibling.nodeName === current.nodeName
+        );
+        if (siblings.length > 1) {
+          const index = siblings.indexOf(current) + 1;
+          selector += `:nth-of-type(${index})`;
+        }
+
+        path.unshift(selector);
+        current = parent;
+      }
+
+      if (current !== ancestor) {
+        return '';
+      }
+
+      return [ancestorSelector, ...path].join(' > ');
+    }
+
     function uniqueBy(items, keyFn, limit = 20) {
       const seen = new Set();
       const results = [];
@@ -337,8 +377,14 @@ async function collectPageProfile(page) {
         Array.from(document.querySelectorAll('[role="tab"], [role="tablist"] [role="tab"], .tabs a, .tab a, .tabMenu a, .tab li'))
           .filter(el => isElementVisible(el) && !isInsideCommonLayout(el))
           .map(el => {
+            const tablist = el.closest('[role="tablist"]');
+            const tabGroupSelector = tablist ? getCssPath(tablist) : '';
+            const stableTabSelector = tablist && tabGroupSelector
+              ? getScopedStructuralPath(el, tablist, tabGroupSelector)
+              : '';
             const summary = {
               ...summarizeElement(el),
+              ...(stableTabSelector ? { cssPath: stableTabSelector } : {}),
               selected: el.getAttribute('aria-selected') || ''
             };
 
@@ -346,7 +392,6 @@ async function collectPageProfile(page) {
               return summary;
             }
 
-            const tablist = el.closest('[role="tablist"]');
             if (!tablist) {
               return {
                 ...summary,
@@ -354,7 +399,6 @@ async function collectPageProfile(page) {
               };
             }
 
-            const tabGroupSelector = getCssPath(tablist);
             if (
               !tabGroupSelector ||
               document.querySelectorAll(tabGroupSelector).length !== 1
@@ -382,7 +426,11 @@ async function collectPageProfile(page) {
             }
 
             const restoreTarget = selectedPeers[0];
-            const restoreSelector = getCssPath(restoreTarget);
+            const restoreSelector = getScopedStructuralPath(
+              restoreTarget,
+              tablist,
+              tabGroupSelector
+            );
             if (
               !isElementVisible(restoreTarget) ||
               restoreTarget.getAttribute('role') !== 'tab' ||
@@ -404,6 +452,7 @@ async function collectPageProfile(page) {
                 tabGroupSelector,
                 target: {
                   ...summarizeElement(restoreTarget),
+                  cssPath: restoreSelector,
                   selected: 'true'
                 }
               }

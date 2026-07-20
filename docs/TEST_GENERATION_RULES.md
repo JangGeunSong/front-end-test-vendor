@@ -4,7 +4,7 @@
 
 이 문서는 AI generated Playwright spec 생성 규칙을 정의한다.
 
-현재 안정 실행 검증 범위는 Level 1 Navigation Smoke Test와 Level 2 Page Identity Test MVP까지이다. Level 3 schema `3.0`은 두 safe template을 deterministic spec으로 렌더링하고 static discovery하는 단계까지 구현됐다. Previous-selection browser runtime PASS는 아직 확인되지 않았으므로 안정 실행 범위로 승격되지 않았다. Level 4 Business Scenario Test는 자동 생성 대상이 아니다.
+현재 안정 실행 검증 범위는 Level 1 Navigation Smoke Test, Level 2 Page Identity Test MVP와 fresh public evidence에서 2회 PASS한 Level 3 `interaction.tabSelection` previous-selection smoke다. Schema `3.0`의 expandedToggle과 cross-site interaction runtime은 아직 검증 범위가 아니다. Level 4 Business Scenario Test는 자동 생성 대상이 아니다.
 
 ## Generated Spec Scope
 
@@ -35,7 +35,7 @@ generated spec이 자동 생성할 수 있는 범위:
 - 조회 결과 데이터 정확성 검증
 - 제품명, 모델명, 공지 제목, FAQ 질문 같은 volatile content assertion
 - selector 근거 없이 만든 임의 locator assertion
-- generated Level 3 interaction spec의 안정화된 browser click/reset/restore runtime과 cross-site 실행
+- generated Level 3 interaction spec의 expandedToggle runtime과 cross-site 실행
 - current artifact에 explicit tab group/previous selected peer evidence가 없는 tab 실행
 
 ## Safety Rules

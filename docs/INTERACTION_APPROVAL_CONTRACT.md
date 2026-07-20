@@ -2,7 +2,7 @@
 
 ## Purpose
 
-이 문서는 classified interaction candidate와 future Level 3 structured interaction plan 사이의 human approval boundary를 정의한다. Implemented approval schema `2.0`은 interaction target만 승인한다. 첫 tab runtime에서 restore gap이 확인되어 이 문서는 target과 previous selected restore target을 bounded pair로 검토하는 **future schema `3.0` contract**도 정의한다. Schema `3.0` validator/reconciler는 아직 구현되지 않았다.
+이 문서는 classified interaction candidate와 future Level 3 structured interaction plan 사이의 human approval boundary를 정의한다. Implemented approval schema `3.0`은 interaction target과 previous selected restore target을 bounded pair로 검토한다. 첫 tab runtime에서 확인된 restore gap을 human approval과 execution eligibility 경계 안에서 해결하며, Plan schema `3.0`과 renderer는 아직 구현되지 않았다.
 
 목표는 사람이 현재 candidate evidence를 검토해 내린 결정을 versioned JSON artifact로 보존하고, future reconciliation 단계가 승인된 후보만 interaction plan 입력 후보로 전달할 수 있게 하는 것이다. 이 계약은 browser interaction, executable Playwright instruction, interaction plan template을 정의하지 않는다.
 
@@ -78,13 +78,13 @@ tools/ai-generator/review/interaction_approvals.json
 
 ## Schema Version Contract
 
-Top-level `schemaVersion`은 필수다. Current implementation은 `2.0`이고 future tab restore contract는 `3.0`이다. Candidate 실행 위치를 immutable evidence로 보존한 `2.0`에 이어, approved unselected tab의 required bounded restore evidence와 eligibility 의미 변경 때문에 major version을 올린다.
+Top-level `schemaVersion`은 필수다. Current implementation은 `3.0`이다. Candidate 실행 위치를 immutable evidence로 보존한 `2.0`에 이어, approved unselected tab의 required bounded restore evidence와 eligibility 의미 변경 때문에 major version을 올렸다.
 
 - major 변경: field 제거/이름 변경, required field 추가, 기존 field 의미 변경, decision 또는 classification enum 변경·확장
 - minor 변경: 기존 의미를 바꾸지 않는 optional field 추가
 - 문구 정정이나 example 수정처럼 JSON contract를 바꾸지 않는 변경: version 유지
 
-Migration framework는 만들지 않는다. Future validator/reconciler는 approval `2.0`을 명시적으로 거부하며 silent default restore target을 만들지 않는다. Strict enum을 사용하므로 enum expansion도 major 변경으로 취급한다.
+Migration framework는 만들지 않는다. Validator/reconciler는 approval `2.0`을 명시적으로 거부하며 silent default restore target을 만들지 않는다. Strict enum을 사용하므로 enum expansion도 major 변경으로 취급한다.
 
 ## Decision Model
 
@@ -161,7 +161,7 @@ Conditional fields:
 
 Approval artifact는 human-authored state이므로 deterministic generated report와 달리 review timestamp를 갖는다. MVP는 authentication, user management, reviewer directory를 설계하지 않는다.
 
-## Future Schema `3.0` Tab Restore Evidence
+## Schema `3.0` Tab Restore Evidence
 
 Schema `3.0`은 approved `interactionKind == "tab"` entry를 target-only decision으로 취급하지 않는다. Interaction target click과 restore target click은 하나의 bounded execution pair이며 사람이 pair evidence를 함께 검토한다. Restore target에 별도 `approvals[]` entry나 별도 human decision을 만들지는 않는다.
 
@@ -212,7 +212,7 @@ Required invariants:
 
 Restore snapshot은 classifier archive가 아니다. Confidence, class name, sibling position, surrounding text, alternative locator와 `aria-controls`는 MVP field가 아니다. 사람은 report의 richer evidence를 검토하고 approval에는 stale 비교에 필요한 최소 pair만 보존한다.
 
-## Minimal Future Schema `3.0` JSON Contract
+## Minimal Schema `3.0` JSON Contract
 
 ```json
 {
@@ -265,9 +265,9 @@ Restore snapshot은 classifier archive가 아니다. Confidence, class name, sib
 }
 ```
 
-## Current Validation Implementation And Future Boundary
+## Current Validation Implementation And Plan Boundary
 
-`tools/ai-generator/validate_interaction_approvals.py`는 현재 schema `2.0` target-only invariant를 strict하게 검증한다.
+`tools/ai-generator/validate_interaction_approvals.py`는 schema `3.0`과 bounded tab pair invariant를 strict하게 검증한다.
 
 - top-level required fields: `schemaVersion`, `target`, `approvals`
 - `target.url`: required non-empty absolute HTTP(S) URL
@@ -285,7 +285,7 @@ Restore snapshot은 classifier archive가 아니다. Confidence, class name, sib
 - 배열 의미는 순서에 의존하지 않으며 writer는 diff 안정성을 위해 `candidateKey` 오름차순으로 저장
 - supported schema version의 top-level 및 nested object에서 unknown field를 거부
 
-Unknown field와 unsupported enum을 조용히 무시하지 않는다. 따라서 current source는 schema `3.0`의 `tabRestore`를 아직 거부한다. Future implementation은 위 conditional pair invariant, exact field type, same URL/context/group relation, target/restore selector inequality와 selected false/true state를 검증해야 한다.
+Unknown field와 unsupported enum을 조용히 무시하지 않는다. Approved safe unselected tab에는 `tabRestore`가 필수이며, validator는 conditional pair shape, exact field type, same URL/context, target/restore selector inequality와 selected false/true state를 검증한다. Group membership와 exactly-one selected peer는 current report evidence를 소비하는 reconciliation이 검증한다.
 
 현재 classifier representation에 맞춰 `ariaAttributes`의 key는 `label`, `expanded`, `pressed`, `selected`, `controls`, `haspopup`, `readonly`만 허용하며 value는 string이어야 한다. `safe` snapshot에는 `interactionKind`만, `unsafe` snapshot에는 `actionKind`와 `riskLevel`만 허용하고 `unknown` snapshot에는 conditional kind/risk field를 허용하지 않는다. Validator는 classifier identity algorithm을 재구현하지 않고 `candidateKey` 형식만 검증한다.
 
@@ -309,7 +309,7 @@ Minimum reference statuses:
 
 Review-critical comparison fields는 `classification`, `confidence`, `pageContext`, `observedUrl`, `selector`, `text`, `role`, `type`, `tagName`, `ariaAttributes`와 존재하는 `interactionKind`, `actionKind`, `riskLevel`이다.
 
-Future schema `3.0`에서는 `tabRestore` 전체가 additional review-critical evidence다. Stable `changedFields` ordering은 existing top-level order 뒤에 다음 bounded path 순서를 사용한다.
+Schema `3.0`에서는 `tabRestore` 전체가 additional review-critical evidence다. Stable `changedFields` ordering은 existing top-level order 뒤에 다음 bounded path 순서를 사용한다.
 
 ```text
 tabRestore.strategy
@@ -366,7 +366,7 @@ Reconciliation 단계는 다음을 확인한다.
 
 Approval artifact validation 또는 current report validation이 실패하면 partial result를 만들지 않는다. Approval `target.url`과 report `summary.targetUrl`이 exact match하지 않아도 non-zero로 종료한다.
 
-Future schema `3.0` interaction plan eligibility는 다음 조건을 모두 만족해야 한다.
+Schema `3.0` reconciliation eligibility는 다음 조건을 모두 만족해야 한다.
 
 ```text
 current classification == safe
@@ -406,7 +406,6 @@ Approval artifact에는 Playwright step, click sequence나 assertion code를 추
 
 - approval CLI 또는 editor/UI
 - approval artifact writer
-- schema `3.0` producer/validator/reconciler implementation
 - `restorePreviousSelection` renderer와 browser runtime revalidation
 - reviewer authentication 또는 account management
 - heuristic approval migration
@@ -421,4 +420,4 @@ Approval artifact에는 Playwright step, click sequence나 assertion code를 추
 - evidence snapshot은 classifier output 전체 복사본이 아니다.
 - approval artifact는 executable interaction detail을 소유하지 않는다.
 - current `safe`, human `approved`, valid non-stale reference가 모두 eligibility에 필요하다.
-- Tab restore pair contract는 정의됐지만 schema `3.0` source와 runtime PASS는 아직 구현되지 않았다.
+- Tab restore pair approval/validation/reconciliation은 구현됐지만 Plan schema `3.0`, renderer와 runtime PASS는 아직 구현되지 않았다.

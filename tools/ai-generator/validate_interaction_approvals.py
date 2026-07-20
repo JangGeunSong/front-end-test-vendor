@@ -12,13 +12,19 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_APPROVAL_PATH = (
     ROOT_DIR / "tools" / "ai-generator" / "review" / "interaction_approvals.json"
 )
-SUPPORTED_SCHEMA_VERSION = "2.0"
+SUPPORTED_SCHEMA_VERSION = "3.0"
 CANDIDATE_KEY_PATTERN = re.compile(
     r"^interaction:(?:selector|fallback):[0-9a-f]{24}$"
 )
 DECISIONS = {"approved", "held", "rejected"}
 CLASSIFICATIONS = {"safe", "unsafe", "unknown"}
 CONFIDENCE_LEVELS = {"high", "medium", "low"}
+TAB_RESTORE_UNAVAILABLE_REASONS = {
+    "missingTabGroupEvidence",
+    "missingPreviousSelection",
+    "ambiguousPreviousSelection",
+    "invalidRestoreTarget",
+}
 
 TOP_LEVEL_FIELDS = {"schemaVersion", "target", "approvals"}
 TARGET_FIELDS = {"url"}
@@ -35,7 +41,7 @@ SNAPSHOT_REQUIRED_FIELDS = {
     "tagName",
     "ariaAttributes",
 }
-SNAPSHOT_CONDITIONAL_FIELDS = {"interactionKind", "actionKind", "riskLevel"}
+SNAPSHOT_CONDITIONAL_FIELDS = {"interactionKind", "actionKind", "riskLevel", "tabRestore"}
 SNAPSHOT_FIELDS = SNAPSHOT_REQUIRED_FIELDS | SNAPSHOT_CONDITIONAL_FIELDS
 REVIEW_FIELDS = {"reviewer", "reviewedAt", "note"}
 ARIA_ATTRIBUTE_FIELDS = {
@@ -47,6 +53,18 @@ ARIA_ATTRIBUTE_FIELDS = {
     "haspopup",
     "readonly",
 }
+TAB_RESTORE_FIELDS = {"strategy", "tabGroupSelector", "target"}
+TAB_RESTORE_TARGET_FIELDS = {
+    "candidateKey",
+    "selector",
+    "observedUrl",
+    "pageContext",
+    "role",
+    "tagName",
+    "text",
+    "ariaAttributes",
+}
+TAB_RESTORE_ARIA_FIELDS = {"selected"}
 
 
 def parse_args():
@@ -114,7 +132,70 @@ def reject_unknown_fields(value, allowed, path, code, errors):
         add_error(errors, code, f"{path}.{field}", "unknown field")
 
 
-def validate_snapshot(snapshot, path, target_url, errors):
+def validate_tab_restore(tab_restore, path, snapshot, target_url, errors):
+    if not isinstance(tab_restore, dict):
+        add_error(errors, "E126", path, "tabRestore must be an object")
+        return
+    reject_unknown_fields(tab_restore, TAB_RESTORE_FIELDS, path, "E127", errors)
+    if tab_restore.get("strategy") != "restorePreviousSelection":
+        add_error(
+            errors,
+            "E128",
+            f"{path}.strategy",
+            "strategy must be 'restorePreviousSelection'",
+        )
+    if not is_non_empty_string(tab_restore.get("tabGroupSelector")):
+        add_error(
+            errors,
+            "E129",
+            f"{path}.tabGroupSelector",
+            "tabGroupSelector is required and must be a non-empty string",
+        )
+
+    target = tab_restore.get("target")
+    target_path = f"{path}.target"
+    if not isinstance(target, dict):
+        add_error(errors, "E130", target_path, "restore target must be an object")
+        return
+    reject_unknown_fields(target, TAB_RESTORE_TARGET_FIELDS, target_path, "E131", errors)
+
+    candidate_key = target.get("candidateKey")
+    if not isinstance(candidate_key, str) or CANDIDATE_KEY_PATTERN.fullmatch(candidate_key) is None:
+        add_error(errors, "E132", f"{target_path}.candidateKey", "invalid restore candidateKey")
+    for field in ("selector", "observedUrl", "pageContext", "role", "tagName", "text"):
+        if not isinstance(target.get(field), str):
+            add_error(errors, "E133", f"{target_path}.{field}", "field is required and must be a string")
+    if not is_non_empty_string(target.get("selector")):
+        add_error(errors, "E134", f"{target_path}.selector", "restore selector must be non-empty")
+    if target.get("selector") == snapshot.get("selector"):
+        add_error(errors, "E135", f"{target_path}.selector", "restore selector must differ from interaction selector")
+    if target.get("observedUrl") != snapshot.get("observedUrl"):
+        add_error(errors, "E136", f"{target_path}.observedUrl", "restore observedUrl must exactly match interaction observedUrl")
+    if target.get("pageContext") != snapshot.get("pageContext"):
+        add_error(errors, "E137", f"{target_path}.pageContext", "restore pageContext must exactly match interaction pageContext")
+    restore_url = target.get("observedUrl")
+    if has_url_credentials(restore_url):
+        add_error(errors, "E138", f"{target_path}.observedUrl", "restore observedUrl must not contain credentials")
+    elif not is_absolute_http_url(restore_url):
+        add_error(errors, "E139", f"{target_path}.observedUrl", "restore observedUrl must be absolute HTTP(S)")
+    elif is_absolute_http_url(target_url) and not is_same_origin(target_url, restore_url):
+        add_error(errors, "E140", f"{target_path}.observedUrl", "restore observedUrl must be same-origin with target.url")
+    if target.get("role") != "tab":
+        add_error(errors, "E141", f"{target_path}.role", "restore role must be 'tab'")
+    tag_name = target.get("tagName")
+    if not is_non_empty_string(tag_name) or tag_name != tag_name.lower():
+        add_error(errors, "E142", f"{target_path}.tagName", "restore tagName must be non-empty lowercase")
+
+    aria = target.get("ariaAttributes")
+    if not isinstance(aria, dict):
+        add_error(errors, "E143", f"{target_path}.ariaAttributes", "restore ariaAttributes must be an object")
+    else:
+        reject_unknown_fields(aria, TAB_RESTORE_ARIA_FIELDS, f"{target_path}.ariaAttributes", "E144", errors)
+        if aria.get("selected") != "true":
+            add_error(errors, "E145", f"{target_path}.ariaAttributes.selected", "restore selected must be 'true'")
+
+
+def validate_snapshot(snapshot, path, target_url, decision, errors):
     if not isinstance(snapshot, dict):
         add_error(errors, "E106", path, "evidenceSnapshot is required and must be an object")
         return
@@ -195,7 +276,9 @@ def validate_snapshot(snapshot, path, target_url, errors):
                 f"{path}.{field}",
                 f"{field} is required and must be a non-empty string for {classification!r} classification",
             )
-    for field in sorted(SNAPSHOT_CONDITIONAL_FIELDS - expected_conditional):
+    for field in sorted(
+        SNAPSHOT_CONDITIONAL_FIELDS - expected_conditional - {"tabRestore"}
+    ):
         if field in snapshot:
             add_error(
                 errors,
@@ -203,6 +286,27 @@ def validate_snapshot(snapshot, path, target_url, errors):
                 f"{path}.{field}",
                 f"{field} is not allowed for {classification!r} classification",
             )
+
+    interaction_kind = snapshot.get("interactionKind")
+    selected = aria.get("selected") if isinstance(aria, dict) else None
+    tab_restore = snapshot.get("tabRestore")
+    is_unselected_tab = classification == "safe" and interaction_kind == "tab" and selected == "false"
+    if decision == "approved" and is_unselected_tab and tab_restore is None:
+        add_error(
+            errors,
+            "E146",
+            f"{path}.tabRestore",
+            "approved unselected tab requires tabRestore evidence",
+        )
+    if tab_restore is not None:
+        if not is_unselected_tab:
+            add_error(
+                errors,
+                "E147",
+                f"{path}.tabRestore",
+                "tabRestore is only allowed for a safe unselected tab",
+            )
+        validate_tab_restore(tab_restore, f"{path}.tabRestore", snapshot, target_url, errors)
 
 
 def validate_review(review, path, errors):
@@ -255,7 +359,7 @@ def validate_approval_entry(entry, index, seen_keys, target_url, errors):
         )
 
     snapshot = entry.get("evidenceSnapshot")
-    validate_snapshot(snapshot, f"{path}.evidenceSnapshot", target_url, errors)
+    validate_snapshot(snapshot, f"{path}.evidenceSnapshot", target_url, decision, errors)
     if (
         decision == "approved"
         and isinstance(snapshot, dict)
@@ -383,7 +487,7 @@ def validate_fixture(fixture):
             "approvals": [
                 {
                     "candidateKey": "interaction:selector:999999999999999999999999",
-                    "decision": "approved",
+                    "decision": "held",
                     "evidenceSnapshot": snapshot,
                     "review": {
                         "reviewer": "fixture-reviewer",

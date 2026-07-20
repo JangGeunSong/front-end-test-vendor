@@ -1,404 +1,247 @@
 {
   "analysisReviewReport": {
-    "version": "2.0",
-    "summary": {
-      "targetUrl": "https://sample.local/"
-    },
+    "version": "2.1",
+    "summary": { "targetUrl": "https://example.test/" },
     "safeInteractionCandidates": [
       {
         "candidateKey": "interaction:selector:111111111111111111111111",
-        "classification": "safe",
-        "confidence": "high",
-        "pageContext": "Overview",
-        "observedUrl": "https://sample.local/",
-        "selector": "main [role='tab']",
-        "text": "Overview",
-        "role": "tab",
-        "type": "",
-        "tagName": "li",
-        "ariaAttributes": {
-          "selected": "false"
-        },
-        "interactionKind": "tab"
-      },
-      {
-        "candidateKey": "interaction:selector:222222222222222222222222",
-        "classification": "safe",
-        "confidence": "high",
-        "pageContext": "Details",
-        "observedUrl": "https://sample.local/docs/details",
-        "selector": "main button.details",
-        "text": "Details",
-        "role": "button",
-        "type": "button",
-        "tagName": "button",
-        "ariaAttributes": {
-          "expanded": "false"
-        },
-        "interactionKind": "accordion"
-      },
-      {
-        "candidateKey": "interaction:selector:555555555555555555555555",
-        "classification": "safe",
-        "confidence": "medium",
-        "pageContext": "Options",
-        "observedUrl": "https://sample.local/docs/options?mode=advanced#menu",
-        "selector": "main button.options",
-        "text": "Options",
-        "role": "button",
-        "type": "button",
-        "tagName": "button",
-        "ariaAttributes": {
-          "haspopup": "menu"
-        },
-        "interactionKind": "dropdown"
-      },
-      {
-        "candidateKey": "interaction:selector:888888888888888888888888",
-        "classification": "safe",
-        "confidence": "high",
-        "pageContext": "Help",
-        "observedUrl": "https://sample.local/help",
-        "selector": "main button.help",
-        "text": "Help",
-        "role": "button",
-        "type": "button",
-        "tagName": "button",
-        "ariaAttributes": {
-          "haspopup": "dialog"
-        },
-        "interactionKind": "modalOpen"
-      }
-    ],
-    "unsafeActionCandidates": [
-      {
-        "candidateKey": "interaction:selector:333333333333333333333333",
-        "classification": "unsafe",
-        "confidence": "high",
-        "pageContext": "Settings",
-        "observedUrl": "https://sample.local/settings",
-        "selector": "main button.delete",
-        "text": "Delete",
-        "role": "button",
-        "type": "button",
-        "tagName": "button",
-        "ariaAttributes": {},
-        "actionKind": "delete",
-        "riskLevel": "critical"
-      },
-      {
-        "candidateKey": "interaction:selector:666666666666666666666666",
-        "classification": "unsafe",
-        "confidence": "high",
-        "pageContext": "Preferences",
-        "observedUrl": "https://sample.local/preferences",
-        "selector": "main button.preference-action",
-        "text": "Save preference",
-        "role": "button",
-        "type": "button",
-        "tagName": "button",
-        "ariaAttributes": {},
-        "actionKind": "save",
-        "riskLevel": "high"
-      }
-    ],
-    "unresolvedCandidates": [
-      {
-        "candidateSubtype": "navigation",
-        "text": "Unresolved link"
-      },
-      {
-        "candidateKey": "interaction:selector:777777777777777777777777",
-        "candidateSubtype": "interaction",
-        "classification": "unknown",
-        "confidence": "low",
-        "pageContext": "Filters",
-        "observedUrl": "https://sample.local/filters",
-        "selector": "main button.filter",
-        "text": "Filter",
-        "role": "button",
-        "type": "button",
-        "tagName": "button",
-        "ariaAttributes": {}
-      }
-    ]
-  },
-  "approvalArtifact": {
-    "schemaVersion": "2.0",
-    "target": {
-      "url": "https://sample.local/"
-    },
-    "approvals": [
-      {
-        "candidateKey": "interaction:selector:777777777777777777777777",
-        "decision": "approved",
-        "evidenceSnapshot": {
-          "classification": "safe",
-          "confidence": "high",
-          "pageContext": "Filters",
-          "observedUrl": "https://sample.local/filters",
-          "selector": "main button.filter",
-          "text": "Filter",
-          "role": "button",
-          "type": "button",
-          "tagName": "button",
-          "ariaAttributes": {},
-          "interactionKind": "dropdown"
-        },
-        "review": {
-          "reviewer": "fixture-reviewer",
-          "reviewedAt": "2026-07-15T09:37:00Z"
+        "classification": "safe", "confidence": "high", "pageContext": "Docs",
+        "observedUrl": "https://example.test/docs/tabs", "selector": "#tab-yarn",
+        "text": "yarn", "role": "tab", "type": "", "tagName": "button",
+        "ariaAttributes": { "selected": "false" }, "interactionKind": "tab",
+        "tabRestore": {
+          "strategy": "restorePreviousSelection", "tabGroupSelector": "main [role='tablist']",
+          "target": {
+            "candidateKey": "interaction:selector:222222222222222222222222",
+            "selector": "#tab-npm", "observedUrl": "https://example.test/docs/tabs",
+            "pageContext": "Docs", "role": "tab", "tagName": "button", "text": "npm",
+            "ariaAttributes": { "selected": "true" }
+          }
         }
       },
       {
-        "candidateKey": "interaction:selector:111111111111111111111111",
-        "decision": "approved",
-        "evidenceSnapshot": {
-          "classification": "safe",
-          "confidence": "high",
-          "pageContext": "Overview",
-          "observedUrl": "https://sample.local/",
-          "selector": "main [role='tab']",
-          "text": "Overview",
-          "role": "tab",
-          "type": "",
-          "tagName": "li",
-          "ariaAttributes": {
-            "selected": "false"
-          },
-          "interactionKind": "tab"
-        },
-        "review": {
-          "reviewer": "fixture-reviewer",
-          "reviewedAt": "2026-07-15T09:31:00Z"
+        "candidateKey": "interaction:selector:222222222222222222222222",
+        "classification": "safe", "confidence": "high", "pageContext": "Docs",
+        "observedUrl": "https://example.test/docs/tabs", "selector": "#tab-npm",
+        "text": "npm", "role": "tab", "type": "", "tagName": "button",
+        "ariaAttributes": { "selected": "true" }, "interactionKind": "tab"
+      },
+      {
+        "candidateKey": "interaction:selector:333333333333333333333333",
+        "classification": "safe", "confidence": "high", "pageContext": "Other group",
+        "observedUrl": "https://example.test/docs/tabs", "selector": "#tab-beta",
+        "text": "beta", "role": "tab", "type": "", "tagName": "button",
+        "ariaAttributes": { "selected": "false" }, "interactionKind": "tab",
+        "tabRestore": {
+          "strategy": "restorePreviousSelection", "tabGroupSelector": "section [role='tablist'].new",
+          "target": {
+            "candidateKey": "interaction:selector:444444444444444444444444",
+            "selector": "#tab-alpha", "observedUrl": "https://example.test/docs/tabs",
+            "pageContext": "Other group", "role": "tab", "tagName": "button", "text": "alpha",
+            "ariaAttributes": { "selected": "true" }
+          }
         }
       },
       {
         "candidateKey": "interaction:selector:444444444444444444444444",
-        "decision": "approved",
-        "evidenceSnapshot": {
-          "classification": "safe",
-          "confidence": "high",
-          "pageContext": "Missing",
-          "observedUrl": "https://sample.local/missing",
-          "selector": "main button.missing",
-          "text": "Missing",
-          "role": "button",
-          "type": "button",
-          "tagName": "button",
-          "ariaAttributes": {
-            "expanded": "false"
-          },
-          "interactionKind": "expandCollapse"
-        },
-        "review": {
-          "reviewer": "fixture-reviewer",
-          "reviewedAt": "2026-07-15T09:34:00Z"
+        "classification": "safe", "confidence": "high", "pageContext": "Other group",
+        "observedUrl": "https://example.test/docs/tabs", "selector": "#tab-alpha",
+        "text": "alpha", "role": "tab", "type": "", "tagName": "button",
+        "ariaAttributes": { "selected": "true" }, "interactionKind": "tab"
+      },
+      {
+        "candidateKey": "interaction:selector:555555555555555555555555",
+        "classification": "safe", "confidence": "high", "pageContext": "Missing restore",
+        "observedUrl": "https://example.test/docs/tabs", "selector": "#tab-two",
+        "text": "two", "role": "tab", "type": "", "tagName": "button",
+        "ariaAttributes": { "selected": "false" }, "interactionKind": "tab",
+        "tabRestoreUnavailableReason": "missingPreviousSelection"
+      },
+      {
+        "candidateKey": "interaction:selector:777777777777777777777777",
+        "classification": "safe", "confidence": "high", "pageContext": "Missing peer",
+        "observedUrl": "https://example.test/docs/tabs", "selector": "#tab-next",
+        "text": "next", "role": "tab", "type": "", "tagName": "button",
+        "ariaAttributes": { "selected": "false" }, "interactionKind": "tab",
+        "tabRestore": {
+          "strategy": "restorePreviousSelection", "tabGroupSelector": "aside [role='tablist']",
+          "target": {
+            "candidateKey": "interaction:selector:888888888888888888888888",
+            "selector": "#tab-current", "observedUrl": "https://example.test/docs/tabs",
+            "pageContext": "Missing peer", "role": "tab", "tagName": "button", "text": "current",
+            "ariaAttributes": { "selected": "true" }
+          }
         }
       },
       {
-        "candidateKey": "interaction:selector:333333333333333333333333",
-        "decision": "rejected",
+        "candidateKey": "interaction:selector:999999999999999999999999",
+        "classification": "safe", "confidence": "high", "pageContext": "Details",
+        "observedUrl": "https://example.test/docs/details", "selector": "#details",
+        "text": "Details", "role": "button", "type": "button", "tagName": "button",
+        "ariaAttributes": { "expanded": "false" }, "interactionKind": "accordion"
+      }
+    ],
+    "unsafeActionCandidates": [],
+    "unresolvedCandidates": []
+  },
+  "approvalArtifact": {
+    "schemaVersion": "3.0",
+    "target": { "url": "https://example.test/" },
+    "approvals": [
+      {
+        "candidateKey": "interaction:selector:111111111111111111111111",
+        "decision": "approved",
         "evidenceSnapshot": {
-          "classification": "unsafe",
-          "confidence": "high",
-          "pageContext": "Settings",
-          "observedUrl": "https://sample.local/settings",
-          "selector": "main button.delete",
-          "text": "Delete",
-          "role": "button",
-          "type": "button",
-          "tagName": "button",
-          "ariaAttributes": {},
-          "actionKind": "delete",
-          "riskLevel": "critical"
+          "classification": "safe", "confidence": "high", "pageContext": "Docs",
+          "observedUrl": "https://example.test/docs/tabs", "selector": "#tab-yarn",
+          "text": "yarn", "role": "tab", "type": "", "tagName": "button",
+          "ariaAttributes": { "selected": "false" }, "interactionKind": "tab",
+          "tabRestore": {
+            "strategy": "restorePreviousSelection", "tabGroupSelector": "main [role='tablist']",
+            "target": {
+              "candidateKey": "interaction:selector:222222222222222222222222",
+              "selector": "#tab-npm", "observedUrl": "https://example.test/docs/tabs",
+              "pageContext": "Docs", "role": "tab", "tagName": "button", "text": "npm",
+              "ariaAttributes": { "selected": "true" }
+            }
+          }
         },
-        "review": {
-          "reviewer": "fixture-reviewer",
-          "reviewedAt": "2026-07-15T09:33:00Z"
-        }
+        "review": { "reviewer": "fixture-reviewer", "reviewedAt": "2026-07-20T09:30:00Z" }
+      },
+      {
+        "candidateKey": "interaction:selector:333333333333333333333333",
+        "decision": "approved",
+        "evidenceSnapshot": {
+          "classification": "safe", "confidence": "high", "pageContext": "Other group",
+          "observedUrl": "https://example.test/docs/tabs", "selector": "#tab-beta",
+          "text": "beta", "role": "tab", "type": "", "tagName": "button",
+          "ariaAttributes": { "selected": "false" }, "interactionKind": "tab",
+          "tabRestore": {
+            "strategy": "restorePreviousSelection", "tabGroupSelector": "section [role='tablist'].old",
+            "target": {
+              "candidateKey": "interaction:selector:444444444444444444444444",
+              "selector": "#tab-alpha", "observedUrl": "https://example.test/docs/tabs",
+              "pageContext": "Other group", "role": "tab", "tagName": "button", "text": "alpha",
+              "ariaAttributes": { "selected": "true" }
+            }
+          }
+        },
+        "review": { "reviewer": "fixture-reviewer", "reviewedAt": "2026-07-20T09:31:00Z" }
       },
       {
         "candidateKey": "interaction:selector:555555555555555555555555",
         "decision": "approved",
         "evidenceSnapshot": {
-          "classification": "safe",
-          "confidence": "medium",
-          "pageContext": "Options",
-          "observedUrl": "https://sample.local/docs/options",
-          "selector": "main button.options",
-          "text": "Options",
-          "role": "button",
-          "type": "button",
-          "tagName": "button",
-          "ariaAttributes": {
-            "haspopup": "menu"
-          },
-          "interactionKind": "dropdown"
+          "classification": "safe", "confidence": "high", "pageContext": "Missing restore",
+          "observedUrl": "https://example.test/docs/tabs", "selector": "#tab-two",
+          "text": "two", "role": "tab", "type": "", "tagName": "button",
+          "ariaAttributes": { "selected": "false" }, "interactionKind": "tab",
+          "tabRestore": {
+            "strategy": "restorePreviousSelection", "tabGroupSelector": "div [role='tablist']",
+            "target": {
+              "candidateKey": "interaction:selector:666666666666666666666666",
+              "selector": "#tab-one", "observedUrl": "https://example.test/docs/tabs",
+              "pageContext": "Missing restore", "role": "tab", "tagName": "button", "text": "one",
+              "ariaAttributes": { "selected": "true" }
+            }
+          }
         },
-        "review": {
-          "reviewer": "fixture-reviewer",
-          "reviewedAt": "2026-07-15T09:35:00Z"
-        }
+        "review": { "reviewer": "fixture-reviewer", "reviewedAt": "2026-07-20T09:32:00Z" }
       },
       {
-        "candidateKey": "interaction:selector:222222222222222222222222",
-        "decision": "held",
-        "evidenceSnapshot": {
-          "classification": "safe",
-          "confidence": "high",
-          "pageContext": "Details",
-          "observedUrl": "https://sample.local/docs/details",
-          "selector": "main button.details",
-          "text": "Details",
-          "role": "button",
-          "type": "button",
-          "tagName": "button",
-          "ariaAttributes": {
-            "expanded": "false"
-          },
-          "interactionKind": "accordion"
-        },
-        "review": {
-          "reviewer": "fixture-reviewer",
-          "reviewedAt": "2026-07-15T09:32:00Z"
-        }
-      },
-      {
-        "candidateKey": "interaction:selector:666666666666666666666666",
+        "candidateKey": "interaction:selector:777777777777777777777777",
         "decision": "approved",
         "evidenceSnapshot": {
-          "classification": "safe",
-          "confidence": "high",
-          "pageContext": "Preferences",
-          "observedUrl": "https://sample.local/preferences",
-          "selector": "main button.preference-action",
-          "text": "Save preference",
-          "role": "button",
-          "type": "button",
-          "tagName": "button",
-          "ariaAttributes": {},
-          "interactionKind": "dropdown"
+          "classification": "safe", "confidence": "high", "pageContext": "Missing peer",
+          "observedUrl": "https://example.test/docs/tabs", "selector": "#tab-next",
+          "text": "next", "role": "tab", "type": "", "tagName": "button",
+          "ariaAttributes": { "selected": "false" }, "interactionKind": "tab",
+          "tabRestore": {
+            "strategy": "restorePreviousSelection", "tabGroupSelector": "aside [role='tablist']",
+            "target": {
+              "candidateKey": "interaction:selector:888888888888888888888888",
+              "selector": "#tab-current", "observedUrl": "https://example.test/docs/tabs",
+              "pageContext": "Missing peer", "role": "tab", "tagName": "button", "text": "current",
+              "ariaAttributes": { "selected": "true" }
+            }
+          }
         },
-        "review": {
-          "reviewer": "fixture-reviewer",
-          "reviewedAt": "2026-07-15T09:36:00Z"
-        }
+        "review": { "reviewer": "fixture-reviewer", "reviewedAt": "2026-07-20T09:33:00Z" }
+      },
+      {
+        "candidateKey": "interaction:selector:999999999999999999999999",
+        "decision": "approved",
+        "evidenceSnapshot": {
+          "classification": "safe", "confidence": "high", "pageContext": "Details",
+          "observedUrl": "https://example.test/docs/details", "selector": "#details",
+          "text": "Details", "role": "button", "type": "button", "tagName": "button",
+          "ariaAttributes": { "expanded": "false" }, "interactionKind": "accordion"
+        },
+        "review": { "reviewer": "fixture-reviewer", "reviewedAt": "2026-07-20T09:34:00Z" }
       }
     ]
   },
   "reportVersionFailure": {
-    "version": "1.0",
-    "expectedCodes": [
-      "C003"
-    ]
+    "version": "2.0",
+    "expectedCodes": ["C003"]
   },
   "expected": {
-    "schemaVersion": "2.0",
+    "schemaVersion": "3.0",
     "summary": {
       "currentCandidateCount": 7,
-      "approvalEntryCount": 7,
-      "validReferenceCount": 3,
-      "missingCandidateCount": 1,
+      "approvalEntryCount": 5,
+      "validReferenceCount": 2,
+      "missingCandidateCount": 0,
       "evidenceChangedCount": 3,
-      "eligibleCandidateCount": 1,
-      "unreviewedCandidateCount": 1
+      "eligibleCandidateCount": 2,
+      "unreviewedCandidateCount": 2
     },
     "results": [
       {
         "candidateKey": "interaction:selector:111111111111111111111111",
-        "decision": "approved",
-        "referenceStatus": "valid",
-        "currentClassification": "safe",
-        "eligible": true,
-        "ineligibilityReasons": []
-      },
-      {
-        "candidateKey": "interaction:selector:222222222222222222222222",
-        "decision": "held",
-        "referenceStatus": "valid",
-        "currentClassification": "safe",
-        "eligible": false,
-        "ineligibilityReasons": [
-          "decisionNotApproved"
-        ]
+        "decision": "approved", "referenceStatus": "valid",
+        "currentClassification": "safe", "eligible": true, "ineligibilityReasons": []
       },
       {
         "candidateKey": "interaction:selector:333333333333333333333333",
-        "decision": "rejected",
-        "referenceStatus": "valid",
-        "currentClassification": "unsafe",
-        "eligible": false,
-        "ineligibilityReasons": [
-          "currentClassificationNotSafe",
-          "decisionNotApproved"
-        ]
-      },
-      {
-        "candidateKey": "interaction:selector:444444444444444444444444",
-        "decision": "approved",
-        "referenceStatus": "missingCandidate",
-        "currentClassification": null,
-        "eligible": false,
-        "ineligibilityReasons": [
-          "missingCandidate"
-        ]
+        "decision": "approved", "referenceStatus": "evidenceChanged",
+        "currentClassification": "safe", "eligible": false,
+        "ineligibilityReasons": ["evidenceChanged"],
+        "changedFields": ["tabRestore.tabGroupSelector"]
       },
       {
         "candidateKey": "interaction:selector:555555555555555555555555",
-        "decision": "approved",
-        "referenceStatus": "evidenceChanged",
-        "currentClassification": "safe",
-        "eligible": false,
-        "ineligibilityReasons": [
-          "evidenceChanged"
-        ],
-        "changedFields": [
-          "observedUrl"
-        ]
-      },
-      {
-        "candidateKey": "interaction:selector:666666666666666666666666",
-        "decision": "approved",
-        "referenceStatus": "evidenceChanged",
-        "currentClassification": "unsafe",
-        "eligible": false,
-        "ineligibilityReasons": [
-          "evidenceChanged",
-          "currentClassificationNotSafe"
-        ],
-        "changedFields": [
-          "classification",
-          "interactionKind",
-          "actionKind",
-          "riskLevel"
-        ]
+        "decision": "approved", "referenceStatus": "evidenceChanged",
+        "currentClassification": "safe", "eligible": false,
+        "ineligibilityReasons": ["evidenceChanged"]
       },
       {
         "candidateKey": "interaction:selector:777777777777777777777777",
-        "decision": "approved",
-        "referenceStatus": "evidenceChanged",
-        "currentClassification": "unknown",
-        "eligible": false,
-        "ineligibilityReasons": [
-          "evidenceChanged",
-          "currentClassificationNotSafe"
-        ],
-        "changedFields": [
-          "classification",
-          "confidence",
-          "interactionKind"
-        ]
+        "decision": "approved", "referenceStatus": "evidenceChanged",
+        "currentClassification": "safe", "eligible": false,
+        "ineligibilityReasons": ["evidenceChanged"],
+        "changedFields": ["tabRestore.target.candidateKey"]
+      },
+      {
+        "candidateKey": "interaction:selector:999999999999999999999999",
+        "decision": "approved", "referenceStatus": "valid",
+        "currentClassification": "safe", "eligible": true, "ineligibilityReasons": []
       }
     ],
     "eligibleCandidateKeys": [
-      "interaction:selector:111111111111111111111111"
+      "interaction:selector:111111111111111111111111",
+      "interaction:selector:999999999999999999999999"
     ],
     "eligibleCandidateObservedUrls": {
-      "interaction:selector:111111111111111111111111": "https://sample.local/"
+      "interaction:selector:111111111111111111111111": "https://example.test/docs/tabs",
+      "interaction:selector:999999999999999999999999": "https://example.test/docs/details"
+    },
+    "eligibleCandidateTabRestoreKeys": {
+      "interaction:selector:111111111111111111111111": "interaction:selector:222222222222222222222222"
     },
     "unreviewedCandidateKeys": [
-      "interaction:selector:888888888888888888888888"
+      "interaction:selector:222222222222222222222222",
+      "interaction:selector:444444444444444444444444"
     ]
   }
 }

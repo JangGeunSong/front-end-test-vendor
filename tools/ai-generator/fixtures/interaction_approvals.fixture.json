@@ -1,13 +1,11 @@
 {
   "cases": [
     {
-      "scenario": "valid-approved-held-rejected",
+      "scenario": "valid-schema-3-bounded-tab-pair",
       "expectedCodes": [],
       "artifact": {
-        "schemaVersion": "2.0",
-        "target": {
-          "url": "https://sample.local/"
-        },
+        "schemaVersion": "3.0",
+        "target": { "url": "https://example.test/" },
         "approvals": [
           {
             "candidateKey": "interaction:selector:111111111111111111111111",
@@ -15,31 +13,43 @@
             "evidenceSnapshot": {
               "classification": "safe",
               "confidence": "high",
-              "pageContext": "Overview",
-              "observedUrl": "https://sample.local/",
-              "selector": "main [role='tab']",
-              "text": "Overview",
+              "pageContext": "Docs",
+              "observedUrl": "https://example.test/docs/tabs",
+              "selector": "#tab-yarn",
+              "text": "yarn",
               "role": "tab",
               "type": "",
-              "tagName": "li",
-              "ariaAttributes": {
-                "selected": "false"
-              },
-              "interactionKind": "tab"
+              "tagName": "button",
+              "ariaAttributes": { "selected": "false" },
+              "interactionKind": "tab",
+              "tabRestore": {
+                "strategy": "restorePreviousSelection",
+                "tabGroupSelector": "main [role='tablist']",
+                "target": {
+                  "candidateKey": "interaction:selector:222222222222222222222222",
+                  "selector": "#tab-npm",
+                  "observedUrl": "https://example.test/docs/tabs",
+                  "pageContext": "Docs",
+                  "role": "tab",
+                  "tagName": "button",
+                  "text": "npm",
+                  "ariaAttributes": { "selected": "true" }
+                }
+              }
             },
             "review": {
               "reviewer": "fixture-reviewer",
-              "reviewedAt": "2026-07-15T09:30:00+09:00"
+              "reviewedAt": "2026-07-20T09:30:00Z"
             }
           },
           {
-            "candidateKey": "interaction:selector:222222222222222222222222",
+            "candidateKey": "interaction:selector:333333333333333333333333",
             "decision": "held",
             "evidenceSnapshot": {
               "classification": "unknown",
               "confidence": "low",
-              "pageContext": "Overview",
-              "observedUrl": "https://sample.local/docs/intro",
+              "pageContext": "Docs",
+              "observedUrl": "https://example.test/docs/tabs",
               "selector": "main button.more",
               "text": "More",
               "role": "button",
@@ -49,320 +59,279 @@
             },
             "review": {
               "reviewer": "fixture-reviewer",
-              "reviewedAt": "2026-07-15T09:31:00Z",
-              "note": "Behavior needs review."
-            }
-          },
-          {
-            "candidateKey": "interaction:fallback:333333333333333333333333",
-            "decision": "rejected",
-            "evidenceSnapshot": {
-              "classification": "unsafe",
-              "confidence": "high",
-              "pageContext": "Settings",
-              "observedUrl": "https://sample.local/settings?mode=danger#actions",
-              "selector": "",
-              "text": "Delete",
-              "role": "button",
-              "type": "submit",
-              "tagName": "button",
-              "ariaAttributes": {},
-              "actionKind": "delete",
-              "riskLevel": "critical"
-            },
-            "review": {
-              "reviewer": "fixture-reviewer",
-              "reviewedAt": "2026-07-15T09:32:00+09:00"
+              "reviewedAt": "2026-07-20T09:31:00Z"
             }
           }
         ]
       }
     },
     {
-      "scenario": "unsupported-schema-version",
-      "expectedCodes": [
-        "E004"
-      ],
+      "scenario": "old-schema-2-rejected",
+      "expectedCodes": ["E004"],
       "artifact": {
-        "schemaVersion": "1.0",
-        "target": {
-          "url": "https://sample.local/"
-        },
+        "schemaVersion": "2.0",
+        "target": { "url": "https://example.test/" },
         "approvals": []
       }
     },
     {
-      "scenario": "missing-target-url",
-      "expectedCodes": [
-        "E007"
-      ],
+      "scenario": "approved-unselected-tab-missing-restore",
+      "expectedCodes": ["E146"],
       "artifact": {
-        "schemaVersion": "2.0",
-        "target": {},
-        "approvals": []
-      }
-    },
-    {
-      "scenario": "invalid-decision",
-      "expectedCodes": [
-        "E105"
-      ],
-      "artifact": {
-        "schemaVersion": "2.0",
-        "target": {
-          "url": "https://sample.local/"
-        },
+        "schemaVersion": "3.0",
+        "target": { "url": "https://example.test/" },
         "approvals": [
           {
-            "candidateKey": "interaction:selector:444444444444444444444444",
-            "decision": "unreviewed",
-            "evidenceSnapshot": {
-              "classification": "safe",
-              "confidence": "high",
-              "pageContext": "Overview",
-              "observedUrl": "https://sample.local/",
-              "selector": "main [role='tab']",
-              "text": "Overview",
-              "role": "tab",
-              "type": "",
-              "tagName": "li",
-              "ariaAttributes": {},
-              "interactionKind": "tab"
-            },
-            "review": {
-              "reviewer": "fixture-reviewer",
-              "reviewedAt": "2026-07-15T09:30:00Z"
-            }
-          }
-        ]
-      }
-    },
-    {
-      "scenario": "invalid-candidate-key",
-      "expectedCodes": [
-        "E103"
-      ],
-      "artifact": {
-        "schemaVersion": "2.0",
-        "target": {
-          "url": "https://sample.local/"
-        },
-        "approvals": [
-          {
-            "candidateKey": "interaction:selector:not-a-digest",
-            "decision": "held",
-            "evidenceSnapshot": {
-              "classification": "unknown",
-              "confidence": "low",
-              "pageContext": "Overview",
-              "observedUrl": "https://sample.local/",
-              "selector": "main button.more",
-              "text": "More",
-              "role": "button",
-              "type": "button",
-              "tagName": "button",
-              "ariaAttributes": {}
-            },
-            "review": {
-              "reviewer": "fixture-reviewer",
-              "reviewedAt": "2026-07-15T09:30:00Z"
-            }
-          }
-        ]
-      }
-    },
-    {
-      "scenario": "duplicate-candidate-key",
-      "expectedCodes": [
-        "E104"
-      ],
-      "artifact": {
-        "schemaVersion": "2.0",
-        "target": {
-          "url": "https://sample.local/"
-        },
-        "approvals": [
-          {
-            "candidateKey": "interaction:selector:555555555555555555555555",
-            "decision": "held",
-            "evidenceSnapshot": {
-              "classification": "unknown",
-              "confidence": "low",
-              "pageContext": "Overview",
-              "observedUrl": "https://sample.local/",
-              "selector": "main button.more",
-              "text": "More",
-              "role": "button",
-              "type": "button",
-              "tagName": "button",
-              "ariaAttributes": {}
-            },
-            "review": {
-              "reviewer": "fixture-reviewer",
-              "reviewedAt": "2026-07-15T09:30:00Z"
-            }
-          },
-          {
-            "candidateKey": "interaction:selector:555555555555555555555555",
-            "decision": "rejected",
-            "evidenceSnapshot": {
-              "classification": "unknown",
-              "confidence": "low",
-              "pageContext": "Overview",
-              "observedUrl": "https://sample.local/",
-              "selector": "main button.more",
-              "text": "More",
-              "role": "button",
-              "type": "button",
-              "tagName": "button",
-              "ariaAttributes": {}
-            },
-            "review": {
-              "reviewer": "fixture-reviewer",
-              "reviewedAt": "2026-07-15T09:31:00Z"
-            }
-          }
-        ]
-      }
-    },
-    {
-      "scenario": "approved-unsafe-snapshot",
-      "expectedCodes": [
-        "E122"
-      ],
-      "artifact": {
-        "schemaVersion": "2.0",
-        "target": {
-          "url": "https://sample.local/"
-        },
-        "approvals": [
-          {
-            "candidateKey": "interaction:selector:666666666666666666666666",
+            "candidateKey": "interaction:selector:111111111111111111111111",
             "decision": "approved",
             "evidenceSnapshot": {
-              "classification": "unsafe",
+              "classification": "safe",
               "confidence": "high",
-              "pageContext": "Settings",
-              "observedUrl": "https://sample.local/settings",
-              "selector": "main button.delete",
-              "text": "Delete",
-              "role": "button",
-              "type": "button",
+              "pageContext": "Docs",
+              "observedUrl": "https://example.test/docs/tabs",
+              "selector": "#tab-yarn",
+              "text": "yarn",
+              "role": "tab",
+              "type": "",
               "tagName": "button",
-              "ariaAttributes": {},
-              "actionKind": "delete",
-              "riskLevel": "critical"
+              "ariaAttributes": { "selected": "false" },
+              "interactionKind": "tab"
             },
             "review": {
               "reviewer": "fixture-reviewer",
-              "reviewedAt": "2026-07-15T09:30:00Z"
+              "reviewedAt": "2026-07-20T09:30:00Z"
             }
           }
         ]
       }
     },
     {
-      "scenario": "malformed-evidence-snapshot",
-      "expectedCodes": [
-        "E106"
-      ],
+      "scenario": "restore-selector-equals-target",
+      "expectedCodes": ["E135"],
       "artifact": {
-        "schemaVersion": "2.0",
-        "target": {
-          "url": "https://sample.local/"
-        },
+        "schemaVersion": "3.0",
+        "target": { "url": "https://example.test/" },
         "approvals": [
           {
-            "candidateKey": "interaction:selector:777777777777777777777777",
-            "decision": "held",
-            "evidenceSnapshot": [],
-            "review": {
-              "reviewer": "fixture-reviewer",
-              "reviewedAt": "2026-07-15T09:30:00Z"
-            }
-          }
-        ]
-      }
-    },
-    {
-      "scenario": "safe-conditional-field-missing",
-      "expectedCodes": [
-        "E115"
-      ],
-      "artifact": {
-        "schemaVersion": "2.0",
-        "target": {
-          "url": "https://sample.local/"
-        },
-        "approvals": [
-          {
-            "candidateKey": "interaction:selector:888888888888888888888888",
-            "decision": "held",
+            "candidateKey": "interaction:selector:111111111111111111111111",
+            "decision": "approved",
             "evidenceSnapshot": {
               "classification": "safe",
               "confidence": "high",
-              "pageContext": "Overview",
-              "observedUrl": "https://sample.local/",
-              "selector": "main [role='tab']",
-              "text": "Overview",
+              "pageContext": "Docs",
+              "observedUrl": "https://example.test/docs/tabs",
+              "selector": "#tab-yarn",
+              "text": "yarn",
               "role": "tab",
               "type": "",
-              "tagName": "li",
-              "ariaAttributes": {}
+              "tagName": "button",
+              "ariaAttributes": { "selected": "false" },
+              "interactionKind": "tab",
+              "tabRestore": {
+                "strategy": "restorePreviousSelection",
+                "tabGroupSelector": "main [role='tablist']",
+                "target": {
+                  "candidateKey": "interaction:selector:222222222222222222222222",
+                  "selector": "#tab-yarn",
+                  "observedUrl": "https://example.test/docs/tabs",
+                  "pageContext": "Docs",
+                  "role": "tab",
+                  "tagName": "button",
+                  "text": "npm",
+                  "ariaAttributes": { "selected": "true" }
+                }
+              }
             },
-            "review": {
-              "reviewer": "fixture-reviewer",
-              "reviewedAt": "2026-07-15T09:30:00Z"
-            }
+            "review": { "reviewer": "fixture-reviewer", "reviewedAt": "2026-07-20T09:30:00Z" }
           }
         ]
       }
     },
     {
-      "scenario": "unknown-top-level-field",
-      "expectedCodes": [
-        "E002"
-      ],
+      "scenario": "restore-url-mismatch",
+      "expectedCodes": ["E136"],
       "artifact": {
-        "schemaVersion": "2.0",
-        "target": {
-          "url": "https://sample.local/"
-        },
-        "approvals": [],
-        "unexpected": true
+        "schemaVersion": "3.0",
+        "target": { "url": "https://example.test/" },
+        "approvals": [
+          {
+            "candidateKey": "interaction:selector:111111111111111111111111",
+            "decision": "approved",
+            "evidenceSnapshot": {
+              "classification": "safe", "confidence": "high", "pageContext": "Docs",
+              "observedUrl": "https://example.test/docs/tabs", "selector": "#tab-yarn",
+              "text": "yarn", "role": "tab", "type": "", "tagName": "button",
+              "ariaAttributes": { "selected": "false" }, "interactionKind": "tab",
+              "tabRestore": {
+                "strategy": "restorePreviousSelection", "tabGroupSelector": "main [role='tablist']",
+                "target": {
+                  "candidateKey": "interaction:selector:222222222222222222222222",
+                  "selector": "#tab-npm", "observedUrl": "https://example.test/docs/other",
+                  "pageContext": "Docs", "role": "tab", "tagName": "button", "text": "npm",
+                  "ariaAttributes": { "selected": "true" }
+                }
+              }
+            },
+            "review": { "reviewer": "fixture-reviewer", "reviewedAt": "2026-07-20T09:30:00Z" }
+          }
+        ]
+      }
+    },
+    {
+      "scenario": "restore-context-mismatch",
+      "expectedCodes": ["E137"],
+      "artifact": {
+        "schemaVersion": "3.0",
+        "target": { "url": "https://example.test/" },
+        "approvals": [
+          {
+            "candidateKey": "interaction:selector:111111111111111111111111",
+            "decision": "approved",
+            "evidenceSnapshot": {
+              "classification": "safe", "confidence": "high", "pageContext": "Docs",
+              "observedUrl": "https://example.test/docs/tabs", "selector": "#tab-yarn",
+              "text": "yarn", "role": "tab", "type": "", "tagName": "button",
+              "ariaAttributes": { "selected": "false" }, "interactionKind": "tab",
+              "tabRestore": {
+                "strategy": "restorePreviousSelection", "tabGroupSelector": "main [role='tablist']",
+                "target": {
+                  "candidateKey": "interaction:selector:222222222222222222222222",
+                  "selector": "#tab-npm", "observedUrl": "https://example.test/docs/tabs",
+                  "pageContext": "Other", "role": "tab", "tagName": "button", "text": "npm",
+                  "ariaAttributes": { "selected": "true" }
+                }
+              }
+            },
+            "review": { "reviewer": "fixture-reviewer", "reviewedAt": "2026-07-20T09:30:00Z" }
+          }
+        ]
+      }
+    },
+    {
+      "scenario": "restore-role-not-tab",
+      "expectedCodes": ["E141"],
+      "artifact": {
+        "schemaVersion": "3.0",
+        "target": { "url": "https://example.test/" },
+        "approvals": [
+          {
+            "candidateKey": "interaction:selector:111111111111111111111111",
+            "decision": "approved",
+            "evidenceSnapshot": {
+              "classification": "safe", "confidence": "high", "pageContext": "Docs",
+              "observedUrl": "https://example.test/docs/tabs", "selector": "#tab-yarn",
+              "text": "yarn", "role": "tab", "type": "", "tagName": "button",
+              "ariaAttributes": { "selected": "false" }, "interactionKind": "tab",
+              "tabRestore": {
+                "strategy": "restorePreviousSelection", "tabGroupSelector": "main [role='tablist']",
+                "target": {
+                  "candidateKey": "interaction:selector:222222222222222222222222",
+                  "selector": "#tab-npm", "observedUrl": "https://example.test/docs/tabs",
+                  "pageContext": "Docs", "role": "button", "tagName": "button", "text": "npm",
+                  "ariaAttributes": { "selected": "true" }
+                }
+              }
+            },
+            "review": { "reviewer": "fixture-reviewer", "reviewedAt": "2026-07-20T09:30:00Z" }
+          }
+        ]
+      }
+    },
+    {
+      "scenario": "restore-selected-not-true",
+      "expectedCodes": ["E145"],
+      "artifact": {
+        "schemaVersion": "3.0",
+        "target": { "url": "https://example.test/" },
+        "approvals": [
+          {
+            "candidateKey": "interaction:selector:111111111111111111111111",
+            "decision": "approved",
+            "evidenceSnapshot": {
+              "classification": "safe", "confidence": "high", "pageContext": "Docs",
+              "observedUrl": "https://example.test/docs/tabs", "selector": "#tab-yarn",
+              "text": "yarn", "role": "tab", "type": "", "tagName": "button",
+              "ariaAttributes": { "selected": "false" }, "interactionKind": "tab",
+              "tabRestore": {
+                "strategy": "restorePreviousSelection", "tabGroupSelector": "main [role='tablist']",
+                "target": {
+                  "candidateKey": "interaction:selector:222222222222222222222222",
+                  "selector": "#tab-npm", "observedUrl": "https://example.test/docs/tabs",
+                  "pageContext": "Docs", "role": "tab", "tagName": "button", "text": "npm",
+                  "ariaAttributes": { "selected": "false" }
+                }
+              }
+            },
+            "review": { "reviewer": "fixture-reviewer", "reviewedAt": "2026-07-20T09:30:00Z" }
+          }
+        ]
+      }
+    },
+    {
+      "scenario": "unknown-restore-target-field",
+      "expectedCodes": ["E131"],
+      "artifact": {
+        "schemaVersion": "3.0",
+        "target": { "url": "https://example.test/" },
+        "approvals": [
+          {
+            "candidateKey": "interaction:selector:111111111111111111111111",
+            "decision": "approved",
+            "evidenceSnapshot": {
+              "classification": "safe", "confidence": "high", "pageContext": "Docs",
+              "observedUrl": "https://example.test/docs/tabs", "selector": "#tab-yarn",
+              "text": "yarn", "role": "tab", "type": "", "tagName": "button",
+              "ariaAttributes": { "selected": "false" }, "interactionKind": "tab",
+              "tabRestore": {
+                "strategy": "restorePreviousSelection", "tabGroupSelector": "main [role='tablist']",
+                "target": {
+                  "candidateKey": "interaction:selector:222222222222222222222222",
+                  "selector": "#tab-npm", "observedUrl": "https://example.test/docs/tabs",
+                  "pageContext": "Docs", "role": "tab", "tagName": "button", "text": "npm",
+                  "ariaAttributes": { "selected": "true" }, "unexpected": true
+                }
+              }
+            },
+            "review": { "reviewer": "fixture-reviewer", "reviewedAt": "2026-07-20T09:30:00Z" }
+          }
+        ]
+      }
+    },
+    {
+      "scenario": "tab-restore-on-selected-target",
+      "expectedCodes": ["E147"],
+      "artifact": {
+        "schemaVersion": "3.0",
+        "target": { "url": "https://example.test/" },
+        "approvals": [
+          {
+            "candidateKey": "interaction:selector:111111111111111111111111",
+            "decision": "held",
+            "evidenceSnapshot": {
+              "classification": "safe", "confidence": "high", "pageContext": "Docs",
+              "observedUrl": "https://example.test/docs/tabs", "selector": "#tab-yarn",
+              "text": "yarn", "role": "tab", "type": "", "tagName": "button",
+              "ariaAttributes": { "selected": "true" }, "interactionKind": "tab",
+              "tabRestore": {
+                "strategy": "restorePreviousSelection", "tabGroupSelector": "main [role='tablist']",
+                "target": {
+                  "candidateKey": "interaction:selector:222222222222222222222222",
+                  "selector": "#tab-npm", "observedUrl": "https://example.test/docs/tabs",
+                  "pageContext": "Docs", "role": "tab", "tagName": "button", "text": "npm",
+                  "ariaAttributes": { "selected": "true" }
+                }
+              }
+            },
+            "review": { "reviewer": "fixture-reviewer", "reviewedAt": "2026-07-20T09:30:00Z" }
+          }
+        ]
       }
     }
   ],
   "observedUrlCases": [
-    {
-      "scenario": "missing-observed-url",
-      "omit": true,
-      "expectedCodes": ["E123"]
-    },
-    {
-      "scenario": "empty-observed-url",
-      "value": "",
-      "expectedCodes": ["E123"]
-    },
-    {
-      "scenario": "relative-observed-url",
-      "value": "/docs/intro",
-      "expectedCodes": ["E123"]
-    },
-    {
-      "scenario": "unsupported-observed-url-scheme",
-      "value": "data:text/plain,fixture",
-      "expectedCodes": ["E123"]
-    },
-    {
-      "scenario": "credential-observed-url",
-      "value": "https://user:secret@sample.local/docs/intro",
-      "expectedCodes": ["E124"]
-    },
-    {
-      "scenario": "cross-origin-observed-url",
-      "value": "https://external.test/docs/intro",
-      "expectedCodes": ["E125"]
-    }
+    { "scenario": "missing-observed-url", "omit": true, "expectedCodes": ["E123"] },
+    { "scenario": "relative-observed-url", "value": "/docs/tabs", "expectedCodes": ["E123"] },
+    { "scenario": "credential-observed-url", "value": "https://user:secret@example.test/docs/tabs", "expectedCodes": ["E124"] },
+    { "scenario": "cross-origin-observed-url", "value": "https://external.test/docs/tabs", "expectedCodes": ["E125"] }
   ]
 }

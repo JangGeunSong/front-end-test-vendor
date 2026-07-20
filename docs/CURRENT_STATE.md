@@ -82,10 +82,10 @@ analysis_review_report.json
 - bounded restore pair를 요구하는 Interaction Approval schema `3.0` strict validation
 - exact `candidateKey`와 immutable target/restore evidence snapshot 기반 Approval Reconciliation schema `3.0`
 - valid/missingCandidate/evidenceChanged reference status와 approved-only eligible candidate output
-- eligible candidate 기반 Structured Interaction Plan schema `2.0` implemented contract와 per-test `startUrl`
+- eligible target/restore pair 기반 Structured Interaction Plan schema `3.0`과 per-test exact `startUrl`
 - reconciliation/report exact join 기반 deterministic interaction plan builder
 - supported template/state/reset/eligibility/evidence를 strict하게 검증하는 interaction plan validator
-- validated schema `2.0` plan을 exact per-test `startUrl`/selector와 fixed state/reset assertion으로 변환하는 deterministic interaction renderer
+- validated schema `3.0` plan을 exact per-test `startUrl`/interaction/restore selector와 fixed paired state assertion으로 변환하는 deterministic interaction renderer
 - generated interaction spec의 JavaScript syntax와 Playwright test discovery validation
 - project venv, requirements, fnm, repository Node version, local `.env` policy를 복원하는 documented environment bootstrap
 - generated artifact와 source/docs를 분리하는 ignore 정책
@@ -108,7 +108,7 @@ analysis_review_report.json
 
 ## Current Development Frontier
 
-현재 중심 frontier는 구현된 tab evidence/approval/reconciliation 경계를 Plan schema `3.0`과 deterministic renderer로 이어가는 것이다. 첫 `tabSelection` runtime에서 persistent tab state가 확인되어 schema `2.0`의 `reloadPage`는 tab restore strategy로 폐기하기로 결정했다.
+현재 중심 frontier는 static validation을 마친 Plan schema `3.0`/deterministic renderer를 network-accessible explicit-tablist candidate에서 actual browser runtime으로 검증하는 것이다. Schema `2.0`의 `reloadPage` tab restore는 source에서 제거됐다.
 
 완료된 부분:
 
@@ -122,7 +122,7 @@ analysis_review_report.json
 - strict approval artifact validator와 deterministic error category/path output
 - Analysis Review Report current candidate와 approval artifact의 exact key/evidence reconciliation
 - deterministic reconciliation result artifact, eligible candidate set, unreviewed candidate set
-- `interactionKind`와 execution plan template을 분리한 Structured Interaction Plan schema `2.0` contract
+- `interactionKind`와 execution plan template을 분리한 Structured Interaction Plan schema `3.0` contract
 - discovery의 actual browser URL을 report, approval snapshot, stale comparison, eligible payload와 plan `startUrl`까지 exact하게 전달하는 provenance chain
 - exact eligible `candidateKey`/target snapshot과 bounded initial/expected/restored state 계약
 - page UI reset/restore를 data rollback과 분리한 reversible interaction 계약
@@ -137,6 +137,10 @@ analysis_review_report.json
 - optional `tabRestore`와 ready/unavailable summary를 보존·표시하는 Analysis Review Report `2.1`
 - approved unselected tab의 human-reviewed bounded pair를 요구하는 Approval schema `3.0` validator
 - restore evidence와 current peer를 exact 비교하고 stable bounded `changedFields`를 만드는 Reconciliation schema `3.0`
+- Reconciliation `3.0`/Report `2.1`만 소비하고 target+restore evidence를 exact join하는 Plan `3.0` builder
+- tab paired state/restore exact-copy와 expandedToggle reset을 strict 검증하는 Plan `3.0` validator
+- exact interaction/restore selector를 클릭하고 paired state를 assertion하는 deterministic renderer
+- neutral 3-test generated spec의 Node syntax와 Playwright `--list` discovery
 
 기반 architecture contract와 이번 구현에서 완료된 부분:
 
@@ -153,19 +157,17 @@ analysis_review_report.json
 구현되지 않은 boundary:
 
 - approval artifact writer/editor
-- interaction plan builder/validator schema `3.0` implementation
-- renderer `restorePreviousSelection` implementation
 - `tabSelection` runtime PASS
 - `expandedToggle` runtime validation
 - runtime failure evidence/screenshot/execution report
 
-Renderer는 validated JSON을 executable source shape로 변환한다. Current renderer는 여전히 schema `2.0` `reloadPage`를 구현하며, approval writer/editor와 repeatable Level 3 browser restore capability는 아직 완료되지 않았다.
+Renderer는 validated Plan `3.0`만 executable source shape로 변환한다. TabSelection은 exact target/restore selector 두 개와 paired false/true → true/false → false/true assertion을 생성하며 reload나 runtime peer search를 사용하지 않는다. Approval writer/editor와 repeatable Level 3 browser restore capability는 아직 완료되지 않았다.
 
-현재는 의도적인 version transition boundary다. `interaction_plan_contract.py`는 Reconciliation/Report `2.0` input과 Plan `2.0`만 허용하므로 새 Reconciliation `3.0`/Report `2.1` eligible pair를 소비하지 않는다. Silent dual-version compatibility를 추가하지 않았으며 다음 Plan `3.0` task가 이 join을 갱신해야 한다.
+Version transition은 완료됐다. `interaction_plan_contract.py`는 Reconciliation `3.0`, Report `2.1`, Plan `3.0`만 허용하며 old `2.0`을 silent accept하지 않는다.
 
 ## Latest Completed Work
 
-가장 최근 완료된 작업은 previous selected tab evidence producer와 Analysis Review Report `2.1`, Approval/Reconciliation schema `3.0`을 구현한 task다. Plan/renderer source와 runtime PASS를 완료한 것은 아니다.
+가장 최근 완료된 작업은 Reconciliation `3.0` eligible pair를 Plan `3.0`과 deterministic `restorePreviousSelection` spec으로 연결하고 static discovery를 검증한 task다. Browser runtime PASS를 완료한 것은 아니다.
 
 Tab previous-selection restore contract:
 
@@ -202,11 +204,11 @@ Execution URL provenance implementation:
 
 Structured Interaction Plan implementation:
 
-- schema version: `2.0`
+- schema version: `3.0`
 - input boundary: reconciliation `eligibleCandidates[]`와 exact current report state evidence
 - supported template: `interaction.tabSelection`, `interaction.expandedToggle`
 - primary reference: exact eligible `candidateKey`; startUrl/selector/interactionKind/pageContext는 eligible/report evidence에서 exact copy
-- bounded initial/expected/restored state와 required reset strategy
+- tab의 bounded paired initial/expected/restored state와 exact `restorePreviousSelection`; expandedToggle의 existing reset strategy
 - page-level UI `reset`/`restore`를 사용하며 data mutation rollback은 범위 밖
 - exact candidateKey join과 target/evidence mismatch fail-fast
 - supported state evidence가 있는 `tabSelection`/`expandedToggle`만 executable plan case로 생성
@@ -217,7 +219,7 @@ Structured Interaction Plan implementation:
 Approval validation/reconciliation implementation:
 
 - 기본 local review state 경로: `tools/ai-generator/review/interaction_approvals.json`
-- schema version: `2.0`
+- schema version: `3.0`
 - human decision: `approved`, `held`, `rejected`
 - primary reference: deterministic `candidateKey`; target scope URL과 actual `observedUrl`을 포함한 최소 evidence snapshot을 함께 보존
 - stale은 decision이 아니라 reconciliation status이며 missing key/evidence change 시 automatic carry-forward를 금지
@@ -239,16 +241,17 @@ Playwright public-site의 approved `Product A` tab generated spec 한 건을 ret
 - page가 selected tab state를 reload 사이에 보존해 restored `aria-selected=false` assertion 실패
 - screenshot, trace, HTML report와 DOM snapshot으로 동일 target이 `aria-selected=true`인 상태를 확인
 
-이는 renderer가 plan을 잘못 해석한 문제가 아니라 `reloadPage`를 generic tab restore로 정의한 template/reset contract gap이다. Storage clear, selector fallback, assertion 완화 또는 generated spec hand edit로 우회하지 않는다. Explicit same-group previous selected tab evidence와 bounded approval/reconciliation pair까지 구현했으며, Plan/renderer source와 runtime은 아직 `restorePreviousSelection`을 구현하지 않았다.
+이는 renderer가 plan을 잘못 해석한 문제가 아니라 `reloadPage`를 generic tab restore로 정의한 template/reset contract gap이었다. Storage clear, selector fallback, assertion 완화 또는 generated spec hand edit로 우회하지 않았다. Explicit same-group evidence부터 Plan `3.0`과 exact restore click renderer까지 구현했으며 actual runtime PASS만 아직 확인하지 않았다.
 
 이번 task의 fresh public-site deterministic analysis는 샌드박스의 outbound network 차단으로 root navigation이 `ERR_NETWORK_ACCESS_DENIED`에 실패했고, 권한 상승 요청도 승인되지 않아 실행하지 못했다. Existing ignored public artifact를 새 classifier/report로 재분류한 결과는 unselected tab 12개, restore-ready 0개, `missingTabGroupEvidence` 12개였지만 이는 fresh DOM observation이 아니므로 public structure의 durable 근거로 사용하지 않는다.
 
 ## Next Implementation Frontier
 
 ```text
-interaction plan schema 3.0 restorePreviousSelection builder/validator
-  -> deterministic renderer
-  -> Playwright public-site runtime revalidation
+network-accessible explicit-tablist candidate
+  -> target click paired transition
+  -> exact previous-selection restore click
+  -> paired restored-state PASS
 ```
 
 그 다음 분리된 결정은 browser validation execution report contract와 approval writer/editor local workflow다. ExpandedToggle runtime, 검수 UI와 workspace history는 이번 frontier에 포함하지 않는다.

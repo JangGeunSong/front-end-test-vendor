@@ -199,7 +199,7 @@ structured plan 경로는 `menu_map.json`과 `pageProfiles`를 바탕으로 test
 
 승인 reconciliation 결과에서 Structured Interaction Plan JSON을 생성·검증하고 deterministic Playwright source를 렌더링하려면 다음 명령을 사용합니다. Renderer command는 browser test body를 실행하지 않습니다.
 
-현재 interaction plan schema `2.0`은 candidate가 실제 관찰된 same-origin `observedUrl`을 test별 `startUrl`로 exact 보존합니다. Target root나 page context에서 실행 URL을 추론하지 않습니다.
+현재 interaction plan schema `3.0`은 candidate가 실제 관찰된 same-origin `observedUrl`을 test별 `startUrl`로 exact 보존합니다. TabSelection은 approved/current exact interaction+restore pair를 사용하고 `reloadPage`를 사용하지 않습니다. Target root나 page context에서 실행 URL을 추론하지 않습니다.
 
 ```powershell
 npm run ai:build-interaction-plan

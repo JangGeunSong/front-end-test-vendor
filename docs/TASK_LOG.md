@@ -1,5 +1,39 @@
 # Task Log
 
+## 2026-07-20 - Implement deterministic previous tab selection restore plans
+
+### 작업 목적
+
+- Report `2.1`과 Reconciliation `3.0`의 eligible target+restore pair를 Structured Interaction Plan `3.0`으로 exact 변환한다.
+- TabSelection의 `reloadPage`를 제거하고 exact previous selected tab click과 paired restored state를 fixed renderer source로 생성한다.
+- Browser body 실행 없이 neutral fixture, Node syntax와 Playwright static discovery까지 검증한다.
+
+### 구현 결과
+
+- `interaction_plan_contract.py`를 Plan/Reconciliation `3.0`, Report `2.1` hard boundary로 전환하고 old `2.0` silent compatibility를 두지 않았다.
+- Builder input binding은 eligible/report `tabRestore`의 strategy, group selector, restore peer key/selector/URL/context/role/tag/text/state를 exact 비교하고 current selected peer도 report에서 exact 확인한다.
+- Tab plan은 `target.tabGroupSelector`, paired initial/expected/restored state와 `restorePreviousSelection.target`의 exact candidateKey/selector만 소유한다. ExpandedToggle은 `reset.toggleSameTarget` semantics를 유지한다.
+- Strict validator는 tab `reset`/`reloadPage`, missing/different selector, wrong pair state, wrong group/restore evidence, arbitrary field와 old schema를 거부한다.
+- Renderer는 exact interaction/restore selector 두 개를 literal로 사용해 initial false/true, expected true/false, restored false/true를 assertion한다. Runtime selected search, DOM traversal, selector fallback과 reload는 생성하지 않는다.
+- Builder JSON과 renderer output은 atomic replace하며 invalid renderer input에서 existing output preservation을 fixture로 확인했다.
+
+### 검증
+
+- Builder fixture: 3 tests(2 tab, 1 expanded), 1 bounded unsupported, 12 input consistency failures 통과.
+- Validator fixture: valid 3 tests, empty plan, 18 strict failure scenarios 통과.
+- Renderer fixture: valid 3 tests, 9 direct safety failures와 repeated byte equality 통과.
+- Generated spec: target click 2, restore click 2, expanded click 2, selected assertion 12, `page.reload` 0, runtime selected search 0.
+- Node syntax와 Playwright `--list` 3-test discovery를 통과했다. Browser test body는 실행하지 않았다.
+- Existing ignored public Report는 `2.1`이지만 Reconciliation artifact는 stale `2.0`이고 restore pair가 없어 actual artifact chain smoke는 수행하지 않았다.
+
+### 다음 작업
+
+```text
+network-accessible explicit-tablist candidate
+  -> actual target/restore browser runtime
+  -> paired restored-state PASS
+```
+
 ## 2026-07-20 - Implement previous tab selection evidence and approval reconciliation
 
 ### 작업 목적

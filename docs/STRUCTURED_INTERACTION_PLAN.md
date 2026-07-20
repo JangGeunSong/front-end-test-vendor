@@ -4,102 +4,131 @@
 
 이 문서는 approval reconciliation의 eligible interaction candidate와 deterministic Level 3 renderer 사이의 structured contract를 정의한다.
 
-목표는 approved safe candidate를 free-form Playwright JavaScript 없이 bounded plan으로 표현하고, validator와 renderer가 classification, approval 또는 selector 추론을 다시 수행하지 않게 하는 것이다. Deterministic builder, strict validator와 두 MVP template의 deterministic renderer가 구현되어 있다. 첫 tab runtime은 restore contract gap을 확인했으며 repeatable browser capability는 아직 완료되지 않았다.
+구현된 schema `2.0` builder, validator, renderer는 `interaction.tabSelection`에 `reloadPage`를 사용한다. 첫 browser runtime에서 target transition은 통과했지만 reload 후 selected state가 유지되어 restore가 실패했다. 이 문서는 그 결과를 반영한 **future schema `3.0` contract**를 정의한다. Schema `3.0` producer, approval/reconciliation, builder, validator, renderer와 runtime PASS는 아직 구현되지 않았다.
 
 ## Architecture Position
 
 ```text
-current classified candidates
-  + human approval artifact
-  -> approval validation / reconciliation
-  -> eligibleCandidates
-  -> deterministic interaction plan builder
-  -> structured interaction plan
-  -> strict interaction plan validator
-  -> deterministic Level 3 renderer
+current classified candidates + tab group/selected-peer evidence
+  -> Analysis Review Report 2.1
+  -> human approval 3.0 validation / reconciliation 3.0
+  -> eligible bounded interaction pair
+  -> deterministic interaction plan builder 3.0
+  -> strict interaction plan validator 3.0
+  -> deterministic renderer
   -> generated Playwright interaction spec
-  -> future browser execution / execution report
+  -> browser execution
 ```
 
 계층별 source of truth:
 
-- classifier: `safe`, `unsafe`, `unknown`과 `interactionKind`
-- approval artifact: `approved`, `held`, `rejected`와 human review evidence
-- reconciliation: exact current reference status와 eligibility
-- interaction plan: bounded execution/reset instruction
-- renderer: fixed Playwright code shape
-- execution report: runtime result와 failure evidence
-
-한 계층의 상태를 다른 계층의 enum으로 합치지 않는다.
-
-## Level 3 MVP Goal
-
-Level 3 MVP는 business scenario automation이 아니라 page-level safe interaction smoke test다.
-
-MVP 원칙:
-
-- input은 reconciliation의 current `safe` + human `approved` + `valid` reference인 eligible candidate뿐이다.
-- interaction 전 state를 확인하고, interaction 후 bounded expected state를 확인한다.
-- 검증 후 page-level UI state를 deterministic하게 reset하고 restored state를 확인한다.
-- 데이터 변경, 인증, 결제, 전송, upload, personal information input은 표현하거나 실행하지 않는다.
-
-Save, submit, create/register, update/edit, delete, payment, approval, send, upload, login/signup과 destructive/irreversible action은 schema의 template으로 존재하지 않는다.
+- scout/pageProfile producer: actual `observedUrl`, exact selectors, ARIA roles/states와 explicit tab group relation
+- classifier: `safe`, `unsafe`, `unknown`과 `interactionKind`; restore readiness를 safety classification과 합치지 않음
+- approval artifact: interaction target과 실제 클릭될 restore target의 bounded human-reviewed evidence pair
+- reconciliation: current exact pair의 reference status와 eligibility
+- interaction plan: bounded execution/restore instruction
+- renderer: validated selector 두 개를 사용하는 fixed Playwright code shape
+- Playwright assertion/report/trace: runtime failure evidence
 
 ## Terminology
 
-- **interactionKind**: classifier가 candidate의 구조와 의미를 분류한 taxonomy다.
-- **plan template**: renderer가 사용할 deterministic interaction/state/reset 전략이다.
-- **eligible candidate**: reconciliation result의 `eligibleCandidates[]`에 존재하는 current safe candidate다.
-- **observed URL**: candidate가 rendered DOM에서 실제 관찰될 당시 browser의 absolute HTTP(S) URL이다.
-- **start URL**: future renderer가 test를 시작할 exact URL이며 current candidate `observedUrl`의 exact copy다.
-- **target snapshot**: eligible candidate에서 exact copy한 selector와 interaction kind다.
-- **initial state**: interaction 직전에 확인할 bounded UI state다.
-- **expected state**: interaction 직후 확인할 bounded UI state다.
-- **reset**: interaction으로 바뀐 page-level UI state를 초기 상태로 되돌리는 action이다.
-- **restored state**: reset 후 다시 확인할 initial state다.
+- **interaction target**: 사람이 승인했고 plan이 실행하는 initially unselected tab이다. Initial `selected=false`, expected `selected=true`다.
+- **tab group**: mutually exclusive selection state를 공유하며 같은 explicit `role=tablist` ancestor 아래에 있는 tab 집합이다.
+- **previous selected tab**: interaction 실행 직전 같은 tab group에서 `aria-selected=true`인 유일한 tab이다.
+- **restore target**: original page UI state를 되돌리기 위해 클릭하는 exact previous selected tab이다. MVP에서는 restore target과 previous selected tab이 같다.
+- **restore action**: plan에 보존된 exact restore selector를 click하는 동작이다.
+- **restored state**: restore 후 interaction target `selected=false`와 restore target `selected=true`를 함께 확인한 bounded state다.
 
-이 문서에서 rollback은 사용하지 않는다. Database transaction이나 data mutation rollback은 Level 3 MVP 범위가 아니다.
+Page-level UI에는 `restore`를 사용한다. 데이터 mutation의 rollback과 혼동하지 않는다. 구현된 expanded toggle의 existing `reset` field는 schema `3.0`에서도 그대로 유지하며 이번 tab contract가 그 의미를 변경하지 않는다.
 
-## Plan Responsibility
+## Tab Group Identity Contract
 
-Structured Interaction Plan이 소유하는 정보:
+MVP는 별도 permanent `tabGroupKey`를 만들지 않고 `tabGroupSelector`를 사용한다.
 
-- 실행할 eligible `candidateKey`
-- deterministic plan template
-- exact execution target snapshot
-- bounded initial/expected state
-- required reset strategy와 restored state
-- renderer가 고정된 execution shape를 선택하는 데 필요한 최소 field
+`tabGroupSelector`는 target과 restore target의 closest explicit `role=tablist` ancestor에서 producer가 수집한 exact stable selector다. 다음 조건이 모두 충족될 때만 `restorePreviousSelection` evidence를 만들 수 있다.
 
-Structured Interaction Plan이 소유하지 않는 정보:
+- 두 tab의 `observedUrl`이 exact match한다.
+- 두 element 모두 computed/exposed role이 `tab`이다.
+- 두 element가 같은 exact `tabGroupSelector`의 descendant다.
+- group selector는 하나의 explicit `role=tablist` element를 resolve하는 evidence다.
+- group 안에 `aria-selected=true` tab이 정확히 하나 존재한다.
+- interaction target은 `aria-selected=false`이고 selected peer는 `aria-selected=true`다.
+- 두 tab에 서로 다른 non-empty exact selector가 있다.
 
-- human decision, reviewer, review time 또는 approval note
-- approval evidence archive
-- classifier output 전체
-- reconciliation result 전체 또는 stale history
-- free-form JavaScript, Playwright locator/assertion code, regex 또는 callback
-- execution result, retry history, trace, screenshot binary/data
+Explicit `role=tablist` relation이 없는 tab-like UI는 MVP restore contract에서 제외한다. 같은 parent, sibling, class name, text similarity, DOM proximity 또는 같은 페이지의 모든 tab이라는 추론은 group evidence가 아니다. Current artifact의 selector common prefix도 과거 DOM을 사후 해석한 group proof로 사용하지 않는다.
 
-Plan은 generated intermediate artifact다. Human-authored approval state가 아니며 생성 시각을 포함하지 않는다.
+`tabGroupSelector`는 사람이 확인할 수 있고 validator가 exact copy를 비교할 수 있는 최소 identity다. URL과 selector를 hash한 새 business ID는 현재 MVP에 추가하지 않는다.
 
-Deterministic builder의 기본 output path는 `tools/ai-generator/generated/interaction_plan.generated.json`이다. 이 파일은 generated intermediate artifact이며 기본적으로 commit하지 않는다. Optional shadow producer가 추가되면 같은 파일을 overwrite하지 않고 별도 artifact path를 사용해야 한다.
+### Current Evidence Gap
 
-## Input And Provenance Boundary
+Current `scout.js collectTabs()`는 visible tab-like element마다 `summarizeElement`의 selector/role/tag/text/observed URL과 `selected`만 수집한다. `classify_interaction_candidates.py`는 이를 candidate `ariaAttributes.selected`로 normalize하고 individual `candidateKey`를 만든다. Analysis Review Report와 approval schema `2.0`도 그 individual snapshot만 보존한다.
 
-Builder와 validator는 다음 artifact를 함께 읽는다.
+따라서 current artifacts에는 selected peer candidates 자체는 있을 수 있지만 다음 relation은 없다.
 
-- `interaction_approval_reconciliation.json`: eligibility와 exact eligible payload
-- `analysis_review_report.json`: current ARIA/state evidence
+- 어떤 explicit tablist가 target group인지
+- 두 candidate가 같은 tablist descendant인지
+- group 안의 selected=true candidate가 정확히 하나인지
+- 어떤 selected peer가 target의 approved restore target인지
 
-Eligibility source of truth는 reconciliation result다. Analysis Review Report는 state evidence resolution에만 사용하며 builder/validator가 classification 또는 approval reconciliation을 다시 수행하지 않는다.
+Current plan schema도 target selector 하나와 `reset.reloadPage`만 소유한다. DOM ancestor 정보는 full target selector의 path fragment로 간접 나타날 수 있지만 이를 파싱하거나 common prefix로 group identity를 사후 생성하지 않는다.
 
-Plan build 직전에 reconciliation을 완료하고, target URL과 candidateKey 및 eligible payload의 selector, interactionKind, pageContext, `observedUrl`이 current report candidate와 일치해야 한다. Artifact provenance를 확인할 수 없거나 state evidence가 부족하면 plan case를 만들지 않는다. `target.url`은 전체 분석 scope이고 candidate 실행 위치가 아니다. `pageContext` 또는 target root로 실행 URL을 추론하거나 보충하지 않는다.
+## Previous Selected Tab Evidence
 
-## Plan Top-Level Schema
+Previous selected tab은 별도 approval entry가 아니라 interaction target의 bounded `tabRestore` evidence snapshot으로 표현한다. 다만 current classified peer를 exact하게 다시 찾을 수 있도록 peer의 existing `candidateKey`를 snapshot 안에 보존한다.
+
+이 선택은 다음 책임을 유지한다.
+
+- interaction target과 restore target은 하나의 bounded execution pair로 승인된다.
+- restore target에 별도 human decision을 만들지 않는다.
+- peer `candidateKey`는 identity/reconciliation에 재사용하지만 approval entry 자체를 독립적으로 요구하지 않는다.
+- primary target key가 존재하고 nested restore peer만 없어지면 primary approval은 `missingCandidate`가 아니라 `evidenceChanged`다.
+
+Report/approval의 required bounded restore evidence:
 
 ```json
 {
-  "schemaVersion": "2.0",
+  "tabRestore": {
+    "strategy": "restorePreviousSelection",
+    "tabGroupSelector": "main [role='tablist']",
+    "target": {
+      "candidateKey": "interaction:selector:89abcdef0123456789abcdef",
+      "selector": "#tab-npm",
+      "observedUrl": "https://example.test/docs/tabs",
+      "pageContext": "Package manager",
+      "role": "tab",
+      "tagName": "button",
+      "text": "npm",
+      "ariaAttributes": {
+        "selected": "true"
+      }
+    }
+  }
+}
+```
+
+`type`과 `aria-controls`는 group identity나 restore click에 필요하지 않으므로 MVP restore snapshot field가 아니다. Role과 normalized `tagName`이 element kind review evidence를 제공한다. Bounded target `ariaAttributes`는 `selected`만 허용한다. Full classifier archive, class name, sibling index, surrounding text와 locator alternatives를 복사하지 않는다.
+
+## Schema Version Decision
+
+Artifact별 version 결정:
+
+| Artifact | Future version | 이유 |
+| --- | --- | --- |
+| Analysis Review Report | `2.1` | `tabRestore`는 safe tab classification을 바꾸지 않는 optional evidence addition이다. Evidence가 없으면 candidate는 계속 report될 수 있다. |
+| Interaction Approval artifact | `3.0` | approved tab entry에 bounded restore evidence를 conditionally required로 추가한다. |
+| Approval Reconciliation result | `3.0` | tab eligibility와 eligible payload 의미가 target-only에서 approved pair로 바뀐다. |
+| Structured Interaction Plan | `3.0` | tab `reset.reloadPage`를 제거하고 required `restorePreviousSelection` pair/state로 바꾼다. |
+| Generated Playwright spec | 별도 JSON schema 없음 | Renderer output source이며 plan version을 소비한다. |
+
+Migration framework는 만들지 않는다. Future validators는 old approval/reconciliation/plan `2.0`을 unsupported version으로 명시적으로 거부한다. 현재 source constants와 fixtures는 여전히 `2.0`이며 후속 implementation에서 변경해야 한다.
+
+## Plan Top-Level Schema
+
+Schema `3.0` top-level은 schema `2.0`의 shape와 ordering을 유지한다.
+
+```json
+{
+  "schemaVersion": "3.0",
   "target": {
     "url": "https://example.test"
   },
@@ -111,347 +140,190 @@ Plan build 직전에 reconciliation을 완료하고, target URL과 candidateKey 
 }
 ```
 
-Top-level contract:
-
-- `schemaVersion`: required, current value `2.0`
-- `target.url`: required non-empty absolute HTTP(S) URL; reconciliation/report target와 exact match
-- `source.reconciliationPath`: required non-empty string
-- `source.analysisReportPath`: required non-empty string
-- `tests`: required array
-
-두 source path는 absolute filesystem path가 아니라 portable repository-relative path이며, validator CLI에 실제로 전달된 reconciliation/report artifact를 exact하게 식별해야 한다. Schema validation은 다른 환경에서 artifact를 옮겨 검증할 수 있도록 path 자체의 filesystem existence를 요구하지 않고, CLI가 읽는 input file 존재 여부는 load 단계에서 별도로 확인한다.
-
-`tests`는 `candidateKey` 오름차순으로 저장한다. Eligible candidate가 있어도 supported template state evidence가 없으면 빈 array를 허용한다. Empty plan은 실행할 interaction이 없다는 의미이며 unsafe/unknown candidate를 대체 test로 넣지 않는다.
-
-Top-level과 모든 nested object는 schema `2.0`에서 unknown field를 거부한다. Schema `2.0`은 per-test execution provenance인 required `startUrl` 추가 때문에 `1.0`에서 major version을 올렸다. Migration framework는 제공하지 않으며 validator는 `1.0`을 명시적으로 거부한다. Schema producer가 deterministic builder인지 bounded LLM shadow path인지는 contract에 영향을 주지 않는다. 모든 producer는 같은 validator를 통과해야 한다.
+Top-level과 nested object는 unknown field를 거부한다. `tests`는 `candidateKey` 오름차순이며 candidateKey 하나당 하나의 test만 허용한다. `startUrl`은 current target `observedUrl`의 exact copy이고 target scope와 same-origin이어야 한다.
 
 ## Common Test Case Fields
 
-모든 `tests[]` item은 다음 field를 가진다.
+- `id`: existing deterministic ID contract의 exact value
+- `title`: non-empty display title
+- `candidateKey`: approved interaction target reference
+- `template`: supported template
+- `pageContext`: eligible target evidence exact copy
+- `startUrl`: target `observedUrl` exact copy
+- `target`: template-specific exact target snapshot
+- `initialState`: template-specific bounded initial state
+- `expectedState`: template-specific bounded post-interaction state
+- `restore`: `interaction.tabSelection` 전용 restore instruction
+- `restoredState`: `interaction.tabSelection` 전용 bounded restored state
+- `reset`: `interaction.expandedToggle` 전용 existing reset contract
 
-- `id`: required unique deterministic machine-readable string
-- `title`: required human-readable string
-- `candidateKey`: required unique exact eligible candidate reference
-- `template`: required supported plan template
-- `pageContext`: eligible candidate에서 exact copy한 string; 빈 문자열 허용
-- `startUrl`: current candidate `observedUrl`의 required exact copy인 absolute credential-free HTTP(S) URL
-- `target`: required exact target snapshot
-- `initialState`: required template-specific bounded state
-- `expectedState`: required template-specific bounded state
-- `reset`: required template-specific reset/restore contract
+`restore`와 `restoredState`는 tabSelection에서 required이고 `reset`은 금지한다. ExpandedToggle에서는 `reset`이 required이고 tab-specific `restore`/`restoredState`를 금지한다.
 
-MVP에서는 candidateKey 하나당 test case 하나만 허용한다. 동일 candidate의 execution variation은 근거가 생길 때 별도 schema decision으로 다룬다.
+## `interaction.tabSelection` Contract
 
-### Deterministic Test ID
-
-Exact format:
-
-```text
-interaction-test:<selector|fallback>:<24-character candidate digest>:<tabSelection|expandedToggle>
-```
-
-`candidateKey`의 identity kind/digest와 plan template name을 그대로 결합한다. Array index, generation timestamp, Python `hash()`를 사용하지 않는다. Validator는 shared contract function으로 expected ID를 exact recompute한다.
-
-### Target Snapshot
-
-MVP는 selector를 plan에 포함하는 Option B를 선택한다.
+Target shape:
 
 ```json
 {
   "target": {
-    "selector": "main [role='tab']:nth-of-type(1)",
-    "interactionKind": "tab"
+    "selector": "#tab-yarn",
+    "interactionKind": "tab",
+    "tabGroupSelector": "main [role='tablist']"
   }
 }
 ```
 
-선택 이유:
-
-- validated plan만으로 renderer가 deterministic target을 사용할 수 있다.
-- validator가 reconciliation `eligibleCandidates[]`의 selector와 interactionKind에 exact equality를 요구할 수 있다.
-- selector synthesis/shortening을 명시적으로 차단할 수 있다.
-
-`target.selector`와 `target.interactionKind`는 eligible payload의 exact copy다. LLM이나 builder가 selector를 생성, 축약, 조합, fallback하지 않는다. Mismatch는 plan validation error다.
-
-## Candidate Reference Contract
-
-```text
-tests[].candidateKey
-  -> reconciliation.eligibleCandidates[].candidateKey exact match
-```
-
-Plan builder/validator는 다음을 확인해야 한다.
-
-- plan target URL과 reconciliation target URL exact match
-- candidateKey가 `eligibleCandidates[]`에 존재
-- eligible payload의 `currentClassification`이 `safe`
-- plan 안의 unique candidateKey
-- startUrl, target selector, interactionKind, pageContext의 exact eligible evidence match
-- startUrl과 Analysis Review Report current candidate observedUrl의 exact match
-
-`tests[].startUrl`은 plan `target.url`과 달라도 되지만 같은 origin이어야 한다. Query, fragment, trailing slash와 URL encoding을 포함한 문자열을 normalize하지 않는다. Future renderer는 이 값을 그대로 `page.goto(startUrl)`의 시작 위치로 사용한다.
-
-Array index와 selector 원문만으로 candidate identity를 대신하지 않는다. Missing candidate를 similarity로 교체하거나 old approval을 carry forward하지 않는다.
-
-## Template Taxonomy
-
-`interactionKind`와 plan template은 다른 책임을 가진다.
-
-Classifier가 현재 생성할 수 있는 safe interactionKind:
-
-- `readOnlySelect`
-- `tab`
-- `accordion`
-- `expandCollapse`
-- `modalOpen`
-- `modalClose`
-- `dropdown`
-- `popover`
-- `carouselPrevious`
-- `carouselNext`
-
-Structured Interaction Plan schema `2.0`의 supported template은 두 개다.
-
-| Plan template | Eligible interactionKind | Execution strategy | Reset strategy |
-| --- | --- | --- | --- |
-| `interaction.tabSelection` | `tab` | click target and verify selection | `reloadPage` |
-| `interaction.expandedToggle` | `accordion`, `expandCollapse` | click target and verify expansion | `toggleSameTarget` |
-
-Dialog, dropdown, popover, carousel, read-only select는 candidate classification은 가능하지만 현재 evidence만으로 deterministic expected state와 reset target/pair를 모두 증명할 수 없어 schema `2.0` plan template으로 지원하지 않는다.
-
-Unsupported interactionKind를 generic/todo template으로 실행하지 않는다. Template enum 확장은 state evidence, reset strategy, validator와 renderer contract가 함께 정의될 때 schema version 정책에 따라 수행한다.
-
-## Initial State Contract
-
-Initial state는 template별 fixed object shape를 사용한다. Generic attribute name, expression, JavaScript 또는 arbitrary assertion language를 허용하지 않는다.
-
-### Tab selection
+State and restore shape:
 
 ```json
 {
   "initialState": {
-    "selected": false
-  }
-}
-```
-
-Builder는 current Analysis Review Report의 exact candidate에 `ariaAttributes.selected == "false"` evidence가 있을 때만 이 case를 만든다. 이미 selected 상태이거나 evidence가 없으면 unsupported다.
-
-### Expanded toggle
-
-```json
-{
-  "initialState": {
-    "expanded": false
-  }
-}
-```
-
-Builder는 exact candidate에 `ariaAttributes.expanded == "false"` evidence가 있을 때만 이 case를 만든다. Evidence가 없거나 이미 expanded 상태이면 unsupported다.
-
-## Expected State Contract
-
-Expected state도 template별 fixed object shape를 사용한다.
-
-### Tab selection
-
-```json
-{
+    "interactionTarget": { "selected": false },
+    "restoreTarget": { "selected": true }
+  },
   "expectedState": {
-    "selected": true
+    "interactionTarget": { "selected": true },
+    "restoreTarget": { "selected": false }
+  },
+  "restore": {
+    "strategy": "restorePreviousSelection",
+    "target": {
+      "candidateKey": "interaction:selector:89abcdef0123456789abcdef",
+      "selector": "#tab-npm"
+    }
+  },
+  "restoredState": {
+    "interactionTarget": { "selected": false },
+    "restoreTarget": { "selected": true }
   }
 }
 ```
 
-Future renderer는 target click 후 같은 exact target의 selected state가 true인지 확인한다. Associated panel visibility와 previous selected tab 관계는 current eligible payload만으로 증명할 수 없으므로 MVP assertion에 포함하지 않는다.
+Required invariants:
 
-### Expanded toggle
+- target `interactionKind == "tab"`
+- target selector and restore selector are non-empty, different, exact evidence copies
+- target `tabGroupSelector` is the approved/report exact group selector
+- target and restore target share exact `observedUrl`, `pageContext` and group evidence in upstream artifacts
+- current group contains exactly one selected peer
+- restore peer current classification is `safe`, interactionKind is `tab`, role is `tab`, selected is string `"true"`
+- interaction target current selected evidence is string `"false"`
+- initial/expected/restored objects exactly equal the fixed shapes above
+
+`reloadPage` is not a supported tab strategy in schema `3.0`. A schema `3.0` tab plan containing `reset`, `reloadPage`, arbitrary restore code, a missing peer, or a runtime-derived selector is invalid.
+
+## `interaction.expandedToggle` Contract
+
+Schema `3.0` preserves the implemented schema `2.0` contract without semantic change:
 
 ```json
 {
-  "expectedState": {
-    "expanded": true
-  }
-}
-```
-
-Future renderer는 target click 후 같은 exact target의 expanded state가 true인지 확인한다. Controlled region visibility는 current eligible payload가 controlled target selector를 보존하지 않으므로 MVP required assertion이 아니다.
-
-## Reversible Reset And Restore Contract
-
-모든 schema `2.0` template은 reset을 required로 둔다.
-
-```json
-{
+  "target": {
+    "selector": "main button.details-trigger",
+    "interactionKind": "accordion"
+  },
+  "initialState": { "expanded": false },
+  "expectedState": { "expanded": true },
   "reset": {
     "required": true,
     "strategy": "toggleSameTarget",
-    "restoredState": {
-      "expanded": false
-    }
+    "restoredState": { "expanded": false }
   }
 }
 ```
 
-Supported reset strategy:
+This contract definition does not claim expandedToggle browser runtime PASS.
 
-- `toggleSameTarget`: interaction target을 다시 click하고 restored state를 확인한다. `interaction.expandedToggle` 전용이다.
-- `reloadPage`: 현재 page를 reload하고 exact target을 다시 resolve한 뒤 restored state를 확인한다. `interaction.tabSelection` 전용이다.
+## Builder Boundary
 
-`none`, `navigateBack`, `pressEscape`, `clickCloseTarget`, `restorePreviousSelection`은 schema `2.0`에서 지원하지 않는다.
+Future builder responsibility:
 
-- `none`은 reset/restore 기본 원칙을 만족하지 않는다.
-- `navigateBack`은 Level 1/2 navigation 책임과 섞이고 URL mutation을 전제로 한다.
-- `pressEscape`와 `clickCloseTarget`은 current evidence에 reset support 또는 close target relation이 없다.
-- `restorePreviousSelection`은 previous selected target reference가 current eligible payload에 없다.
-
-Reset 성공 후 `restoredState`는 `initialState`와 같은 의미와 값을 가져야 한다.
-
-첫 public-site runtime validation에서는 tab click 후 page가 selected state를 reload 사이에 보존해 `reloadPage` 이후 target이 계속 selected였다. 따라서 schema `2.0`의 `reloadPage`는 restore action을 표현하지만 generic restore 보장은 아니며, `tabSelection` runtime capability는 현재 완료되지 않았다. Storage clear나 sibling selector 추론으로 우회하지 않고 previous selected tab의 exact evidence/approval과 bounded restore target을 추가하는 후속 contract decision이 필요하다.
-
-## Template-Specific Requirements
-
-### `interaction.tabSelection`
-
-Required:
-
-- eligible `interactionKind == "tab"`
-- exact non-empty eligible selector
-- current report `ariaAttributes.selected == "false"`
-- `initialState == {"selected": false}`
-- `expectedState == {"selected": true}`
-- reset required true
-- reset strategy `reloadPage`
-- `restoredState == {"selected": false}`
-
-Unsupported:
-
-- initially selected tab
-- missing selected evidence
-- selector mismatch
-- plan that attempts previous-tab discovery or arbitrary panel assertion
-
-### `interaction.expandedToggle`
-
-Required:
-
-- eligible `interactionKind` is `accordion` or `expandCollapse`
-- exact non-empty eligible selector
-- current report `ariaAttributes.expanded == "false"`
-- `initialState == {"expanded": false}`
-- `expectedState == {"expanded": true}`
-- reset required true
-- reset strategy `toggleSameTarget`
-- `restoredState == {"expanded": false}`
-
-Unsupported:
-
-- initially expanded target
-- missing expanded evidence
-- selector mismatch
-- controlled-region assertion without exact controlled target evidence
-
-## Plan Validation Invariants
-
-Interaction plan validator는 다음을 strict하게 검증한다.
-
-- supported schema version
-- strict top-level/nested unknown field rejection
-- absolute HTTP(S) target and exact reconciliation/report target match
-- required source object and test array
-- unique test id and candidateKey
-- candidateKey exists exactly once in reconciliation eligible candidates
-- current classification is safe and eligibility came from validated reconciliation
-- supported template and interactionKind compatibility
-- exact startUrl, selector, interactionKind, pageContext copy from eligible payload
-- credential-free absolute HTTP(S) startUrl, target same-origin, report observedUrl exact match
-- exact current report candidate state evidence
-- template-specific bounded initial/expected/restored state
-- reset required true and template-supported reset strategy
-- candidateKey order is deterministic
-- no executable code, arbitrary expression, locator code, callback or script field
-- no unsafe, unknown, held, rejected, stale or unreviewed candidate reference
-
-Plan validator는 classifier를 다시 실행하지 않고 approval decision 또는 reconciliation status를 다시 계산하지 않는다.
-
-## Implemented Builder Boundary
-
-Builder responsibility:
-
-- reconciliation eligible candidate만 입력 후보로 사용
-- candidateKey로 current report state evidence resolve
-- interactionKind를 supported plan template으로 deterministic mapping
-- observedUrl을 `startUrl`로, selector/context를 eligible evidence에서 exact copy
-- template-specific state/reset object 생성
-- candidateKey 순서와 deterministic id/title 생성
-- evidence가 부족한 eligible candidate를 explicit unsupported diagnostic으로 남김
+- reconciliation `eligibleCandidates[]`만 입력 후보로 사용
+- exact target `candidateKey`로 current report를 join
+- approved/current `tabRestore` snapshot exact match 확인
+- explicit group selector와 exactly-one selected peer invariant 확인
+- target/restore selector, observedUrl, pageContext와 group relation exact equality 확인
+- evidence를 변경 없이 schema `3.0` plan에 복사
+- fixed template/state/restore object와 deterministic ID/order 생성
 
 Builder non-responsibility:
 
-- candidate classification 재수행
-- human approval 생성 또는 변경
-- stale reconciliation 재계산
-- heuristic candidate remapping
-- selector/assertion synthesis
-- Playwright JavaScript 생성
-- browser interaction
+- DOM 또는 browser 재탐색
+- runtime selected tab 추론
+- first/sibling/nearest/text/index 기반 peer 선택
+- selector 생성·축약·healing
+- classification, human approval 또는 stale status 생성
+- Playwright JavaScript 생성이나 browser interaction
 
-Unsupported candidate는 executable TODO plan case로 넣지 않는다. 별도 artifact를 늘리지 않고 deterministic CLI summary에서 `unsupportedInteractionKind`, `missingStateEvidence`, `initialStateNotSupported`, `missingSelector`를 candidateKey 순서로 보고한다. Eligible reference가 report에서 누락되거나 target/exact evidence가 불일치하면 unsupported가 아니라 input consistency failure로 처리하고 partial plan을 생성하지 않는다.
+Missing group evidence, no selected peer, multiple selected peers, missing restore selector, different group 또는 observed URL mismatch에서는 fake plan을 만들지 않는다. Future diagnostic vocabulary는 다음 bounded categories를 사용한다.
 
-기본 command:
+- `missingTabGroupEvidence`
+- `missingPreviousSelection`
+- `ambiguousPreviousSelection`
+- `invalidRestoreTarget`
 
-```text
-npm run ai:build-interaction-plan
-npm run ai:validate-interaction-plan
-npm run ai:render-interaction-plan
+정상 schema `3.0` reconciliation은 이런 candidate를 eligible payload에 넣지 않아야 한다. 따라서 builder가 eligible input에서 이 상태를 발견하면 partial unsupported test가 아니라 input consistency failure로 전체 build를 중단한다. Existing non-tab unsupported categories는 유지한다.
+
+## Validator Boundary
+
+Future approval validator와 reconciliation invariant는 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md)가 소유한다. Plan validator는 다음을 strict하게 검증한다.
+
+- plan/reconciliation schema `3.0`과 report version `2.1`
+- strict unknown-field rejection
+- candidateKey eligible membership과 exact current report join
+- exact `startUrl`, target selector, interactionKind, pageContext copy
+- exact approved/current restore candidateKey, selector와 group selector copy
+- target/restore selector inequality와 same URL/context/group relation
+- exactly-one selected peer evidence
+- `restorePreviousSelection`은 tabSelection에서만 허용
+- fixed paired initial/expected/restored states
+- tabSelection의 `reloadPage`와 `reset` 거부
+- expandedToggle의 existing `toggleSameTarget` reset contract 유지
+- executable code, arbitrary expression, callback, fallback selector field 금지
+
+Validator는 DOM을 방문하거나 tab peer를 다시 탐색하지 않는다.
+
+## Renderer Boundary
+
+Future renderer는 schema `3.0` strict validator를 통과한 plan만 소비하고 exact selector 두 개를 literal로 사용한다.
+
+Conceptual fixed rendering:
+
+```javascript
+await page.goto(startUrl);
+
+const interactionTarget = page.locator(interactionSelector);
+const restoreTarget = page.locator(restoreSelector);
+
+await expect(interactionTarget).toHaveAttribute('aria-selected', 'false');
+await expect(restoreTarget).toHaveAttribute('aria-selected', 'true');
+
+await interactionTarget.click();
+await expect(interactionTarget).toHaveAttribute('aria-selected', 'true');
+await expect(restoreTarget).toHaveAttribute('aria-selected', 'false');
+
+await restoreTarget.click();
+await expect(restoreTarget).toHaveAttribute('aria-selected', 'true');
+await expect(interactionTarget).toHaveAttribute('aria-selected', 'false');
 ```
 
-Neutral fixture command:
+Renderer는 selected tab 검색, tablist first tab 선택, sibling/parent traversal, reload fallback, storage/hash 초기화, selector healing 또는 approval lookup을 하지 않는다. Current `render_interaction_plan.py`는 아직 schema `2.0`과 `reloadPage`를 구현하므로 후속 source 변경이 필요하다.
 
-```text
-npm run ai:build-interaction-plan -- --fixture tools/ai-generator/fixtures/interaction_plan_builder.fixture.json
-npm run ai:validate-interaction-plan -- --fixture tools/ai-generator/fixtures/interaction_plan_validator.fixture.json
-```
+## Failure Semantics
 
-## Renderer And Execution Boundary
+이번 contract는 execution report schema를 추가하지 않는다. Playwright assertion, HTML report와 trace가 다음 runtime stage를 구분하는 현재 evidence boundary를 유지한다.
 
-`tools/ai-generator/render_interaction_plan.py`는 validated template과 bounded fields만 해석해 `tests/generated/generated_interaction_plan.spec.js`를 생성한다. Renderer direct invocation은 malformed input과 renderer 필수 field를 fail-fast하지만 strict eligibility/evidence validation은 선행 validator 책임으로 유지한다.
+- restore target resolution failure
+- restore target initial selected-state mismatch
+- interaction 후 restore target이 false가 되지 않음
+- restore click 후 restore target이 true가 되지 않음
+- restore click 후 interaction target이 false가 되지 않음
 
-Renderer responsibility:
-
-- exact `startUrl`로 test 시작 위치 준비
-- fixed target locator shape
-- fixed click sequence
-- fixed initial/expected/restored state assertion
-- fixed reset strategy implementation
-- unsupported template rejection
-- timestamp, local absolute path와 environment-dependent output이 없는 byte-stable UTF-8 source
-
-Renderer가 selector fallback, candidate search, approval lookup, generic JavaScript evaluation을 수행하지 않는다.
-
-현재 fixed rendering은 `interaction.tabSelection`의 selected false → true → reload → false assertion과 `interaction.expandedToggle`의 expanded false → true → same-target toggle → false assertion만 지원한다. Reload와 toggle은 restore action이며 restored assertion이 성공 여부를 판정한다.
-
-Generated source는 JavaScript syntax와 Playwright `--list` discovery까지 검증한다. Browser execution과 execution report는 별도 future layer다. Plan JSON에 runtime result를 기록하지 않는다.
-
-첫 `interaction.tabSelection` runtime은 navigation, target resolution과 selected false → true transition까지 성공했지만 reload 후 false restore에서 실패했다. Playwright trace와 screenshot은 exact URL/selector가 유지된 상태에서 selected value가 true로 지속됨을 보여줬다. Renderer는 plan의 `reloadPage`를 정확히 생성했으므로 root cause는 reset strategy/template evidence boundary다.
-
-## Future Failure Contract
-
-Future execution report는 최소 다음 failure category를 구분해야 한다.
-
-- `targetNotResolvable`
-- `initialStateMismatch`
-- `expectedStateNotReached`
-- `resetUnavailable`
-- `restoredStateMismatch`
-
-이 값은 plan schema field가 아니다. Plan은 expected contract만 소유하며 runtime result와 evidence는 future execution report가 소유한다.
-
-## Minimal Neutral Example
+## Neutral Schema `3.0` Example
 
 ```json
 {
-  "schemaVersion": "2.0",
+  "schemaVersion": "3.0",
   "target": {
     "url": "https://example.test"
   },
@@ -462,74 +334,67 @@ Future execution report는 최소 다음 failure category를 구분해야 한다
   "tests": [
     {
       "id": "interaction-test:selector:0123456789abcdef01234567:tabSelection",
-      "title": "Interaction: Overview tab selection",
+      "title": "Interaction: package manager tab selection",
       "candidateKey": "interaction:selector:0123456789abcdef01234567",
       "template": "interaction.tabSelection",
-      "pageContext": "Overview",
-      "startUrl": "https://example.test/docs/overview?mode=basic#tabs",
+      "pageContext": "Package manager",
+      "startUrl": "https://example.test/docs/tabs",
       "target": {
-        "selector": "main [role='tab']:nth-of-type(1)",
-        "interactionKind": "tab"
+        "selector": "#tab-yarn",
+        "interactionKind": "tab",
+        "tabGroupSelector": "main [role='tablist']"
       },
       "initialState": {
-        "selected": false
+        "interactionTarget": { "selected": false },
+        "restoreTarget": { "selected": true }
       },
       "expectedState": {
-        "selected": true
+        "interactionTarget": { "selected": true },
+        "restoreTarget": { "selected": false }
       },
-      "reset": {
-        "required": true,
-        "strategy": "reloadPage",
-        "restoredState": {
-          "selected": false
+      "restore": {
+        "strategy": "restorePreviousSelection",
+        "target": {
+          "candidateKey": "interaction:selector:89abcdef0123456789abcdef",
+          "selector": "#tab-npm"
         }
-      }
-    },
-    {
-      "id": "interaction-test:selector:89abcdef0123456789abcdef:expandedToggle",
-      "title": "Interaction: Details expansion",
-      "candidateKey": "interaction:selector:89abcdef0123456789abcdef",
-      "template": "interaction.expandedToggle",
-      "pageContext": "Details",
-      "startUrl": "https://example.test/docs/details",
-      "target": {
-        "selector": "main button.details-trigger",
-        "interactionKind": "accordion"
       },
-      "initialState": {
-        "expanded": false
-      },
-      "expectedState": {
-        "expanded": true
-      },
-      "reset": {
-        "required": true,
-        "strategy": "toggleSameTarget",
-        "restoredState": {
-          "expanded": false
-        }
+      "restoredState": {
+        "interactionTarget": { "selected": false },
+        "restoreTarget": { "selected": true }
       }
     }
   ]
 }
 ```
 
-## MVP Non-Goals
+## Current Implementation Gap And Next Frontier
 
-- approval writer/editor
-- Level 3 browser execution과 runtime helper/evidence report
-- unsafe or unknown action representation
-- business scenario sequencing
-- form input and data mutation
-- dialog/dropdown/popover/carousel/read-only select execution
-- arbitrary assertion DSL or executable script field
-- runtime retry, trace, screenshot or result schema
+Completed evidence:
 
-## Open Questions And Future Extensions
+- exact navigation and locator resolution
+- initial selected false assertion
+- target click and expected selected true transition
+- reload action and post-reload locator resolution
+- reloadPage restore failure identification
+- previous-selection restore documentation contract
 
-- Reconciliation/analysis artifact content hash가 plan provenance에 필요한지
-- Controlled target/close target/counterpart selector evidence를 reconciliation eligible payload에 확장할지
-- Dialog/dropdown/popover의 bounded visibility/reset contract
-- Carousel next/previous pair identity와 restored item contract
-- Previous selected tab reference를 수집해 reload 없이 restore할 수 있는지
-- Deterministic builder와 optional bounded LLM shadow comparison 경계
+Not implemented:
+
+- tab group evidence producer
+- previous selected peer evidence collection
+- report `2.1`, approval/reconciliation `3.0`
+- plan builder/validator schema `3.0`
+- renderer `restorePreviousSelection`
+- tab runtime PASS
+- expandedToggle runtime
+
+Next frontier:
+
+```text
+tab group + previous selected peer evidence
+  -> approval/reconciliation implementation
+  -> interaction plan restorePreviousSelection
+  -> deterministic renderer
+  -> public-site runtime revalidation
+```

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-이 문서는 classified interaction candidate와 future Level 3 structured interaction plan 사이의 human approval boundary를 정의한다.
+이 문서는 classified interaction candidate와 future Level 3 structured interaction plan 사이의 human approval boundary를 정의한다. Implemented approval schema `2.0`은 interaction target만 승인한다. 첫 tab runtime에서 restore gap이 확인되어 이 문서는 target과 previous selected restore target을 bounded pair로 검토하는 **future schema `3.0` contract**도 정의한다. Schema `3.0` validator/reconciler는 아직 구현되지 않았다.
 
 목표는 사람이 현재 candidate evidence를 검토해 내린 결정을 versioned JSON artifact로 보존하고, future reconciliation 단계가 승인된 후보만 interaction plan 입력 후보로 전달할 수 있게 하는 것이다. 이 계약은 browser interaction, executable Playwright instruction, interaction plan template을 정의하지 않는다.
 
@@ -34,7 +34,9 @@ classified candidate evidence
 - **decision**: 사람이 candidate evidence를 검토한 뒤 기록한 `approved`, `held`, `rejected` 값이다.
 - **evidence snapshot**: decision 당시 검토한 candidate의 최소 immutable evidence다.
 - **stale approval reference**: 현재 candidate set에서 exact reference와 검토 evidence를 유효하게 재확인할 수 없는 approval entry다.
-- **eligible candidate**: current `safe` classification, human `approved` decision, valid non-stale reconciliation을 모두 만족한 future plan 입력 후보다.
+- **eligible candidate**: current `safe` classification, human `approved` decision, valid non-stale reconciliation과 template-specific execution readiness를 모두 만족한 future plan 입력 후보다.
+- **restore target**: approved tab interaction 후 original selection을 복원하기 위해 실제 click될 same-group previous selected tab이다.
+- **bounded execution pair**: 하나의 approval entry 안에서 함께 검토되는 interaction target과 restore target이다. Restore target은 별도 decision entry가 아니다.
 
 ## Artifact Responsibility
 
@@ -76,13 +78,13 @@ tools/ai-generator/review/interaction_approvals.json
 
 ## Schema Version Contract
 
-Top-level `schemaVersion`은 필수이며 현재 값은 `2.0`이다. 형식은 `major.minor`를 사용한다. Candidate 실행 위치를 immutable evidence로 보존하는 required `observedUrl` 추가가 breaking change이므로 `1.0`에서 major version을 올렸다.
+Top-level `schemaVersion`은 필수다. Current implementation은 `2.0`이고 future tab restore contract는 `3.0`이다. Candidate 실행 위치를 immutable evidence로 보존한 `2.0`에 이어, approved unselected tab의 required bounded restore evidence와 eligibility 의미 변경 때문에 major version을 올린다.
 
 - major 변경: field 제거/이름 변경, required field 추가, 기존 field 의미 변경, decision 또는 classification enum 변경·확장
 - minor 변경: 기존 의미를 바꾸지 않는 optional field 추가
 - 문구 정정이나 example 수정처럼 JSON contract를 바꾸지 않는 변경: version 유지
 
-MVP에서는 migration framework를 만들지 않는다. Validator/reconciler는 자신이 지원하지 않는 version을 명시적으로 거부한다. Strict enum을 사용하므로 enum expansion도 major 변경으로 취급한다.
+Migration framework는 만들지 않는다. Future validator/reconciler는 approval `2.0`을 명시적으로 거부하며 silent default restore target을 만들지 않는다. Strict enum을 사용하므로 enum expansion도 major 변경으로 취급한다.
 
 ## Decision Model
 
@@ -159,13 +161,64 @@ Conditional fields:
 
 Approval artifact는 human-authored state이므로 deterministic generated report와 달리 review timestamp를 갖는다. MVP는 authentication, user management, reviewer directory를 설계하지 않는다.
 
-## Minimal JSON Contract
+## Future Schema `3.0` Tab Restore Evidence
+
+Schema `3.0`은 approved `interactionKind == "tab"` entry를 target-only decision으로 취급하지 않는다. Interaction target click과 restore target click은 하나의 bounded execution pair이며 사람이 pair evidence를 함께 검토한다. Restore target에 별도 `approvals[]` entry나 별도 human decision을 만들지는 않는다.
+
+Schema `3.0` `evidenceSnapshot` allowed fields는 existing schema `2.0` fields에 `tabRestore` 하나를 추가한다. Non-tab snapshot에서는 `tabRestore`를 금지한다.
+
+`evidenceSnapshot.tabRestore`는 다음 조건에서 required다.
+
+- `decision == "approved"`
+- `classification == "safe"`
+- `interactionKind == "tab"`
+- interaction target `ariaAttributes.selected == "false"`
+
+`held`와 `rejected` tab entry에는 `tabRestore`가 optional이다. 존재하면 같은 strict shape와 current report exact-copy rule을 적용한다. Approved tab인데 deterministic restore evidence가 없으면 artifact validation에 실패하므로 future eligibility가 없다. Candidate의 machine classification은 계속 `safe`일 수 있다. 즉 `safe`와 restore readiness는 별도 상태다.
+
+Exact shape:
 
 ```json
 {
-  "schemaVersion": "2.0",
+  "tabRestore": {
+    "strategy": "restorePreviousSelection",
+    "tabGroupSelector": "main [role='tablist']",
+    "target": {
+      "candidateKey": "interaction:selector:89abcdef0123456789abcdef",
+      "selector": "#tab-npm",
+      "observedUrl": "https://example.test/docs/tabs",
+      "pageContext": "Package manager",
+      "role": "tab",
+      "tagName": "button",
+      "text": "npm",
+      "ariaAttributes": {
+        "selected": "true"
+      }
+    }
+  }
+}
+```
+
+Required invariants:
+
+- `strategy`는 exact `restorePreviousSelection`이다.
+- `tabGroupSelector`는 closest explicit `role=tablist` ancestor의 non-empty exact selector다.
+- restore target `candidateKey`는 current classified peer의 exact key지만 독립 approval entry를 요구하지 않는다.
+- restore target selector는 non-empty이며 interaction target selector와 다르다.
+- restore target `observedUrl`과 `pageContext`는 interaction target snapshot과 exact match한다.
+- restore target `role == "tab"`, normalized lowercase `tagName`, `ariaAttributes == {"selected": "true"}`다.
+- current report evidence는 interaction target과 restore target이 같은 exact group 아래에 있고 group의 selected peer가 정확히 하나임을 증명해야 한다.
+- `tabRestore`, nested target과 nested `ariaAttributes`도 unknown field를 거부한다.
+
+Restore snapshot은 classifier archive가 아니다. Confidence, class name, sibling position, surrounding text, alternative locator와 `aria-controls`는 MVP field가 아니다. 사람은 report의 richer evidence를 검토하고 approval에는 stale 비교에 필요한 최소 pair만 보존한다.
+
+## Minimal Future Schema `3.0` JSON Contract
+
+```json
+{
+  "schemaVersion": "3.0",
   "target": {
-    "url": "https://sample.local/"
+    "url": "https://example.test/"
   },
   "approvals": [
     {
@@ -174,31 +227,47 @@ Approval artifact는 human-authored state이므로 deterministic generated repor
       "evidenceSnapshot": {
         "classification": "safe",
         "confidence": "high",
-        "pageContext": "Overview",
-        "observedUrl": "https://sample.local/docs/overview?mode=basic#tabs",
-        "selector": "main [role='tab']:nth-of-type(1)",
-        "text": "Overview",
+        "pageContext": "Package manager",
+        "observedUrl": "https://example.test/docs/tabs",
+        "selector": "#tab-yarn",
+        "text": "yarn",
         "role": "tab",
         "type": "",
-        "tagName": "li",
+        "tagName": "button",
         "ariaAttributes": {
           "selected": "false"
         },
-        "interactionKind": "tab"
+        "interactionKind": "tab",
+        "tabRestore": {
+          "strategy": "restorePreviousSelection",
+          "tabGroupSelector": "main [role='tablist']",
+          "target": {
+            "candidateKey": "interaction:selector:89abcdef0123456789abcdef",
+            "selector": "#tab-npm",
+            "observedUrl": "https://example.test/docs/tabs",
+            "pageContext": "Package manager",
+            "role": "tab",
+            "tagName": "button",
+            "text": "npm",
+            "ariaAttributes": {
+              "selected": "true"
+            }
+          }
+        }
       },
       "review": {
         "reviewer": "local-qa",
         "reviewedAt": "2026-07-15T09:30:00+09:00",
-        "note": "Read-only tab transition reviewed."
+        "note": "Target and previous selected restore tab reviewed as one pair."
       }
     }
   ]
 }
 ```
 
-## Validation Implementation
+## Current Validation Implementation And Future Boundary
 
-`tools/ai-generator/validate_interaction_approvals.py`는 다음 invariant를 strict하게 검증한다.
+`tools/ai-generator/validate_interaction_approvals.py`는 현재 schema `2.0` target-only invariant를 strict하게 검증한다.
 
 - top-level required fields: `schemaVersion`, `target`, `approvals`
 - `target.url`: required non-empty absolute HTTP(S) URL
@@ -216,7 +285,7 @@ Approval artifact는 human-authored state이므로 deterministic generated repor
 - 배열 의미는 순서에 의존하지 않으며 writer는 diff 안정성을 위해 `candidateKey` 오름차순으로 저장
 - supported schema version의 top-level 및 nested object에서 unknown field를 거부
 
-Unknown field와 unsupported enum을 조용히 무시하지 않는다. Optional field 확장이 필요하면 schema version을 먼저 변경한다.
+Unknown field와 unsupported enum을 조용히 무시하지 않는다. 따라서 current source는 schema `3.0`의 `tabRestore`를 아직 거부한다. Future implementation은 위 conditional pair invariant, exact field type, same URL/context/group relation, target/restore selector inequality와 selected false/true state를 검증해야 한다.
 
 현재 classifier representation에 맞춰 `ariaAttributes`의 key는 `label`, `expanded`, `pressed`, `selected`, `controls`, `haspopup`, `readonly`만 허용하며 value는 string이어야 한다. `safe` snapshot에는 `interactionKind`만, `unsafe` snapshot에는 `actionKind`와 `riskLevel`만 허용하고 `unknown` snapshot에는 conditional kind/risk field를 허용하지 않는다. Validator는 classifier identity algorithm을 재구현하지 않고 `candidateKey` 형식만 검증한다.
 
@@ -240,6 +309,21 @@ Minimum reference statuses:
 
 Review-critical comparison fields는 `classification`, `confidence`, `pageContext`, `observedUrl`, `selector`, `text`, `role`, `type`, `tagName`, `ariaAttributes`와 존재하는 `interactionKind`, `actionKind`, `riskLevel`이다.
 
+Future schema `3.0`에서는 `tabRestore` 전체가 additional review-critical evidence다. Stable `changedFields` ordering은 existing top-level order 뒤에 다음 bounded path 순서를 사용한다.
+
+```text
+tabRestore.strategy
+tabRestore.tabGroupSelector
+tabRestore.target.candidateKey
+tabRestore.target.selector
+tabRestore.target.observedUrl
+tabRestore.target.pageContext
+tabRestore.target.role
+tabRestore.target.tagName
+tabRestore.target.text
+tabRestore.target.ariaAttributes.selected
+```
+
 Case rules:
 
 - approval key가 current candidate set에 없으면 `missingCandidate`이며 실행 eligibility가 없다.
@@ -247,6 +331,11 @@ Case rules:
 - heuristic similarity로 replacement candidate를 제안할 수는 있지만 old decision을 새 key로 자동 이전하지 않는다.
 - exact key가 같아도 classification, kind, risk 또는 review-critical evidence가 달라지면 `evidenceChanged`이며 재검토 전에는 eligibility가 없다.
 - exact key가 같아도 current `observedUrl`이 approval snapshot과 다르면 `changedFields`에 `observedUrl`을 기록하고 `evidenceChanged`로 처리한다. CandidateKey algorithm에는 URL을 추가하지 않는다.
+- exact interaction target key가 존재하지만 nested restore candidate가 없어지거나, restore evidence/group/selected uniqueness가 달라지면 `evidenceChanged`이며 eligibility가 없다. `missingCandidate`는 primary interaction target key 자체가 current set에 없을 때만 사용한다.
+- restore peer selector가 바뀌어 peer candidateKey도 바뀌면 `tabRestore.target.candidateKey`, `tabRestore.target.selector`를 stable order로 기록한다.
+- restore peer text/state/group selector/URL/context 변화도 해당 bounded path를 기록하고 재검토 전에는 eligibility를 주지 않는다.
+- group 안의 selected=true peer가 0개 또는 2개 이상이면 current `tabRestore` contract가 성립하지 않으므로 `evidenceChanged`다.
+- restore peer가 current safe tab classification을 잃으면 `evidenceChanged`이고 eligibility가 없다. Past bounded approval은 current safety assessment를 override하지 않는다.
 - stale entry의 원래 human decision은 audit 의미로 보존한다. Re-review가 완료될 때만 current key/snapshot/review metadata로 명시적으로 갱신한다.
 
 ## Reconciliation Implementation
@@ -277,13 +366,14 @@ Reconciliation 단계는 다음을 확인한다.
 
 Approval artifact validation 또는 current report validation이 실패하면 partial result를 만들지 않는다. Approval `target.url`과 report `summary.targetUrl`이 exact match하지 않아도 non-zero로 종료한다.
 
-Future interaction plan eligibility는 다음 조건을 모두 만족해야 한다.
+Future schema `3.0` interaction plan eligibility는 다음 조건을 모두 만족해야 한다.
 
 ```text
 current classification == safe
 AND human decision == approved
 AND reference status == valid
 AND target/schema/duplicate validation passed
+AND template-specific execution readiness is valid
 ```
 
 과거에 `approved`였더라도 current classification이 `unsafe` 또는 `unknown`이면 eligibility가 없다. Past approval은 current safety assessment를 override하지 않는다. `held`, `rejected`, stale, unreviewed candidate도 plan input에서 제외한다.
@@ -307,18 +397,17 @@ Future structured interaction plan이 소유할 정보:
 - deterministic interaction steps
 - expected visible/state assertion
 - reversible-state assertion
-- page UI reset/restore behavior
+- approved pair에서 exact copy한 page UI restore target과 bounded state
 - execution validation 및 failure evidence contract
 
-Approval artifact에는 Playwright step, click sequence, assertion locator, reset selector를 추가하지 않는다. Structured Interaction Plan schema `2.0`의 per-test `startUrl`과 implemented builder/validator contract는 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다. Renderer와 browser execution은 아직 구현되지 않았다.
+Approval artifact에는 Playwright step, click sequence나 assertion code를 추가하지 않는다. `tabRestore.target.selector`는 실행 script가 아니라 실제 restore click을 사람이 검토하고 stale comparison하기 위한 immutable evidence다. Future Structured Interaction Plan schema `3.0`의 per-test restore instruction은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다. Current renderer는 schema `2.0` `reloadPage`를 구현하고 있으며 schema `3.0` pair는 아직 구현되지 않았다.
 
 ## MVP Non-Goals
 
 - approval CLI 또는 editor/UI
 - approval artifact writer
-- Level 3 renderer
-- browser interaction execution
-- reset/restore execution implementation
+- schema `3.0` producer/validator/reconciler implementation
+- `restorePreviousSelection` renderer와 browser runtime revalidation
 - reviewer authentication 또는 account management
 - heuristic approval migration
 - workspace history management
@@ -332,4 +421,4 @@ Approval artifact에는 Playwright step, click sequence, assertion locator, rese
 - evidence snapshot은 classifier output 전체 복사본이 아니다.
 - approval artifact는 executable interaction detail을 소유하지 않는다.
 - current `safe`, human `approved`, valid non-stale reference가 모두 eligibility에 필요하다.
-- Level 3 execution은 아직 구현되지 않았다.
+- Tab restore pair contract는 정의됐지만 schema `3.0` source와 runtime PASS는 아직 구현되지 않았다.

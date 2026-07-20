@@ -80,9 +80,11 @@ for (const child of children) {
 
 ## Generated Interaction Spec Pattern
 
-Validated Structured Interaction Plan schema `2.0`의 renderer는 test별 exact `startUrl`로 이동하고 exact selector를 `page.locator()`에 전달한다. `interaction.tabSelection`과 `interaction.expandedToggle`의 bounded ARIA state, click, reset, restored assertion만 생성하며 selector fallback, 임의 wait, free-form assertion을 추가하지 않는다.
+Current Structured Interaction Plan schema `2.0` renderer는 test별 exact `startUrl`과 selector를 사용한다. 첫 tab runtime은 `reloadPage` restore가 실패했으므로 future schema `3.0` tab renderer는 validated interaction target selector와 restore target selector를 각각 `page.locator()`에 exact 전달하고 paired selected state를 검증한다. ExpandedToggle의 same-target toggle contract는 유지한다.
 
-Generated interaction spec은 syntax와 Playwright discovery를 통과한 source artifact다. 실제 browser transition 성공은 별도 runtime validation 단계에서 확인한다. 상세 template/reset 계약은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)를 따른다.
+Tab renderer는 selected tab 검색, tablist first tab, sibling/parent traversal, text/index lookup, reload fallback, storage/hash reset 또는 selector healing을 생성하지 않는다. Restore selector는 approved/validated plan의 exact copy만 사용한다.
+
+Generated interaction spec은 syntax와 Playwright discovery를 통과한 source artifact다. 실제 browser transition 성공은 별도 runtime validation 단계에서 확인한다. Schema `3.0` renderer는 아직 구현되지 않았고 tab runtime PASS를 주장하지 않는다. 상세 template/restore 계약은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)를 따른다.
 
 ## Visual Debug
 

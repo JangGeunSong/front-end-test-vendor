@@ -16,7 +16,7 @@ The current implementation includes:
 - Structured Interaction Plan schema `3.0`, deterministic builder, strict validator와 previous-selection renderer
 - Analysis Review Report `2.1` tab restore evidence
 
-The approval artifact writer/editor, browser Safe Interaction PASS, and runtime evidence report remain planned work. This document distinguishes implemented schemas, statically verified source, and browser-runtime capability.
+The approval artifact writer/editor and runtime evidence report remain planned work. The `interaction.tabSelection` previous-selection path has a fresh public two-run browser PASS; expandedToggle and cross-site interaction runtime remain unverified.
 
 ## Data Policy
 
@@ -438,7 +438,7 @@ Top-level outline:
 
 Schema `3.0`은 `interaction.tabSelection`과 `interaction.expandedToggle` template만 정의한다. 각 test는 exact eligible `candidateKey`, current `observedUrl`의 exact copy인 required `startUrl`, target snapshot과 bounded state를 소유한다. TabSelection은 exact group/restore selector와 paired initial/expected/restored state를, expandedToggle은 existing same-target reset을 소유한다. Human approval metadata, classifier 전체 output, free-form JavaScript/Playwright code와 runtime result는 포함하지 않는다.
 
-`build_interaction_plan.py`와 `validate_interaction_plan.py`가 builder/validator 계약을 구현한다. `render_interaction_plan.py`는 validated plan만 소비해 generated CommonJS Playwright spec을 만들며 JSON artifact schema를 새로 소유하지 않는다. Browser execution은 아직 구현·검증되지 않았다. 상세 field, ordering, unknown-field policy, template compatibility와 validation invariant는 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다.
+`build_interaction_plan.py`와 `validate_interaction_plan.py`가 builder/validator 계약을 구현한다. `render_interaction_plan.py`는 validated plan만 소비해 generated CommonJS Playwright spec을 만들며 JSON artifact schema를 새로 소유하지 않는다. `interaction.tabSelection` previous-selection browser execution은 fresh public evidence에서 2회 검증됐으며 별도 execution-result JSON schema는 없다. 상세 field, ordering, unknown-field policy, template compatibility와 validation invariant는 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다.
 
 첫 tab runtime에서 schema `2.0`의 target false → click → true는 통과했지만 `reloadPage` 후 target이 true로 유지되어 restore가 실패했다. Implemented Plan `3.0`은 tabSelection의 `reset.reloadPage`를 제거하고 exact selected peer를 클릭하는 required `restore.strategy == "restorePreviousSelection"`과 paired initial/expected/restored state를 사용한다. ExpandedToggle의 `reset.toggleSameTarget` contract는 유지한다.
 

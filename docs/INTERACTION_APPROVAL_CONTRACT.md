@@ -2,7 +2,7 @@
 
 ## Purpose
 
-이 문서는 classified interaction candidate와 Level 3 structured interaction plan 사이의 human approval boundary를 정의한다. Implemented approval schema `3.0`은 interaction target과 previous selected restore target을 bounded pair로 검토한다. Plan schema `3.0`과 deterministic renderer가 이 pair를 exact 소비하며 browser runtime PASS는 아직 완료되지 않았다.
+이 문서는 classified interaction candidate와 Level 3 structured interaction plan 사이의 human approval boundary를 정의한다. Implemented approval schema `3.0`은 interaction target과 previous selected restore target을 bounded pair로 검토한다. Plan schema `3.0`과 deterministic renderer가 이 pair를 exact 소비하며 fresh public runtime에서 paired restore를 2회 검증했다.
 
 목표는 사람이 현재 candidate evidence를 검토해 내린 결정을 versioned JSON artifact로 보존하고, future reconciliation 단계가 승인된 후보만 interaction plan 입력 후보로 전달할 수 있게 하는 것이다. 이 계약은 browser interaction, executable Playwright instruction, interaction plan template을 정의하지 않는다.
 
@@ -406,7 +406,7 @@ Approval artifact에는 Playwright step, click sequence나 assertion code를 추
 
 - approval CLI 또는 editor/UI
 - approval artifact writer
-- browser runtime revalidation
+- expandedToggle/cross-site browser runtime validation
 - reviewer authentication 또는 account management
 - heuristic approval migration
 - workspace history management
@@ -420,4 +420,4 @@ Approval artifact에는 Playwright step, click sequence나 assertion code를 추
 - evidence snapshot은 classifier output 전체 복사본이 아니다.
 - approval artifact는 executable interaction detail을 소유하지 않는다.
 - current `safe`, human `approved`, valid non-stale reference가 모두 eligibility에 필요하다.
-- Tab restore pair approval/validation/reconciliation과 Plan schema `3.0` renderer는 구현됐지만 runtime PASS는 아직 완료되지 않았다.
+- Tab restore pair approval/validation/reconciliation과 Plan schema `3.0` renderer는 구현됐고 previous-selection runtime은 2회 PASS했다. 이는 approval writer/editor나 expandedToggle runtime 완료를 의미하지 않는다.

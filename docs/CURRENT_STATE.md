@@ -102,13 +102,13 @@ analysis_review_report.json
 - 특정 사이트명, URL, 메뉴명 전용 예외보다 DOM/evidence 기반 일반화 규칙을 우선한다.
 - interaction `candidateKey`와 deduplication은 동일 canonical identity를 사용한다. key는 classification이나 승인 상태에 의존하지 않는다.
 - `target.url`은 분석 scope, candidate `observedUrl`은 실제 관찰 위치, plan `startUrl`은 exact execution entry point다. pageContext나 target root에서 URL을 추론하지 않는다.
-- `safe` classification은 실행 승인과 동일하지 않다. 첫 `tabSelection` browser run에서 navigation과 false → true transition은 확인했지만 `reloadPage` restore가 실패했으므로 Level 3 runtime capability는 아직 완료되지 않았다.
+- `safe` classification은 실행 승인과 동일하지 않다. `tabSelection`은 explicit group evidence, human-approved exact pair, valid reconciliation과 Plan `3.0` validation을 거쳐야 하며 fresh public smoke에서 이 전체 경로를 2회 검증했다.
 - interaction plan은 reconciliation eligible candidate만 exact `candidateKey`로 참조하고, free-form code 없이 bounded state/reset instruction만 표현한다.
 - generated artifact는 기본적으로 commit하지 않으며 tracked fixture 예외만 repository 정책에 따라 유지한다.
 
 ## Current Development Frontier
 
-현재 중심 frontier는 static validation을 마친 Plan schema `3.0`/deterministic renderer를 network-accessible explicit-tablist candidate에서 actual browser runtime으로 검증하는 것이다. Schema `2.0`의 `reloadPage` tab restore는 source에서 제거됐다.
+Plan schema `3.0`/deterministic renderer의 previous-selection browser runtime은 fresh explicit-tablist candidate에서 검증됐다. 다음 중심 frontier는 `expandedToggle` runtime validation 또는 approval writer/editor product integration이며, 둘은 별도 task로 선택한다.
 
 완료된 부분:
 
@@ -141,6 +141,9 @@ analysis_review_report.json
 - tab paired state/restore exact-copy와 expandedToggle reset을 strict 검증하는 Plan `3.0` validator
 - exact interaction/restore selector를 클릭하고 paired state를 assertion하는 deterministic renderer
 - neutral 3-test generated spec의 Node syntax와 Playwright `--list` discovery
+- explicit tablist member의 mutable selected-state class를 제외하는 exact group-scoped structural selector producer
+- fresh public Report `2.1` → temporary Approval/Reconciliation `3.0` → Plan `3.0` → deterministic spec chain
+- workers 1, retries 0, trace on에서 target false/restore true → true/false → false/true transition 2회 PASS
 
 기반 architecture contract와 이번 구현에서 완료된 부분:
 
@@ -157,17 +160,17 @@ analysis_review_report.json
 구현되지 않은 boundary:
 
 - approval artifact writer/editor
-- `tabSelection` runtime PASS
 - `expandedToggle` runtime validation
-- runtime failure evidence/screenshot/execution report
+- cross-site interaction runtime regression
+- custom runtime execution report schema
 
-Renderer는 validated Plan `3.0`만 executable source shape로 변환한다. TabSelection은 exact target/restore selector 두 개와 paired false/true → true/false → false/true assertion을 생성하며 reload나 runtime peer search를 사용하지 않는다. Approval writer/editor와 repeatable Level 3 browser restore capability는 아직 완료되지 않았다.
+Renderer는 validated Plan `3.0`만 executable source shape로 변환한다. TabSelection은 exact target/restore selector 두 개와 paired false/true → true/false → false/true assertion을 생성하며 reload나 runtime peer search를 사용하지 않는다. 이 path는 동일 fresh public test에서 2회 PASS했지만 expandedToggle과 cross-site interaction capability는 아직 검증되지 않았다.
 
 Version transition은 완료됐다. `interaction_plan_contract.py`는 Reconciliation `3.0`, Report `2.1`, Plan `3.0`만 허용하며 old `2.0`을 silent accept하지 않는다.
 
 ## Latest Completed Work
 
-가장 최근 완료된 작업은 Reconciliation `3.0` eligible pair를 Plan `3.0`과 deterministic `restorePreviousSelection` spec으로 연결하고 static discovery를 검증한 task다. Browser runtime PASS를 완료한 것은 아니다.
+가장 최근 완료된 작업은 fresh public evidence에서 restore-ready candidate를 승인/reconcile하고 Plan `3.0` deterministic spec을 생성해 previous-selection restore를 2회 browser PASS한 task다. 최초 runtime 실패에서 mutable selected-state class가 restore selector에 포함되는 producer 결함을 확인해 group-scoped structural selector로 수정했다.
 
 Tab previous-selection restore contract:
 
@@ -186,7 +189,7 @@ Interaction renderer implementation:
 
 - default input/output: `tools/ai-generator/generated/interaction_plan.generated.json` → `tests/generated/generated_interaction_plan.spec.js`
 - 각 test의 exact `startUrl`과 selector를 semantic change 없이 JavaScript literal로 encoding
-- `interaction.tabSelection`: selected false → click → true → reload → target re-resolution → false
+- `interaction.tabSelection`: target false/restore true → target click → true/false → exact restore click → false/true
 - `interaction.expandedToggle`: expanded false → click → true → same target click → false
 - unsupported template와 malformed/missing renderer field에서 전체 fail-fast하고 output을 부분 갱신하지 않음
 - neutral fixture 반복 rendering byte equality, Node syntax와 Playwright `--list` discovery 통과
@@ -229,32 +232,35 @@ Approval validation/reconciliation implementation:
 - `reconcile_interaction_approvals.py`의 valid/missingCandidate/evidenceChanged 판정과 deterministic result 생성
 - approval entry가 없는 current candidate의 별도 unreviewed output
 
-Approval writer/editor와 repeatable Level 3 browser interaction capability는 완료되지 않았다. Reconciliation result, interaction plan과 generated interaction spec은 human-authored review state와 분리된다.
+Approval writer/editor는 완료되지 않았다. Reconciliation result, interaction plan과 generated interaction spec은 human-authored review state와 분리된다. Previous-selection tab smoke는 검증됐지만 expandedToggle과 cross-site interaction runtime은 별도다.
 
 ## Latest Runtime Validation Finding
 
-Playwright public-site의 approved `yarn` tab generated spec 한 건을 retry 0으로 실행했다.
+Fresh Playwright public-site analysis는 safe interaction 18, interaction unknown 4, unselected tab 12, explicit-tablist restore-ready tab 12를 수집했다. Temporary Approval `3.0` 한 건은 valid reference/eligible 한 건으로 Reconciliation `3.0`을 통과했고 Plan `3.0` test 한 건으로 생성됐다.
 
-- exact `startUrl` navigation과 selector resolution 성공
-- initial `aria-selected=false`, click, expected `aria-selected=true` 성공
-- `page.reload()` 성공 후 URL과 exact selector는 유지
-- page가 selected tab state를 reload 사이에 보존해 restored `aria-selected=false` assertion 실패
-- screenshot, trace, HTML report와 DOM snapshot으로 동일 target이 `aria-selected=true`인 상태를 확인
+최초 Plan `3.0` run은 navigation, initial pair, target click과 target selected true까지 통과했지만 expected restore-target false assertion에서 locator 0건으로 실패했다. Trace, DOM snapshot과 screenshot은 selected peer element가 사라진 것이 아니라 producer selector의 `.tabs__item--active` state class가 click 후 제거된 것을 보여줬다.
 
-이는 renderer가 plan을 잘못 해석한 문제가 아니라 `reloadPage`를 generic tab restore로 정의한 template/reset contract gap이었다. Storage clear, selector fallback, assertion 완화 또는 generated spec hand edit로 우회하지 않았다. Explicit same-group evidence부터 Plan `3.0`과 exact restore click renderer까지 구현했으며 actual runtime PASS만 아직 확인하지 않았다.
+Generic correction으로 explicit tablist member selector를 exact group selector 아래의 state-independent structural path로 생성했다. Group/peer contract, approval evidence, renderer와 generated spec은 완화하지 않았다. URL부터 artifact chain을 다시 생성한 뒤 동일 test를 workers 1, retries 0, trace on으로 두 번 실행했고 다음 전체 transition이 모두 PASS했다.
 
-이번 task의 fresh public-site deterministic analysis는 샌드박스의 outbound network 차단으로 root navigation이 `ERR_NETWORK_ACCESS_DENIED`에 실패했고, 권한 상승 요청도 승인되지 않아 실행하지 못했다. Existing ignored public artifact를 새 classifier/report로 재분류한 결과는 unselected tab 12개, restore-ready 0개, `missingTabGroupEvidence` 12개였지만 이는 fresh DOM observation이 아니므로 public structure의 durable 근거로 사용하지 않는다.
+```text
+navigation
+  -> target/restore resolution
+  -> initial false/true
+  -> target click
+  -> expected true/false
+  -> restore click
+  -> restored false/true
+```
 
 ## Next Implementation Frontier
 
 ```text
-network-accessible explicit-tablist candidate
-  -> target click paired transition
-  -> exact previous-selection restore click
-  -> paired restored-state PASS
+expandedToggle runtime validation
+  or
+approval writer/editor local workflow
 ```
 
-그 다음 분리된 결정은 browser validation execution report contract와 approval writer/editor local workflow다. ExpandedToggle runtime, 검수 UI와 workspace history는 이번 frontier에 포함하지 않는다.
+Cross-site interaction regression, browser validation execution report contract, 검수 UI와 workspace history는 각각 별도 후속 범위다.
 
 ## Recommended Reading by Task
 

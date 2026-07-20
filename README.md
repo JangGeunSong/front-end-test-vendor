@@ -46,7 +46,7 @@
   - `interaction.tabSelection`과 `interaction.expandedToggle` deterministic Playwright spec rendering
   - JavaScript syntax와 Playwright test discovery 검증
 
-Level 3 generated interaction spec의 실제 browser transition 실행과 Level 4 Business Scenario Test는 향후 확장 단계입니다.
+Level 3 `interaction.tabSelection`의 previous-selection restore는 fresh public evidence에서 retry 없이 2회 browser PASS를 확인했습니다. `interaction.expandedToggle`, cross-site interaction regression과 Level 4 Business Scenario Test는 향후 확장 단계입니다.
 
 현재 지원하지 않는 범위도 명확히 구분합니다.
 

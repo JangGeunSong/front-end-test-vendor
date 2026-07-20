@@ -56,13 +56,13 @@ current classified candidates / analysis_review_report.json
   -> render_interaction_plan.py
   -> tests/generated/generated_interaction_plan.spec.js
   -> JavaScript syntax / Playwright test discovery
-  -> browser runtime validation (tab restore contract gap identified)
-  -> future repeatable execution / execution report
+  -> browser runtime validation (tab previous-selection restore verified)
+  -> future expandedToggle/cross-site execution / execution report
 ```
 
 Approval artifact는 human decision, candidate reference, immutable evidence snapshot, review metadata만 소유한다. Reconciliation은 Analysis Review Report를 current candidate source로 사용하고 exact `candidateKey`, target scope, snapshot, current classification을 대조한다. Current `safe`와 human `approved`와 valid non-stale reference를 모두 만족한 candidate만 future plan 입력 eligibility를 갖는다.
 
-Structured Interaction Plan은 exact eligible `candidateKey`, current `observedUrl`에서 복사한 per-test `startUrl`, eligible payload에서 복사한 target/restore pair, bounded state와 required UI reset/restore instruction만 소유한다. Schema `3.0` builder와 validator는 target scope, start URL same-origin, report/eligible exact equality와 tab restore pair를 검증한다. Renderer는 plan만 읽어 exact URL/selector와 두 fixed transition을 byte-stable spec으로 생성하며 classification/approval/evidence를 재계산하지 않는다. JavaScript syntax와 test discovery는 검증됐다. Actual previous-selection browser runtime은 아직 검증되지 않았다. Approval 경계는 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md), plan 상세 계약은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)를 따른다.
+Structured Interaction Plan은 exact eligible `candidateKey`, current `observedUrl`에서 복사한 per-test `startUrl`, eligible payload에서 복사한 target/restore pair, bounded state와 required UI reset/restore instruction만 소유한다. Schema `3.0` builder와 validator는 target scope, start URL same-origin, report/eligible exact equality와 tab restore pair를 검증한다. Renderer는 plan만 읽어 exact URL/selector와 두 fixed transition을 byte-stable spec으로 생성하며 classification/approval/evidence를 재계산하지 않는다. JavaScript syntax/test discovery와 fresh public previous-selection browser runtime 2회 PASS를 확인했다. Approval 경계는 [INTERACTION_APPROVAL_CONTRACT.md](INTERACTION_APPROVAL_CONTRACT.md), plan 상세 계약은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)를 따른다.
 
 Tab restore evidence부터 Plan/renderer static boundary까지 구현됐다.
 
@@ -76,7 +76,7 @@ pageProfile tab evidence
   -> eligible pair
   -> Structured Interaction Plan 3.0 restorePreviousSelection
   -> deterministic two-selector renderer
-  -> browser runtime revalidation
+  -> paired browser runtime PASS
 ```
 
 `tabGroupSelector`는 별도 business ID가 아니라 exact explicit tablist selector다. Interaction target과 restore target은 exact `observedUrl`, `pageContext`와 group evidence를 공유해야 한다. Missing/ambiguous group evidence는 safety classification을 바꾸지 않지만 approval/plan eligibility를 막는다. Reconciliation은 primary target 부재만 `missingCandidate`로, primary target이 존재한 채 restore evidence가 바뀐 경우는 `evidenceChanged`로 처리한다.

@@ -59,13 +59,13 @@ Tab restore responsibility:
 - plan contract/builder/validator는 pair evidence를 schema `3.0` `restorePreviousSelection`과 paired state로 exact copy/검증한다.
 - renderer는 validated interaction/restore selector 두 개만 사용하며 DOM search, sibling inference, reload fallback이나 selector healing을 하지 않는다.
 
-Producer, report `2.1`, approval/reconciliation `3.0`, Plan `3.0`과 deterministic renderer responsibility가 구현됐다. Browser runtime PASS는 별도 후속 경계다.
+Producer, report `2.1`, approval/reconciliation `3.0`, Plan `3.0`과 deterministic renderer responsibility가 구현됐다. Previous-selection tab path는 fresh public evidence에서 browser runtime 2회 PASS했고 expandedToggle/cross-site runtime은 별도 후속 경계다.
 
 classifier와 report 경로는 기존 artifact만 사용하며 browser interaction을 실행하지 않는다. `safe` classification과 `candidateKey`는 실행 승인이 아니다.
 
 Human approval artifact의 schema와 classifier/report/future plan 사이 책임 경계는 `docs/INTERACTION_APPROVAL_CONTRACT.md`가 소유한다. 기본 local state 경로는 `tools/ai-generator/review/interaction_approvals.json`이며 writer/editor는 아직 구현되지 않았다. Reconciliation output은 generated artifact인 `tools/ai-generator/generated/interaction_approval_reconciliation.json`에 분리한다.
 
-Eligible candidate 이후의 interaction plan 계층은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다. Builder/validator는 validated JSON을 생성하고 renderer는 fixed Playwright code shape를 소유한다. 이 계층은 classification, human decision 또는 reconciliation을 다시 구현하지 않으며 browser execution과 runtime report는 아직 후속 경계다.
+Eligible candidate 이후의 interaction plan 계층은 [STRUCTURED_INTERACTION_PLAN.md](STRUCTURED_INTERACTION_PLAN.md)가 소유한다. Builder/validator는 validated JSON을 생성하고 renderer는 fixed Playwright code shape를 소유한다. 이 계층은 classification, human decision 또는 reconciliation을 다시 구현하지 않는다. Tab runtime smoke는 검증됐지만 durable runtime report와 expandedToggle/cross-site execution은 후속 경계다.
 
 ## tools/ai-generator/scout.js
 
@@ -83,7 +83,7 @@ Eligible candidate 이후의 interaction plan 계층은 [STRUCTURED_INTERACTION_
 - heading, main container, table, form, tab, button, error indicator 후보 수집
 - explicit tablist group selector와 exactly-one selected peer evidence 수집
 
-`scout.js`는 테스트 코드를 생성하지 않는다. 데이터 변경 액션도 수행하지 않는다. Current `collectTabs()`는 closest explicit tablist가 unique selector로 확인되고 selected peer가 정확히 하나일 때만 bounded `tabRestore`를 수집하며, 나머지는 typed unavailable reason으로 남긴다.
+`scout.js`는 테스트 코드를 생성하지 않는다. 데이터 변경 액션도 수행하지 않는다. Current `collectTabs()`는 closest explicit tablist가 unique selector로 확인되고 selected peer가 정확히 하나일 때만 bounded `tabRestore`를 수집하며, 나머지는 typed unavailable reason으로 남긴다. Group member selector는 mutable selected-state class를 제외한 exact group-scoped structural path로 생성한다.
 
 ## tools/ai-generator/validate_generated_spec.py
 

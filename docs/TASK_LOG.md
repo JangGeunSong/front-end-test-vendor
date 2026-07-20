@@ -1,5 +1,34 @@
 # Task Log
 
+## 2026-07-20 - Validate previous tab selection runtime
+
+### 작업 목적
+
+- `https://playwright.dev`에서 URL부터 fresh deterministic evidence chain을 생성한다.
+- Report `2.1` → temporary Approval/Reconciliation `3.0` → Plan `3.0` → generated spec의 previous-selection restore를 실제 browser에서 검증한다.
+
+### Fresh Evidence And First Runtime
+
+- 일반 sandbox root navigation은 `ERR_NETWORK_ACCESS_DENIED`였고 승인된 network execution에서 root와 8개 pageProfile을 fresh 수집했다.
+- Report는 interaction candidate 22건(safe 18, unsafe 0, unknown 4), safe tab 18건, unselected/restore-ready tab 12건, unique explicit tab group 6개를 제공했다.
+- Exact fresh pair 한 건을 temporary Approval `3.0`으로 검증했고 reconciliation은 approval 1, valid reference 1, eligible 1이었다. Plan `3.0`과 generated spec은 test 한 건, reload/runtime peer search 0건으로 static validation을 통과했다.
+- 최초 run은 navigation, target/restore initial resolution, false/true initial pair, target click과 target selected true까지 통과했다. Expected restore target false assertion은 locator 0건으로 실패했다.
+- Screenshot, error context와 trace DOM snapshot은 selected peer가 DOM에서 사라진 것이 아니라 selector의 mutable `.tabs__item--active` class가 target click 후 제거됐음을 보여줬다.
+
+### Generic Correction
+
+- `scout.js collectTabs()`는 explicit tablist member selector를 group exact selector 아래 state-independent structural path로 생성한다.
+- Interaction으로 변경되는 selected-state class를 target/restore selector에 포함하지 않는다. Group relation, exactly-one selected peer, approval pair와 renderer exact-copy contract는 변경하지 않았다.
+- Classifier fixture의 safe tab pair를 같은 explicit-group structural selector shape로 갱신하고 deterministic candidateKey/preservation을 검증했다.
+- Generated spec hand edit, selector fallback, runtime selected search, reload, sleep, timeout 증가 또는 retry를 추가하지 않았다.
+
+### Result And Boundary
+
+- URL부터 Report/Approval/Reconciliation/Plan/spec을 다시 생성하고 syntax와 Playwright discovery를 재검증했다.
+- Chromium, workers 1, retries 0, trace on에서 동일 test를 두 번 실행했다. 두 실행 모두 navigation → initial false/true → target click → expected true/false → restore click → restored false/true를 PASS했다.
+- 각 successful run은 HTML report와 trace를 생성했다. 최초 failure는 screenshot, video, error context와 trace를 보존했다.
+- `interaction.tabSelection` previous-selection smoke는 runtime verified다. ExpandedToggle, cross-site interaction regression, approval writer/editor와 custom execution report schema는 완료하지 않았다.
+
 ## 2026-07-20 - Implement deterministic previous tab selection restore plans
 
 ### 작업 목적

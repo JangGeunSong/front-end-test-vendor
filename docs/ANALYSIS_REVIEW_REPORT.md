@@ -274,8 +274,8 @@ MVP에서 하지 않는 것:
 - 웹 UI 구현
 - 사용자의 승인 결과 저장
 - 다음 generation에 review result 반영
-- 실제 Level 3 interaction test 실행
-- fresh public-site tab restore evidence distribution 검증
+- report 자체에서 실제 Level 3 interaction test 실행
+- report artifact에 runtime result 저장
 
 ## Future Extensions
 

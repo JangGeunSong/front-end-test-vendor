@@ -110,6 +110,16 @@ GEMINI_API_KEY=your_api_key_here
 
 ## 기본 실행 흐름
 
+### Local MVP UI
+
+URL 분석, Page Identity review, `tabSelection` explicit approval, deterministic spec 생성·실행과 HTML Report 확인을 한 흐름으로 수행하려면 다음 명령을 사용합니다.
+
+```powershell
+npm run product:mvp
+```
+
+브라우저에서 `http://127.0.0.1:4173`을 엽니다. 자세한 UI/API 흐름과 제한사항은 `docs/LOCAL_MVP.md`를 참고합니다.
+
 권장 흐름은 다음 순서입니다.
 
 ```powershell
@@ -328,6 +338,8 @@ Playwright report에서 실행 결과, trace, screenshot 등 디버깅 정보를
 
 | 목적 | 명령 |
 |---|---|
+| Local MVP UI 실행 | `npm run product:mvp` |
+| Local MVP 단위 검증 | `npm run product:mvp:test` |
 | 의존성 설치 | `npm install` |
 | Playwright browser 설치 | `npx playwright install` |
 | 수동 테스트 녹화 | `npm run codegen -- -o tests/my_new_test.spec.js` |
@@ -359,3 +371,4 @@ Playwright report에서 실행 결과, trace, screenshot 등 디버깅 정보를
 - 데이터 흐름: `docs/DATA_FLOW.md`
 - 모듈 역할: `docs/MODULE_MAP.md`
 - generated spec validator: `docs/GENERATED_SPEC_VALIDATION.md`
+- local MVP UI: `docs/LOCAL_MVP.md`

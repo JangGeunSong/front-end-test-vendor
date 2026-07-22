@@ -15,6 +15,7 @@
     "ai:compare-plans": "python tools/ai-generator/compare_test_plans.py",
     "ai:compare-plans:gate": "python tools/ai-generator/compare_test_plans.py --fail-on-meaningful-mismatch",
     "ai:validate-interaction-approvals": "python tools/ai-generator/validate_interaction_approvals.py",
+    "ai:write-interaction-approvals": "python tools/ai-generator/write_interaction_approvals.py",
     "ai:reconcile-interaction-approvals": "python tools/ai-generator/reconcile_interaction_approvals.py",
     "ai:build-interaction-plan": "python tools/ai-generator/build_interaction_plan.py",
     "ai:validate-interaction-plan": "python tools/ai-generator/validate_interaction_plan.py",
@@ -34,7 +35,9 @@
     "test:generated:visual": "cross-env HIGHLIGHT=true playwright test tests/generated --headed --workers=1",
     "test:smoke": "playwright test tests/smoke",
     "test:regression": "playwright test tests/regression",
-    "report": "playwright show-report"
+    "report": "playwright show-report",
+    "product:mvp": "node tools/mvp/server.js",
+    "product:mvp:test": "node --test tools/mvp/controller.test.js && python tools/ai-generator/test_write_interaction_approvals.py"
   },
   "keywords": [],
   "author": "",

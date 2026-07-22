@@ -142,7 +142,7 @@ def has_ng_click(menu_item):
 
 def navigation_href(menu_item, page_profile):
     href = compact_string(menu_item.get("href"))
-    if href:
+    if href and href != "#":
         return href
 
     navigation = page_profile.get("navigation") if isinstance(page_profile, dict) else {}
@@ -158,7 +158,7 @@ def navigation_href(menu_item, page_profile):
 
 
 def copy_optional_click_fields(menu_item, click):
-    for key in ("id", "ngClick", "cssPath"):
+    for key in ("id", "ngClick", "cssPath", "openTriggerCssPath", "hoverTargetCssPath"):
         value = menu_item.get(key)
         if isinstance(value, str):
             click[key] = value

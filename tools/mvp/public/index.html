@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local Web Test MVP</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">URL-first test workflow</p>
+      <h1>Local Web Test MVP</h1>
+      <p>Analyze navigation and Page Identity, approve reversible tab interactions, then run deterministic Playwright tests.</p>
+    </header>
+
+    <section class="panel" id="analyze-panel">
+      <h2>1. Analyze</h2>
+      <form id="analyze-form">
+        <label for="target-url">Target URL</label>
+        <div class="row">
+          <input id="target-url" type="url" required placeholder="https://target.example.com">
+          <button type="submit">Analyze</button>
+        </div>
+      </form>
+      <p id="message" class="message" role="status"></p>
+      <div id="progress" class="progress"></div>
+    </section>
+
+    <section class="panel hidden" id="review-panel">
+      <h2>2. Review and approve</h2>
+      <div id="analysis-summary" class="metrics"></div>
+      <h3>Page Navigation / Page Identity</h3>
+      <div id="navigation-list" class="cards"></div>
+      <h3>Soft Interaction candidates</h3>
+      <p>Safe classification is evidence, not permission. Only restore-ready <code>tabSelection</code> candidates can be approved in this MVP.</p>
+      <div id="interaction-list" class="cards"></div>
+      <div class="approval-box">
+        <label for="reviewer">Reviewer</label>
+        <input id="reviewer" value="local-ui-user" required>
+        <label class="check"><input id="explicit-approval" type="checkbox"> I reviewed the selected evidence and explicitly approve these interactions.</label>
+        <div class="row">
+          <button id="approve-button" disabled>Approve selected</button>
+          <button id="execute-button" disabled>Generate and run tests</button>
+        </div>
+      </div>
+      <details><summary>Debugging details</summary><pre id="analysis-debug"></pre></details>
+    </section>
+
+    <section class="panel hidden" id="result-panel">
+      <h2>3. Results</h2>
+      <div id="result-summary"></div>
+      <div class="row">
+        <a id="report-link" class="button" target="_blank" rel="noopener">Open Playwright HTML Report</a>
+        <button id="again-button">Analyze another run</button>
+      </div>
+      <details><summary>Failed tests and server details</summary><pre id="result-debug"></pre></details>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

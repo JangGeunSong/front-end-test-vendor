@@ -107,9 +107,9 @@ target URL
 - visual regression
 - self-healing selector
 - full test management dashboard
-- 완성된 검수 UI
+- production-grade 검수 UI
 - `interaction.expandedToggle` runtime validation과 interaction cross-site regression
-- approval writer/editor와 durable execution result workflow
+- durable approval editor/history와 general execution result workflow
 
 ## Verified Site Types
 

@@ -1,5 +1,27 @@
 # Task Log
 
+## 2026-07-22 - Connect navigation and tab approval pipelines through a local MVP UI
+
+### 구현
+
+- Dependency-free localhost UI/API와 thin controller를 추가해 URL analysis, Page Navigation/Page Identity review, `tabSelection` explicit approval, reconciliation, Plan `3.0` validation, deterministic rendering, Playwright execution과 HTML report를 한 흐름으로 연결했다.
+- Deterministic approval writer는 selected current Report `2.1` candidate만 exact snapshot으로 Approval `3.0`에 복사하고 기존 validator를 통과시킨다.
+- Evidence, approval, reconciliation, plan, JSON result와 HTML report는 run ID별 generated directory에 분리한다. Generated specs는 기존 renderer relative import 계약을 유지하는 run-specific filename을 사용한다.
+- Playwright 실행은 workers 1, retries 0, trace on이며 HTML/JSON reporter를 함께 사용한다.
+- Fresh runtime에서 발견된 generic navigation producer 결함을 수정했다. Exact placeholder `href="#"`는 pageProfile observed navigation URL을 사용하고, collected `openTriggerCssPath`/`hoverTargetCssPath`를 deterministic click plan에 보존한다.
+
+### 검증
+
+- Python/Node syntax, approval writer 2 tests, controller 3 tests PASS.
+- interaction classification/approval/reconciliation/plan builder/validator/renderer fixture regression 전체 PASS.
+- Playwright.dev fresh run 1: navigation 8/8, Page Identity 8/8, approved tab 1/1, restoration 1/1, overall PASS.
+- Playwright.dev fresh run 2: 별도 run ID/artifact로 동일 결과 PASS. HTML report endpoint 200 확인.
+- 두 run 모두 workers 1, retries 0이며 arbitrary timeout 증가, selector fallback/healing, generated artifact hand edit 또는 site-specific hardcoding을 추가하지 않았다.
+
+### 남은 경계
+
+- `interaction.expandedToggle` actual runtime, broad cross-site interaction regression, persistent project/history storage, authentication/cloud/SaaS와 production-grade UI는 미구현이다.
+
 ## 2026-07-20 - Validate previous tab selection runtime
 
 ### 작업 목적

@@ -87,6 +87,23 @@ Approval artifact validation, current candidate input validation 또는 exact ta
 
 Integrated static flow는 Report `2.1` + Reconciliation `3.0` → Plan `3.0` → generated spec discovery까지 이어진다. Old `2.0` input/plan은 silent하게 받아들이지 않는다.
 
+Local MVP는 이 기존 흐름을 다음처럼 조합한다.
+
+```text
+localhost UI URL input
+  -> thin Node controller
+  -> deterministic navigation plan pipeline
+  -> run-scoped Analysis Review Report 2.1
+  -> user-selected explicit approval
+  -> exact snapshot Approval 3.0 writer + existing validator
+  -> existing reconciliation + Plan 3.0 builder/validator
+  -> existing deterministic navigation/interaction renderers
+  -> one Playwright run (workers 1, retries 0, HTML + JSON reporters)
+  -> normalized UI summary + run-scoped HTML report
+```
+
+Controller는 schema, selector, classification, plan 또는 Playwright body를 다시 구현하지 않는다. Artifact-producing 작업은 serialize하며 evidence/approval/result/report는 `generated/mvp-runs/<runId>`에 분리해 다른 run의 stale state가 섞이지 않게 한다.
+
 ## Step Details
 
 ### 1. Target URL

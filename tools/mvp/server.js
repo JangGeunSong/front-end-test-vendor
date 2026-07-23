@@ -9,6 +9,7 @@ const {
   executeRun,
   getRun,
   publicRun,
+  validateExecuteRequest,
   validateTargetUrl,
 } = require('./controller');
 
@@ -94,7 +95,7 @@ async function route(request, response) {
       return;
     }
     if (request.method === 'POST' && action === 'execute') {
-      if (run.status !== 'approved') throw new Error('Explicit approval is required before execution.');
+      validateExecuteRequest(run);
       enqueue(() => executeRun(run));
       json(response, 202, { status: 'executing' });
       return;

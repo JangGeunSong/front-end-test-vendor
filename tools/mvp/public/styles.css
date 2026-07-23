@@ -20,19 +20,54 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .step.success { background: #dff4ec; color: #14594d; }
 .step.running { background: #fff1c9; color: #714f00; }
 .step.failed { background: #fbe1e4; color: #842635; }
+.step.skipped { background: #edf0f5; color: #596579; }
 .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 10px; }
 .metric { background: #f5f7fa; border-radius: 12px; padding: 14px; }
 .metric strong { display: block; font-size: 1.6rem; }
 .cards { display: grid; gap: 10px; }
 .card { border: 1px solid #dce3ec; border-radius: 12px; padding: 14px; }
 .card p { margin: 6px 0; }
+.review-details { margin-top: 26px; border: 1px solid #dce3ec; border-radius: 14px; padding: 0 16px 16px; }
+.review-details > summary { display: flex; justify-content: space-between; gap: 18px; align-items: center; padding: 16px 0; cursor: pointer; }
+.review-details > summary span { display: grid; gap: 4px; }
+.review-details > summary small, .candidate-heading small, .run-bar small { color: #667085; font-weight: 500; }
+.identity-breakdown { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.identity-breakdown .metric { padding: 10px 12px; }
+.identity-breakdown .metric strong { font-size: 1.25rem; }
+.interaction-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin: 16px 0 12px; }
+.filters { display: flex; gap: 7px; flex-wrap: wrap; }
+.filter { padding: 8px 12px; background: #e8edf4; color: #344054; }
+.filter.active { background: #126d65; color: #fff; }
+.interaction-card { cursor: pointer; transition: border-color .15s ease, background .15s ease, box-shadow .15s ease; }
+.interaction-card:hover:not([aria-disabled="true"]) { border-color: #7eb7b1; }
+.interaction-card:focus-visible { outline: 3px solid rgba(18, 109, 101, .25); outline-offset: 2px; }
+.interaction-card.selected { border: 2px solid #126d65; background: #eefaf7; box-shadow: 0 0 0 3px rgba(18, 109, 101, .1); }
+.interaction-card[aria-disabled="true"] { cursor: default; background: #fafbfc; color: #667085; }
+.interaction-card.filtered-out { display: none; }
+.candidate-heading { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.candidate-check { display: flex; gap: 12px; align-items: center; margin: -5px 0 8px -5px; padding: 5px; cursor: pointer; }
+.candidate-check input { width: 21px; height: 21px; min-width: 21px; flex: none; accent-color: #126d65; }
+.candidate-check span { display: grid; gap: 3px; }
+.selected-badge { background: #126d65 !important; color: #fff !important; }
 .tag { display: inline-block; border-radius: 99px; padding: 3px 8px; background: #e8edf4; font-size: .78rem; margin-right: 5px; }
 .tag.safe, .tag.eligible { background: #dff4ec; color: #14594d; }
 .tag.unsafe { background: #fbe1e4; color: #842635; }
 .approval-box { margin-top: 20px; padding: 18px; background: #f5f7fa; border-radius: 12px; }
+.empty-state { padding: 20px; border: 1px dashed #b9c5d6; border-radius: 12px; background: #fafbfc; }
+.empty-state p { margin-bottom: 0; }
 .check { display: flex; gap: 9px; align-items: flex-start; margin: 15px 0; font-weight: 600; }
 .check input { min-width: auto; flex: none; margin-top: 3px; }
 details { margin-top: 18px; }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #121826; color: #dbe7ff; padding: 14px; border-radius: 10px; max-height: 420px; overflow: auto; }
 .result-pass { color: #126d65; }.result-fail { color: #a3293a; }
-@media (max-width: 620px) { main { width: min(100% - 20px, 1120px); margin-top: 20px; }.panel { padding: 17px; } input, button, .button { width: 100%; } }
+.skip-reason { padding: 12px 14px; border-radius: 10px; background: #edf0f5; color: #445066; }
+.run-bar { position: sticky; z-index: 10; bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 18px; margin: 22px -8px -8px; padding: 14px 16px; border: 1px solid #c9d5e3; border-radius: 14px; background: rgba(255, 255, 255, .96); box-shadow: 0 10px 30px rgba(36, 48, 74, .18); backdrop-filter: blur(10px); }
+.run-bar div { display: grid; gap: 3px; }
+@media (max-width: 620px) {
+  main { width: min(100% - 20px, 1120px); margin-top: 20px; }
+  .panel { padding: 17px; }
+  input, button, .button { width: 100%; }
+  .filters button { width: auto; }
+  .run-bar { align-items: stretch; flex-direction: column; bottom: 6px; }
+  .run-bar button { width: 100%; }
+}

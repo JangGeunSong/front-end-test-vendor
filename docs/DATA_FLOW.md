@@ -94,15 +94,22 @@ localhost UI URL input
   -> thin Node controller
   -> deterministic navigation plan pipeline
   -> run-scoped Analysis Review Report 2.1
-  -> user-selected explicit approval
-  -> exact snapshot Approval 3.0 writer + existing validator
-  -> existing reconciliation + Plan 3.0 builder/validator
-  -> existing deterministic navigation/interaction renderers
+  -> Navigation spec selected whenever navigation tests exist
+  -> optional user-selected explicit interaction approval
+     -> approved candidate exists:
+          exact snapshot Approval 3.0 writer + existing validator
+          -> existing reconciliation + Plan 3.0 builder/validator
+          -> existing deterministic interaction renderer
+     -> no approved candidate:
+          approval/reconciliation/interaction plan/rendering/execution SKIPPED
+          -> no empty interaction artifact or spec
   -> one Playwright run (workers 1, retries 0, HTML + JSON reporters)
   -> normalized UI summary + run-scoped HTML report
 ```
 
 Controller는 schema, selector, classification, plan 또는 Playwright body를 다시 구현하지 않는다. Artifact-producing 작업은 serialize하며 evidence/approval/result/report는 `generated/mvp-runs/<runId>`에 분리해 다른 run의 stale state가 섞이지 않게 한다.
+
+Navigation-only 실행의 Overall은 Navigation/Page Identity 결과로 계산한다. Interaction/Restoration `SKIPPED`는 실패가 아니며 Navigation failure는 그대로 Overall `FAIL`이다. Interaction이 선택된 경우 기존 approval/reconciliation/Plan `3.0` contract를 변경하거나 우회하지 않는다.
 
 ## Step Details
 

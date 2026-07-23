@@ -14,14 +14,15 @@ const STAGES = [
   'Website analysis',
   'Page test plan generation',
   'Interaction discovery',
-  'Waiting for approval',
-  'Approval validation',
-  'Reconciliation',
-  'Plan generation',
-  'Spec rendering',
+  'Interaction approval validation',
+  'Interaction reconciliation',
+  'Interaction plan generation',
+  'Interaction spec rendering',
   'Playwright execution',
+  'Interaction execution',
   'Report preparation',
 ];
+const NO_APPROVED_INTERACTIONS = 'no-approved-supported-interactions';
 
 const runs = new Map();
 let operationQueue = Promise.resolve();
@@ -206,8 +207,7 @@ async function analyzeRun(run) {
     const plan = JSON.parse(fs.readFileSync(path.join(run.dir, 'test_plan.generated.json'), 'utf8'));
     run.analysis = normalizeAnalysis(report, plan);
     stage(run, 'Interaction discovery', 'success');
-    stage(run, 'Waiting for approval', 'running');
-    run.status = 'waiting_for_approval';
+    run.status = 'ready_for_execution';
     persist(run);
   } catch (error) {
     const active = Object.entries(run.stages).find(([, value]) => value.status === 'running');
@@ -226,10 +226,10 @@ function friendlyError(stageName, error) {
     'Website analysis': 'Website analysis failed.',
     'Page test plan generation': 'Page plan generation failed.',
     'Interaction discovery': 'Interaction discovery failed.',
-    'Approval validation': 'Approval validation failed.',
-    Reconciliation: 'Reconciliation failed.',
-    'Plan generation': 'Interaction plan validation failed.',
-    'Spec rendering': 'Spec rendering failed.',
+    'Interaction approval validation': 'Approval validation failed.',
+    'Interaction reconciliation': 'Reconciliation failed.',
+    'Interaction plan generation': 'Interaction plan validation failed.',
+    'Interaction spec rendering': 'Interaction spec rendering failed.',
     'Playwright execution': 'Playwright execution failed.',
     'Report preparation': 'HTML report unavailable.',
   };
@@ -237,62 +237,112 @@ function friendlyError(stageName, error) {
 }
 
 async function approveRun(run, candidateKeys, reviewer, note) {
-  if (run.status !== 'waiting_for_approval') throw new Error('Run is not waiting for approval.');
-  stage(run, 'Approval validation', 'running');
+  if (run.status !== 'ready_for_execution') throw new Error('Run is not ready for interaction approval.');
+  const selected = [...new Set(candidateKeys || [])].sort();
+  if (selected.length === 0) throw new Error('Select at least one supported interaction to approve.');
+  const eligibleKeys = new Set(
+    (run.analysis?.interactions || []).filter((item) => item.executionEligible).map((item) => item.candidateKey),
+  );
+  const unsupported = selected.filter((key) => !eligibleKeys.has(key));
+  if (unsupported.length > 0) throw new Error('Only supported, execution-eligible interactions can be approved.');
+  stage(run, 'Interaction approval validation', 'running');
   run.approvalPath = path.join(run.dir, 'interaction_approvals.json');
   const args = [
     'tools/ai-generator/write_interaction_approvals.py', '--report', run.analysisReport,
     '--output', run.approvalPath, '--reviewer', reviewer || 'local-ui-user',
   ];
-  for (const key of candidateKeys || []) args.push('--candidate-key', key);
+  for (const key of selected) args.push('--candidate-key', key);
   if (note) args.push('--note', note);
   await runCommand(run, 'approval writer', PYTHON, args);
   await runCommand(run, 'approval validator', PYTHON, [
     'tools/ai-generator/validate_interaction_approvals.py', '--input', run.approvalPath,
   ]);
-  stage(run, 'Waiting for approval', 'success');
-  stage(run, 'Approval validation', 'success');
-  run.approvedCandidateKeys = [...candidateKeys].sort();
+  stage(run, 'Interaction approval validation', 'success');
+  run.approvedCandidateKeys = selected;
   run.status = 'approved';
   persist(run);
 }
 
+function selectExecutionTargets(navigationCount, approvedCandidateKeys = []) {
+  const count = Number(navigationCount) || 0;
+  if (count <= 0) throw new Error('No Page Navigation tests are available to execute.');
+  return {
+    navigation: true,
+    interaction: approvedCandidateKeys.length > 0,
+    interactionSkipReason: approvedCandidateKeys.length > 0 ? null : NO_APPROVED_INTERACTIONS,
+  };
+}
+
+function validateExecuteRequest(run) {
+  if (!['ready_for_execution', 'approved'].includes(run.status)) {
+    throw new Error('Run is not ready for execution.');
+  }
+  selectExecutionTargets(run.analysis?.summary?.navigationCount, run.approvedCandidateKeys || []);
+}
+
+function markInteractionSkipped(run, reason = NO_APPROVED_INTERACTIONS) {
+  for (const name of [
+    'Interaction approval validation',
+    'Interaction reconciliation',
+    'Interaction plan generation',
+    'Interaction spec rendering',
+    'Interaction execution',
+  ]) {
+    stage(run, name, 'skipped', reason);
+  }
+}
+
 async function executeRun(run) {
+  if (!['ready_for_execution', 'approved'].includes(run.status)) {
+    throw new Error('Run is not ready for execution.');
+  }
+  const navigationPlan = JSON.parse(fs.readFileSync(path.join(run.dir, 'test_plan.generated.json'), 'utf8'));
+  const targets = selectExecutionTargets((navigationPlan.tests || []).length, run.approvedCandidateKeys || []);
   run.status = 'executing';
   const reconciliation = path.join(run.dir, 'interaction_approval_reconciliation.json');
   const interactionPlan = path.join(run.dir, 'interaction_plan.generated.json');
-  run.interactionSpec = path.join(run.specDir, `mvp-${run.id}-generated_interaction_plan.spec.js`);
+  let interaction = null;
   try {
-    stage(run, 'Reconciliation', 'running');
-    await runCommand(run, 'approval reconciliation', PYTHON, [
-      'tools/ai-generator/reconcile_interaction_approvals.py', '--report', run.analysisReport,
-      '--approvals', run.approvalPath, '--output', reconciliation,
-    ]);
-    stage(run, 'Reconciliation', 'success');
-    stage(run, 'Plan generation', 'running');
-    await runCommand(run, 'interaction plan build', PYTHON, [
-      'tools/ai-generator/build_interaction_plan.py', '--reconciliation', reconciliation,
-      '--report', run.analysisReport, '--output', interactionPlan,
-    ]);
-    await runCommand(run, 'interaction plan validation', PYTHON, [
-      'tools/ai-generator/validate_interaction_plan.py', '--input', interactionPlan,
-      '--reconciliation', reconciliation, '--report', run.analysisReport,
-    ]);
-    stage(run, 'Plan generation', 'success');
-    stage(run, 'Spec rendering', 'running');
-    await runCommand(run, 'interaction spec render', PYTHON, [
-      'tools/ai-generator/render_interaction_plan.py', '--input', interactionPlan, '--output', run.interactionSpec,
-    ]);
-    stage(run, 'Spec rendering', 'success');
+    if (targets.interaction) {
+      stage(run, 'Interaction reconciliation', 'running');
+      await runCommand(run, 'approval reconciliation', PYTHON, [
+        'tools/ai-generator/reconcile_interaction_approvals.py', '--report', run.analysisReport,
+        '--approvals', run.approvalPath, '--output', reconciliation,
+      ]);
+      stage(run, 'Interaction reconciliation', 'success');
+      stage(run, 'Interaction plan generation', 'running');
+      await runCommand(run, 'interaction plan build', PYTHON, [
+        'tools/ai-generator/build_interaction_plan.py', '--reconciliation', reconciliation,
+        '--report', run.analysisReport, '--output', interactionPlan,
+      ]);
+      await runCommand(run, 'interaction plan validation', PYTHON, [
+        'tools/ai-generator/validate_interaction_plan.py', '--input', interactionPlan,
+        '--reconciliation', reconciliation, '--report', run.analysisReport,
+      ]);
+      stage(run, 'Interaction plan generation', 'success');
+      stage(run, 'Interaction spec rendering', 'running');
+      run.interactionSpec = path.join(run.specDir, `mvp-${run.id}-generated_interaction_plan.spec.js`);
+      await runCommand(run, 'interaction spec render', PYTHON, [
+        'tools/ai-generator/render_interaction_plan.py', '--input', interactionPlan, '--output', run.interactionSpec,
+      ]);
+      stage(run, 'Interaction spec rendering', 'success');
+      interaction = JSON.parse(fs.readFileSync(interactionPlan, 'utf8'));
+    } else {
+      markInteractionSkipped(run, targets.interactionSkipReason);
+    }
     stage(run, 'Playwright execution', 'running');
     const resultJson = path.join(run.dir, 'playwright-results.json');
     run.reportDir = path.join(run.dir, 'playwright-report');
     const testDir = path.join(ROOT, 'tests');
     const navigationSpecArgument = path.relative(testDir, run.navigationSpec).split(path.sep).join('/');
-    const interactionSpecArgument = path.relative(testDir, run.interactionSpec).split(path.sep).join('/');
+    const specArguments = [navigationSpecArgument];
+    if (targets.interaction) {
+      specArguments.push(path.relative(testDir, run.interactionSpec).split(path.sep).join('/'));
+      stage(run, 'Interaction execution', 'running');
+    }
     const started = Date.now();
     const execution = await runCommand(run, 'Playwright execution', PLAYWRIGHT, [
-      PLAYWRIGHT_CLI, 'test', navigationSpecArgument, interactionSpecArgument,
+      PLAYWRIGHT_CLI, 'test', ...specArguments,
       '--config', 'tools/mvp/playwright.config.js', '--workers=1', '--retries=0', '--reporter=html,json',
     ], {
       allowFailure: true,
@@ -305,10 +355,16 @@ async function executeRun(run) {
     stage(run, 'Playwright execution', execution.code === 0 ? 'success' : 'failed', execution.code === 0 ? undefined : 'One or more Playwright assertions failed.');
     stage(run, 'Report preparation', 'running');
     const raw = JSON.parse(fs.readFileSync(resultJson, 'utf8'));
-    const navigationPlan = JSON.parse(fs.readFileSync(path.join(run.dir, 'test_plan.generated.json'), 'utf8'));
-    const interaction = JSON.parse(fs.readFileSync(interactionPlan, 'utf8'));
     run.result = summarizePlaywrightResult(raw, navigationPlan, interaction, run.durationMs, execution.code);
     run.result.reportUrl = `/api/runs/${run.id}/report`;
+    if (targets.interaction) {
+      stage(
+        run,
+        'Interaction execution',
+        run.result.softInteractions.status === 'passed' ? 'success' : 'failed',
+        run.result.softInteractions.status === 'passed' ? undefined : 'One or more interaction assertions failed.',
+      );
+    }
     stage(run, 'Report preparation', fs.existsSync(path.join(run.reportDir, 'index.html')) ? 'success' : 'failed');
     run.status = 'completed';
     persist(run);
@@ -343,8 +399,11 @@ function summarizePlaywrightResult(raw, navigationPlan, interactionPlan, duratio
     ['navigation.headingIdentity', 'navigation.contentIdentity', 'navigation.tabIdentity'].includes(test.template));
   const navPassed = navSpecs.filter(specPassed).length;
   const interactionPassed = interactionSpecs.filter(specPassed).length;
-  const tabTests = (interactionPlan.tests || []).filter((test) => test.template === 'interaction.tabSelection');
+  const interactionTests = interactionPlan?.tests || [];
+  const tabTests = interactionTests.filter((test) => test.template === 'interaction.tabSelection');
   const tabPassed = interactionSpecs.filter((spec) => specPassed(spec)).length;
+  const interactionSkipped = !interactionPlan;
+  const interactionFailed = interactionSpecs.length - interactionPassed;
   return {
     overall: exitCode === 0 ? 'PASS' : 'FAIL',
     durationMs,
@@ -357,9 +416,12 @@ function summarizePlaywrightResult(raw, navigationPlan, interactionPlan, duratio
       identityFailed: identityTests.filter((test) => titleStatus.get(`Navigation: ${(test.menuPath || []).join(' > ')}`) === false).length,
     },
     softInteractions: {
-      approved: (interactionPlan.tests || []).length,
+      status: interactionSkipped ? 'skipped' : (interactionFailed === 0 && interactionPassed === interactionTests.length ? 'passed' : 'failed'),
+      reason: interactionSkipped ? NO_APPROVED_INTERACTIONS : null,
+      approved: interactionTests.length,
       passed: interactionPassed,
-      failed: interactionSpecs.length - interactionPassed,
+      failed: interactionFailed,
+      restorationStatus: interactionSkipped ? 'skipped' : (tabPassed === tabTests.length ? 'passed' : 'failed'),
       restorationTotal: tabTests.length,
       restorationPassed: tabPassed,
       restorationFailed: tabTests.length - tabPassed,
@@ -398,6 +460,8 @@ module.exports = {
   getRun,
   normalizeAnalysis,
   publicRun,
+  selectExecutionTargets,
   summarizePlaywrightResult,
+  validateExecuteRequest,
   validateTargetUrl,
 };

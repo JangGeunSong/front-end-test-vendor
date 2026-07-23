@@ -28,23 +28,45 @@
     </section>
 
     <section class="panel hidden" id="review-panel">
-      <h2>2. Review and approve</h2>
+      <h2>2. Review and run</h2>
       <div id="analysis-summary" class="metrics"></div>
-      <h3>Page Navigation / Page Identity</h3>
-      <div id="navigation-list" class="cards"></div>
+      <details id="navigation-details" class="review-details">
+        <summary>
+          <span><strong>Page Navigation &amp; Identity</strong><small>All navigation tests run automatically.</small></span>
+          <strong id="navigation-total"></strong>
+        </summary>
+        <div id="navigation-breakdown" class="identity-breakdown"></div>
+        <div id="navigation-list" class="cards"></div>
+      </details>
       <h3>Soft Interaction candidates</h3>
-      <p>Safe classification is evidence, not permission. Only restore-ready <code>tabSelection</code> candidates can be approved in this MVP.</p>
+      <p>Choosing a supported candidate grants permission to run that reversible interaction. Classification alone is not permission.</p>
+      <div class="interaction-toolbar">
+        <div class="filters" id="interaction-filters" aria-label="Interaction candidate filters">
+          <button type="button" class="filter active" data-filter="ready" aria-pressed="true">Ready to test</button>
+          <button type="button" class="filter" data-filter="review" aria-pressed="false">Needs review</button>
+          <button type="button" class="filter" data-filter="all" aria-pressed="false">All</button>
+          <button type="button" class="filter" data-filter="selected" aria-pressed="false">Selected</button>
+        </div>
+        <strong id="selected-count">Selected interactions: 0</strong>
+      </div>
       <div id="interaction-list" class="cards"></div>
-      <div class="approval-box">
+      <div id="interaction-empty" class="empty-state hidden"></div>
+      <div class="approval-box" id="approval-box">
         <label for="reviewer">Reviewer</label>
         <input id="reviewer" value="local-ui-user" required>
-        <label class="check"><input id="explicit-approval" type="checkbox"> I reviewed the selected evidence and explicitly approve these interactions.</label>
+        <label class="check consent"><input id="explicit-approval" type="checkbox"> I reviewed the selected evidence and explicitly approve these interactions to run.</label>
         <div class="row">
           <button id="approve-button" disabled>Approve selected</button>
-          <button id="execute-button" disabled>Generate and run tests</button>
         </div>
       </div>
       <details><summary>Debugging details</summary><pre id="analysis-debug"></pre></details>
+      <div class="run-bar" id="run-bar">
+        <div>
+          <strong id="run-summary">Navigation 0 · Interactions selected 0</strong>
+          <small id="run-note">Navigation tests run automatically.</small>
+        </div>
+        <button id="execute-button" disabled>Run navigation tests</button>
+      </div>
     </section>
 
     <section class="panel hidden" id="result-panel">
@@ -54,7 +76,7 @@
         <a id="report-link" class="button" target="_blank" rel="noopener">Open Playwright HTML Report</a>
         <button id="again-button">Analyze another run</button>
       </div>
-      <details><summary>Failed tests and server details</summary><pre id="result-debug"></pre></details>
+      <details><summary>Show debugging details</summary><pre id="result-debug"></pre></details>
     </section>
   </main>
   <script src="/app.js"></script>

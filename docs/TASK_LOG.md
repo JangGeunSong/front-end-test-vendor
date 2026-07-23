@@ -1,5 +1,45 @@
 # Task Log
 
+## 2026-07-23 - Decouple Navigation execution from optional Soft Interaction
+
+### 작업 목적
+
+- supported interaction candidate가 없거나 사용자가 아무 candidate도 승인하지 않아도 Page Navigation/Page Identity를 실행한다.
+- Interaction이 없는 정상 상태를 실패나 빈 artifact가 아니라 explicit `SKIPPED`로 표현한다.
+- Navigation/candidate 수가 많은 Local MVP review 화면의 최소 가독성과 실행 접근성을 개선한다.
+
+### 실제 원인과 구현
+
+- 기존 `/execute`는 run status가 `approved`일 때만 허용됐고 controller가 Approval → Reconciliation → Interaction Plan → interaction spec을 항상 생성했다. 이 결합 때문에 Navigation spec도 interaction approval에 종속됐다.
+- analysis 완료 status를 `ready_for_execution`으로 두고 Navigation test가 하나 이상이면 `/execute`를 허용했다.
+- approved eligible interaction이 있을 때만 기존 Approval `3.0`, Reconciliation `3.0`, Plan `3.0`, deterministic interaction renderer를 실행한다.
+- approved interaction이 0건이면 빈 approval/reconciliation/plan/spec을 만들지 않고 approval validation, reconciliation, interaction plan generation, interaction spec rendering, interaction execution을 `no-approved-supported-interactions` reason으로 `skipped` 처리한다.
+- Playwright command는 Navigation spec을 항상 포함하고 interaction spec은 optional하게 추가한다.
+- result summary에 interaction/restoration `passed`/`failed`/`skipped`를 추가했다. Navigation-only Overall은 Navigation exit/result를 사용하며 interaction skip은 실패 수에 포함하지 않는다.
+- UI에 Navigation 기본 접기와 identity type summary, interaction Ready/Needs review/All/Selected filter, selected card border/background/badge, card 전체 click, selected count, sticky run summary, Navigation-only button과 collapsed debug details를 추가했다.
+- site별 분기 없는 generic `tools/mvp/smoke.js`를 추가해 actual Local MVP browser flow와 HTML report endpoint를 검증한다.
+
+### 자동 검증
+
+- Node syntax: controller/server/client/smoke PASS.
+- `npm run product:mvp:test`: controller/UI 16 tests와 approval writer 2 tests PASS.
+- Scenario coverage: Navigation + approved interaction, candidate 존재/승인 0, eligible 0, Navigation 0 실행 거부, Navigation-only failure의 Overall FAIL과 interaction SKIPPED.
+- UI coverage: Navigation default collapse, identity summary, Ready default/Selected filter, card selected state, Navigation-only run label, sticky summary, collapsed debug, SKIPPED result copy.
+
+### Fresh runtime 검증
+
+- Playwright.dev interaction run `1784804662788-ea9dc0ca`: Navigation expand/recollapse, Ready default/Selected filter, selected card state, Navigation 8/8, Page Identity 8/8, Interaction 1/1, Restoration 1/1, Overall PASS.
+- Playwright.dev Navigation-only run `1784803631302-090d696b`: Navigation 8/8, Page Identity 8/8, Interaction/Restoration SKIPPED, Overall PASS.
+- KT IoT Biz Navigation-only run `1784803698267-2c997ab1`: Navigation 41/41, Page Identity 41/41, restore-ready tab 0, Interaction/Restoration SKIPPED, Overall PASS.
+- 세 run 모두 `workers=1`, `retries=0`, fresh analysis였다. HTML report endpoint는 모두 HTTP 200과 Playwright report title을 반환했다.
+- 두 Navigation-only run에는 approval, reconciliation, interaction plan과 interaction spec이 생성되지 않았고 Navigation spec과 HTML report만 생성됐다.
+- 첫 sandbox run은 외부 network access 차단으로 `ERR_NETWORK_ACCESS_DENIED`가 발생했다. 권한 있는 동일 smoke 명령으로 재실행해 위 세 fresh 결과를 확인했다.
+
+### 완료/미완료 경계
+
+- 완료: Navigation-only execution, optional interaction execution, skipped result handling, collapsible Navigation review, interaction filters/selection state, sticky run summary, Playwright.dev interaction 및 Navigation-only smoke, KT IoT Biz Navigation-only smoke.
+- 미완료: expandedToggle runtime, interaction taxonomy expansion, progress percentage, run persistence/database, broad cross-site interaction regression, localization, SaaS/cloud 기능.
+
 ## 2026-07-22 - Connect navigation and tab approval pipelines through a local MVP UI
 
 ### 구현

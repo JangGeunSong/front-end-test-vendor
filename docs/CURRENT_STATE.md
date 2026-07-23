@@ -90,6 +90,8 @@ analysis_review_report.json
 - current Report `2.1` exact snapshot만 복사하고 Approval `3.0` validator를 실행하는 deterministic approval writer
 - navigation/Page Identity review, explicit tab approval, downstream validation/rendering/runtime와 HTML report를 연결하는 minimal local UI/API
 - run-scoped evidence/approval/plan/result/report lifecycle과 HTML + JSON Playwright reporter summary
+- interaction approval 없이 Navigation/Page Identity를 실행하고 optional interaction downstream을 explicit `skipped`로 기록하는 Navigation-only Local MVP path
+- 접힌 Navigation/identity summary, interaction Ready/Needs review/All/Selected filter, card selection state와 sticky run summary를 제공하는 Local MVP review UI
 - project venv, requirements, fnm, repository Node version, local `.env` policy를 복원하는 documented environment bootstrap
 - generated artifact와 source/docs를 분리하는 ignore 정책
 
@@ -111,7 +113,7 @@ analysis_review_report.json
 
 ## Current Development Frontier
 
-Plan schema `3.0`/deterministic renderer의 previous-selection browser runtime과 approval writer/local MVP product integration이 구현됐다. 다음 중심 frontier는 `expandedToggle` runtime validation 또는 local MVP durability/UX hardening이며, 둘은 별도 task로 선택한다.
+Plan schema `3.0`/deterministic renderer의 previous-selection browser runtime, approval writer/local MVP product integration과 Navigation-only optional interaction execution이 구현됐다. 다음 중심 frontier는 `expandedToggle` runtime validation 또는 local MVP durability/persistence hardening이며, 둘은 별도 task로 선택한다.
 
 완료된 부분:
 
@@ -173,17 +175,23 @@ Version transition은 완료됐다. `interaction_plan_contract.py`는 Reconcilia
 
 ## Latest Completed Work
 
-가장 최근 완료 작업은 dependency-free localhost UI와 thin Node controller로 기존 navigation/Page Identity 및 `tabSelection` approval/runtime pipeline을 연결한 local MVP다.
+가장 최근 완료 작업은 Local MVP에서 Navigation/Page Identity 실행을 optional Soft Interaction과 분리하고 긴 review 화면의 최소 UX를 보강한 작업이다.
 
-- URL validation, analysis/review/approval/execute/result/report API 책임 분리
-- current Report `2.1` candidate의 exact snapshot만 복사하는 deterministic Approval `3.0` writer
-- run ID별 fresh evidence와 approval/plan/result/HTML report 분리
-- existing approval/reconciliation/plan validators와 deterministic renderers 재사용
-- machine-readable Playwright JSON과 HTML report를 함께 생성하고 navigation/identity/interaction/restoration 요약 표시
-- placeholder `href="#"`를 pageProfile observed navigation URL로 보수 처리하고 collected open/hover trigger evidence를 deterministic plan click에 보존
-- Playwright.dev fresh run 2회에서 navigation 8/8, identity 8/8, approved tab 1/1, restoration 1/1 PASS (`workers=1`, `retries=0`)
+- analysis 완료 후 Navigation test가 하나 이상이면 interaction approval 없이 `/execute` 허용
+- approved eligible interaction이 있을 때만 기존 Approval `3.0` validation → Reconciliation `3.0` → Plan `3.0` → deterministic interaction rendering 실행
+- approved interaction 0건이면 빈 approval/reconciliation/plan/spec 없이 interaction stage를 `no-approved-supported-interactions` reason으로 `skipped` 처리
+- Navigation-only Overall을 Navigation/Page Identity PASS/FAIL로 계산하고 Interaction/Restoration을 `SKIPPED`로 표시
+- Navigation review 기본 접기와 heading/content/tab/other identity summary
+- interaction `Ready to test`, `Needs review`, `All`, `Selected` filter와 Ready 기본값
+- card 전체 선택, selected border/background/badge, 선택 개수와 explicit permission 안내
+- sticky Navigation/selected interaction 실행 summary와 selection 0에서 활성화되는 Navigation-only button
+- raw analysis JSON, execution log/internal result details 기본 접기
+- built-in Node UI/controller 16 tests와 approval writer 2 tests PASS
+- Playwright.dev fresh interaction run: Navigation/Identity 8/8, Interaction/Restoration 1/1, Overall PASS, HTML report 200
+- Playwright.dev 별도 fresh Navigation-only run: Navigation/Identity 8/8, Interaction/Restoration SKIPPED, Overall PASS, HTML report 200
+- KT IoT Biz fresh Navigation-only run: Navigation/Identity 41/41, eligible tab 0, Interaction/Restoration SKIPPED, Overall PASS, HTML report 200
 
-Not completed: expandedToggle runtime, broad interaction taxonomy/cross-site regression, persistent history/database, authentication, cloud/SaaS deployment와 production-grade UI.
+Not completed: `interaction.expandedToggle` runtime, interaction taxonomy expansion, progress percentage, run persistence/database, localization, broad cross-site interaction regression, authentication, cloud/SaaS deployment와 production-grade UI.
 
 이전 runtime work는 fresh public evidence에서 restore-ready candidate를 승인/reconcile하고 Plan `3.0` deterministic spec을 생성해 previous-selection restore를 2회 browser PASS한 task다. 최초 runtime 실패에서 mutable selected-state class가 restore selector에 포함되는 producer 결함을 확인해 group-scoped structural selector로 수정했다.
 

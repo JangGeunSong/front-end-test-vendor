@@ -23,3 +23,10 @@
 - 실제 고객 데이터
 - 폐쇄망 시스템 화면 캡처
 - 실제 운영 메뉴명 전체 반출
+
+Node dependency packaging:
+
+- repository에 commit된 최소 `node_modules`는 폐쇄망 실행 보장을 위한 vendor baseline이며 local artifact나 삭제 대상이 아니다.
+- 외부 registry에 접근할 수 없는 폐쇄망에서는 `npm ci`를 실행하지 않고 vendor dependency를 `npm ls --depth=0`로 확인한다.
+- 외부망에서 package-lock 재현성을 검증하는 `npm ci`는 별도의 disposable clean clone에서 수행한다.
+- vendor dependency와 `package-lock.json`의 변경은 dependency 검토 작업으로 명시적으로 관리하며 runtime generated artifact와 구분한다.

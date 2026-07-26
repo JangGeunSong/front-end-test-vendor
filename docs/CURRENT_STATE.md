@@ -93,6 +93,8 @@ analysis_review_report.json
 - interaction approval 없이 Navigation/Page Identity를 실행하고 optional interaction downstream을 explicit `skipped`로 기록하는 Navigation-only Local MVP path
 - 접힌 Navigation/identity summary, interaction Ready/Needs review/All/Selected filter, card selection state와 sticky run summary를 제공하는 Local MVP review UI
 - project venv, requirements, fnm, repository Node version, local `.env` policy를 복원하는 documented environment bootstrap
+- connected `npm ci` reinstall과 offline tracked vendor dependency를 분리하고, Python 3.12 project venv, bundled Chromium과 optional `.env.example`을 사용하는 Windows alpha bootstrap
+- Local MVP의 project Python/dependency/browser/network/port bootstrap 오류에 대한 actionable recovery message
 - generated artifact와 source/docs를 분리하는 ignore 정책
 
 검증된 site type은 complex multi-depth GNB 41 tests, PC/MO overlay navigation 17 tests, direct documentation navigation 8 tests다. 이는 현재 일반화 근거이지 모든 사이트의 무보정 지원을 보장하지 않는다.
@@ -175,7 +177,18 @@ Version transition은 완료됐다. `interaction_plan_contract.py`는 Reconcilia
 
 ## Latest Completed Work
 
-가장 최근 완료 작업은 Local MVP에서 Navigation/Page Identity 실행을 optional Soft Interaction과 분리하고 긴 review 화면의 최소 UX를 보강한 작업이다.
+가장 최근 완료 작업은 외부 alpha 사용자의 fresh Windows install을 재현하고 Local MVP bootstrap 경계를 정리한 작업이다.
+
+- Node `24.15.0`, npm `11.12.1`, Python `3.12`, project venv와 `npx playwright install chromium`을 Windows Quick Start로 고정하고 Node dependency는 connected/offline 절차로 분리
+- Local MVP가 root system Chrome channel을 상속하지 않고 bundled Chromium을 사용하도록 config 분리
+- 폐쇄망 실행을 위한 최소 tracked `node_modules` vendor 상태를 유지하고, connected reinstall은 `package-lock.json` 기반 `npm ci`로 별도 검증
+- `.env.example`을 추가하되 deterministic Local MVP에는 key가 필요하지 않고 external LLM mode에서만 선택적으로 사용
+- Python executable/dependency, browser executable, target network와 port collision에 actionable error 제공
+- smoke harness의 run ID race와 HTML report redirect follow 오류 수정
+- 변경된 개발 repository에서 Playwright.dev fresh Navigation-only run: Navigation/Identity 8/8, Overall PASS, HTML report 200
+- origin/main clean clone baseline install은 Node/Python dependency 설치와 제품 run PASS까지 확인했으나, 위 uncommitted 변경을 포함한 fresh clone 재검증은 commit 후 필요
+
+이전 완료 작업은 Local MVP에서 Navigation/Page Identity 실행을 optional Soft Interaction과 분리하고 긴 review 화면의 최소 UX를 보강한 작업이다.
 
 - analysis 완료 후 Navigation test가 하나 이상이면 interaction approval 없이 `/execute` 허용
 - approved eligible interaction이 있을 때만 기존 Approval `3.0` validation → Reconciliation `3.0` → Plan `3.0` → deterministic interaction rendering 실행

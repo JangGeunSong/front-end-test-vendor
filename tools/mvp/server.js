@@ -134,3 +134,12 @@ const server = http.createServer((request, response) => {
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`Local Test MVP: http://127.0.0.1:${PORT}`);
 });
+
+server.on('error', (error) => {
+  process.exitCode = 1;
+  if (error.code === 'EADDRINUSE') {
+    console.error(`Local Test MVP could not start: port ${PORT} is already in use. Set MVP_PORT to another port and retry.`);
+    return;
+  }
+  console.error(`Local Test MVP could not start: ${error.message}`);
+});

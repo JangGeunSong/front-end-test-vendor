@@ -220,6 +220,19 @@ async function analyzeRun(run) {
 
 function friendlyError(stageName, error) {
   const output = `${error?.result?.stderr || ''}\n${error?.result?.stdout || ''}`;
+  const message = error?.message || '';
+  if (error?.code === 'ENOENT' || /\bENOENT\b/.test(message)) {
+    return `Required executable unavailable: ${error?.path || 'unknown executable'}. Create the project venv and install dependencies as described in docs/DEVELOPMENT_ENVIRONMENT.md.`;
+  }
+  if (/ModuleNotFoundError|No module named/.test(output)) {
+    return 'Python dependency missing. Activate the project venv and run: python -m pip install -r tools/ai-generator/requirements.txt';
+  }
+  if (/Executable doesn't exist|browserType\.launch.*executable/i.test(output)) {
+    return 'Playwright Chromium is unavailable. Run: npx playwright install chromium';
+  }
+  if (/ERR_(?:NAME_NOT_RESOLVED|CONNECTION_REFUSED|CONNECTION_TIMED_OUT|NETWORK_ACCESS_DENIED)|net::ERR_|getaddrinfo|ENETUNREACH/i.test(output)) {
+    return 'Target website is unavailable from this network. Check the URL, proxy/firewall policy, and outbound network access.';
+  }
   if (output.includes('evidenceChanged')) return 'Evidence changed. Re-analyze and approve the current candidate again.';
   if (output.includes('missingCandidate')) return 'Approved candidate missing. Re-analyze and approve again.';
   const labels = {
@@ -464,4 +477,5 @@ module.exports = {
   summarizePlaywrightResult,
   validateExecuteRequest,
   validateTargetUrl,
+  friendlyError,
 };

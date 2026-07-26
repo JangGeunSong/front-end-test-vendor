@@ -1,5 +1,41 @@
 # Task Log
 
+## 2026-07-26 - Prepare reproducible Windows local alpha setup
+
+### 작업 목적
+
+- 외부 alpha 사용자가 기존 개발 PC의 local dependency, venv, `.env`, browser artifact와 실행 결과를 복사하지 않고 Windows PowerShell 문서만으로 Local MVP를 설치·실행하게 한다. Repository 정책으로 commit된 최소 vendor `node_modules`는 폐쇄망 배포 source로 별도 취급한다.
+- 새로운 제품 기능이나 pipeline contract를 추가하지 않고 실제 fresh install과 smoke를 막는 문제만 수정한다.
+
+### Baseline fresh clone 조사
+
+- 개발 repository는 `main`, clean worktree, HEAD와 `origin/main` 모두 `76b1218116c50bb14a6ad1458bc42f7b2b16d161`이었다.
+- 비어 있던 `<sanitized-validation-clone>`에 origin URL `https://github.com/JangGeunSong/front-end-test-vendor.git`의 `main`을 fresh clone했다.
+- clone에는 venv, `.env`, generated run/report/test result가 없었고, 폐쇄망 실행을 위해 Git에 추적된 최소 vendor `node_modules` 807개가 repository 정책대로 포함됐다.
+- Node `24.15.0`, npm `11.12.1`, Python `3.12.10`을 확인하고 `npm ci`, 새 `venv`, requirements install, `npx playwright install chromium`을 수행했다.
+- 해당 PC의 Playwright browser cache가 이미 존재했으므로 browser command 성공은 확인했지만 실제 binary fresh download는 주장하지 않는다.
+
+### 발견 원인과 최소 수정
+
+- tracked `node_modules`는 실수로 남은 local artifact가 아니라 폐쇄망에서 최소 library 동작을 보장하는 vendor baseline임을 확인했다. 삭제 또는 untrack 대상에서 제외하고, 외부망 `npm ci` 재현 검증과 폐쇄망 vendor 실행 절차를 documentation에서 분리했다.
+- Local MVP config가 root의 `channel: chrome`을 상속해 analysis/smoke의 bundled Chromium과 달리 execution만 system Chrome을 숨은 dependency로 요구했다. Local MVP config에서 channel 상속을 제거했다.
+- smoke harness가 Analyze 직후 아직 설정되지 않은 run ID를 읽어 600초 deadline을 기다렸고, report redirect endpoint를 APIRequestContext로 따라갈 때 relative Location에서 `Invalid URL`이 발생했다. run ID wait/deadline guard와 direct report `index.html` 확인으로 수정했다.
+- Python executable/dependency, Playwright browser, target network 오류를 actionable message로 분리하고 port collision은 non-zero exit와 alternate `MVP_PORT` 안내를 반환하게 했다.
+- optional external LLM key template `.env.example`을 추가하고 Local MVP에는 `.env`가 필요하지 않음을 문서화했다.
+
+### 문서와 검증
+
+- README는 Alpha 범위와 Windows Quick Start를 진입점으로 제공한다.
+- DEVELOPMENT_ENVIRONMENT와 OFFLINE_NETWORK_POLICY는 connected `npm ci` reinstall과 폐쇄망 vendor dependency 사용을 분리하고, Node/npm/Python version, venv, bundled Chromium, 환경 변수와 bootstrap error를 설명한다.
+- LOCAL_MVP는 실행/review/Navigation-only/optional interaction/result/report/stop/troubleshooting 흐름을 제공한다.
+- 변경 Node syntax와 package JSON parse PASS.
+- `npm run product:mvp:test`: Node 18 tests와 approval writer 2 tests PASS.
+- Approval validator 14 scenarios, reconciliation fixture, interaction plan builder 12 failure scenarios, validator 18 failure scenarios, renderer 9 failure scenarios PASS.
+- localhost UI HTTP 200과 port collision exit 1/message를 확인했다.
+- 수정된 개발 repository의 Playwright.dev fresh Navigation-only smoke는 Navigation/Page Identity 8/8, Overall PASS, interaction/restoration SKIPPED, HTML Report HTTP 200과 title 확인을 통과했다.
+- origin/main baseline run도 제품 execution 8/8 PASS와 report 생성까지 완료했지만 baseline smoke harness 오류로 command exit 1이었다.
+- 변경은 아직 commit되지 않았으므로 수정된 source의 origin/main fresh clone smoke는 수행하지 않았다. Commit 후 clean path를 재초기화해 최종 재검증해야 한다.
+
 ## 2026-07-23 - Decouple Navigation execution from optional Soft Interaction
 
 ### 작업 목적

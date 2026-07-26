@@ -1,5 +1,6 @@
 const base = require('../../playwright.config');
 const path = require('path');
+const { channel: _systemBrowserChannel, ...baseUse } = base.use || {};
 
 module.exports = {
   ...base,
@@ -8,7 +9,7 @@ module.exports = {
   retries: 0,
   workers: 1,
   use: {
-    ...base.use,
+    ...baseUse,
     headless: true,
     launchOptions: {
       ...(base.use?.launchOptions || {}),

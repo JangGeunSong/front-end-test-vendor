@@ -1,8 +1,45 @@
-# WEB 자동 테스트 AX 패키지
+# Local Web Test MVP
 
-임의의 WEB 사이트 URL을 대상으로 Playwright 기반 UI 탐색, AI generated spec 생성, 정적 validator 검수, 테스트 실행까지 이어지는 자동 테스트 보조 패키지입니다.
+URL 하나로 웹 navigation/Page Identity를 분석하고, 사람이 선택한 안전한 interaction을 포함한 deterministic Playwright 테스트와 HTML Report를 만드는 Windows local alpha입니다.
 
-이 프로젝트는 특정 사이트 전용 테스트 코드 저장소가 아니라, 대상 URL의 UI 구조를 수집하고 그 결과를 바탕으로 사람이 검토할 수 있는 Playwright 테스트 초안을 생성하는 도구입니다.
+현재 Alpha 단계입니다. 분석 결과와 generated test는 사람이 검토해야 하며, 모든 사이트의 무보정 지원·로그인·데이터 변경 action·SaaS 배포는 지원하지 않습니다.
+
+주요 기능:
+
+- fresh browser analysis와 Navigation/Page Identity review
+- interaction approval 없이 실행 가능한 Navigation-only test
+- exact previous-selection evidence가 있는 `tabSelection`의 명시적 승인과 복원 검증
+- deterministic validator/renderer를 거친 Playwright execution
+- run별 PASS/FAIL 요약, HTML Report와 trace
+
+## Windows 5분 Quick Start
+
+다운로드 시간을 제외한 외부망 connected-install PowerShell 절차입니다. Node `24.15.0`, npm `11.12.1`, Python `3.12`를 권장합니다.
+
+이 repository의 최소 `node_modules`는 폐쇄망 실행 보장을 위해 의도적으로 commit된 vendor dependency입니다. 삭제 대상이 아닙니다. 아래 `npm ci`는 외부망의 disposable clean clone에서 package-lock 재현성을 검증하는 절차이며, 폐쇄망에서는 생략하고 `npm ls --depth=0`로 vendor dependency를 확인합니다.
+
+```powershell
+git clone https://github.com/JangGeunSong/front-end-test-vendor.git <repository-directory>
+Set-Location <repository-directory>
+
+fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
+fnm install
+fnm use
+node --version
+npm --version
+npm ci
+
+py -3.12 -m venv venv
+.\venv\Scripts\Activate.ps1
+python -m pip install -r tools/ai-generator/requirements.txt
+
+npx playwright install chromium
+npm run product:mvp
+```
+
+브라우저에서 `http://127.0.0.1:4173`을 열고 URL을 분석한 뒤 Navigation-only 또는 승인한 interaction 포함 실행을 선택합니다. Local MVP에는 `.env`나 API key가 필요하지 않습니다.
+
+설치와 오류 해결은 [Development Environment](docs/DEVELOPMENT_ENVIRONMENT.md), 실제 UI 흐름은 [Local MVP](docs/LOCAL_MVP.md)를 따릅니다.
 
 ## 프로젝트 포지셔닝
 
@@ -87,26 +124,31 @@ node --version
 npm --version
 ```
 
-Dependency는 먼저 현재 상태를 확인하고 누락되었을 때만 lock/requirements 기준으로 설치합니다.
+Python dependency는 project venv에 requirements 기준으로 설치합니다. Node dependency는 환경에 따라 구분합니다.
 
 ```powershell
 python -m pip install -r tools/ai-generator/requirements.txt
+
+# 외부망 connected reinstall 검증
 npm ci
+
+# 폐쇄망 vendor dependency 확인
+npm ls --depth=0
 ```
 
-Playwright browser가 필요한 browser task에서만 browser 설치를 확인합니다.
+Local MVP browser task에는 bundled Chromium만 설치합니다.
 
 ```powershell
-npx playwright install
+npx playwright install chromium
 ```
 
-External LLM을 사용하는 AI generation command에 한해 프로젝트 루트의 local `.env`가 필요합니다.
+External LLM을 사용하는 AI generation command에 한해 `.env.example`을 `.env`로 복사하고 key를 입력합니다. Local MVP의 deterministic analysis에는 필요하지 않습니다.
 
-```env
-GEMINI_API_KEY=your_api_key_here
+```powershell
+Copy-Item .env.example .env
 ```
 
-`GEMINI_API_KEY`는 `npm run ai:generate` 같은 external LLM command에서만 필요합니다. `.env`와 secret 값은 Git에 commit하지 않습니다. Deterministic validator/reconciler는 `.env`를 요구하지 않습니다.
+`GEMINI_API_KEY`는 `npm run ai:generate` 같은 external LLM command에서만 필요합니다. `.env`와 secret 값은 Git에 commit하지 않습니다. Local MVP와 deterministic validator/reconciler는 `.env`를 요구하지 않습니다.
 
 ## 기본 실행 흐름
 
@@ -340,8 +382,9 @@ Playwright report에서 실행 결과, trace, screenshot 등 디버깅 정보를
 |---|---|
 | Local MVP UI 실행 | `npm run product:mvp` |
 | Local MVP 단위 검증 | `npm run product:mvp:test` |
-| 의존성 설치 | `npm install` |
-| Playwright browser 설치 | `npx playwright install` |
+| 외부망 Node reinstall 검증 | `npm ci` |
+| 폐쇄망 vendor dependency 확인 | `npm ls --depth=0` |
+| Local MVP Chromium 설치 | `npx playwright install chromium` |
 | 수동 테스트 녹화 | `npm run codegen -- -o tests/my_new_test.spec.js` |
 | AI generated spec 생성 | `npm run ai:generate` |
 | generated spec 정적 검수 | `npm run ai:validate` |

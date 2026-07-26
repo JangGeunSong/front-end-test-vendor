@@ -4,6 +4,7 @@ const {
   normalizeAnalysis,
   selectExecutionTargets,
   summarizePlaywrightResult,
+  friendlyError,
   validateExecuteRequest,
   validateTargetUrl,
 } = require('./controller');
@@ -120,4 +121,32 @@ test('navigation-only success does not count skipped interaction as failure', ()
   assert.equal(result.pageNavigation.identityVerified, 1);
   assert.equal(result.softInteractions.status, 'skipped');
   assert.equal(result.softInteractions.failed, 0);
+});
+
+test('bootstrap failures provide actionable local recovery commands', () => {
+  assert.match(
+    friendlyError('Website analysis', Object.assign(new Error('spawn ENOENT'), {
+      code: 'ENOENT',
+      path: 'venv\\Scripts\\python.exe',
+    })),
+    /Create the project venv/,
+  );
+  assert.match(
+    friendlyError('Website analysis', {
+      result: { stderr: "ModuleNotFoundError: No module named 'dotenv'", stdout: '' },
+    }),
+    /pip install -r tools\/ai-generator\/requirements\.txt/,
+  );
+  assert.match(
+    friendlyError('Playwright execution', {
+      result: { stderr: "browserType.launch: Executable doesn't exist", stdout: '' },
+    }),
+    /playwright install chromium/,
+  );
+  assert.match(
+    friendlyError('Website analysis', {
+      result: { stderr: 'page.goto: net::ERR_NAME_NOT_RESOLVED', stdout: '' },
+    }),
+    /network/,
+  );
 });

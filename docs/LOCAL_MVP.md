@@ -14,6 +14,8 @@ npm run product:mvp
 
 브라우저에서 `http://127.0.0.1:4173`을 연다. Port는 `MVP_PORT` 환경변수로 변경할 수 있다.
 
+Local MVP는 `.env`나 external LLM API key 없이 deterministic `plan` mode로 동작한다. Browser task 전에 `npx playwright install chromium`으로 bundled Chromium을 설치한다. System Chrome은 Local MVP 필수 dependency가 아니다.
+
 ## User Flow
 
 1. credential이 없는 absolute HTTP(S) URL을 입력하고 Analyze를 누른다.
@@ -22,6 +24,8 @@ npm run product:mvp
 4. Interaction을 추가하려면 exact previous-selection evidence가 있는 `tabSelection` card를 선택하고 explicit approval checkbox와 reviewer를 확인한 뒤 승인한다.
 5. Interaction을 실행하지 않으려면 아무 candidate도 선택하지 않고 Navigation 실행 버튼을 누른다.
 6. navigation, identity, optional interaction/restoration 결과와 Playwright HTML Report를 확인한다.
+
+Result panel의 Overall, Navigation/Page Identity, optional Interaction/Restoration 상태를 확인하고 HTML Report 링크를 연다. Report와 trace는 해당 run directory 아래에서 server가 제공하며 source file이 아니다.
 
 Navigation 실행에는 interaction approval이 필요하지 않다. 선택된 interaction이 있을 때만 UI가 current Analysis Review Report `2.1`의 exact candidate snapshot으로 Approval Artifact `3.0`을 만들고 기존 validator를 실행한다. 이후 기존 Reconciliation, Structured Interaction Plan `3.0` builder/validator와 deterministic renderer를 그대로 사용한다.
 
@@ -73,6 +77,19 @@ npm run product:mvp:smoke -- --url https://target.example.com --mode interaction
 ```
 
 Smoke harness는 Local MVP server와 headless browser를 실행해 fresh analysis, UI review/selection, execution, JSON result와 HTML report endpoint를 확인한다. 제품 controller와 마찬가지로 site별 selector나 fallback을 추가하지 않는다.
+
+## Stop
+
+서버를 실행한 PowerShell에서 `Ctrl+C`로 종료한다. 다른 port를 사용했다면 UI와 smoke 모두 같은 `MVP_PORT`/`--port` 값을 사용한다.
+
+## Troubleshooting
+
+- startup에서 project Python을 찾지 못하면 `py -3.12 -m venv venv` 후 requirements를 설치한다.
+- analysis에서 Python module 누락이 표시되면 활성 venv에 `python -m pip install -r tools/ai-generator/requirements.txt`를 실행한다.
+- browser executable 오류는 `npx playwright install chromium`으로 해결한다.
+- `4173` 충돌 시 `$env:MVP_PORT=4174; npm run product:mvp`로 시작하고 `http://127.0.0.1:4174`에 접속한다.
+- target network 오류는 DNS, proxy/firewall, outbound policy와 대상 사이트 상태를 확인한다. selector/assertion 실패와 구분한다.
+- HTML Report가 없으면 result의 `Report preparation` stage와 collapsed debug log에서 Playwright 실행 오류를 확인한다.
 
 ## Current Limitations
 

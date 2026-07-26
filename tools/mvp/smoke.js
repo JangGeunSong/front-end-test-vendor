@@ -46,17 +46,23 @@ async function main() {
     await page.goto(`http://127.0.0.1:${port}`);
     await page.locator('#target-url').fill(targetUrl);
     await page.locator('#analyze-form button[type="submit"]').click();
+    await page.waitForFunction(() => Boolean(state.runId));
     const runId = await page.evaluate(() => state.runId);
     const analysisDeadline = Date.now() + 600000;
+    let analysisReady = false;
     while (Date.now() < analysisDeadline) {
       const response = await page.request.get(`http://127.0.0.1:${port}/api/runs/${runId}/status`);
       const status = await response.json();
       if (status.status === 'failed') {
         throw new Error(`Analysis failed: ${status.error}\n${JSON.stringify(status.debugLog, null, 2)}`);
       }
-      if (status.status === 'ready_for_execution') break;
+      if (status.status === 'ready_for_execution') {
+        analysisReady = true;
+        break;
+      }
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
+    if (!analysisReady) throw new Error('Analysis did not become ready before the smoke deadline.');
     await page.locator('#review-panel:not(.hidden)').waitFor({ timeout: 10000 });
 
     const navigationCollapsed = !(await page.locator('#navigation-details').evaluate((node) => node.open));
@@ -93,7 +99,9 @@ async function main() {
     const result = await resultResponse.json();
     const statusResponse = await page.request.get(`http://127.0.0.1:${port}/api/runs/${runId}/status`);
     const status = await statusResponse.json();
-    const reportResponse = await page.request.get(`http://127.0.0.1:${port}${result.reportUrl}`);
+    const reportResponse = await page.request.get(
+      `http://127.0.0.1:${port}${result.reportUrl}/index.html`,
+    );
     const reportHtml = await reportResponse.text();
 
     process.stdout.write(`${JSON.stringify({

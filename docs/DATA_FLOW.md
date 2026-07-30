@@ -177,7 +177,7 @@ scout는 가능한 경우 `hoverTargetCssPath`와 `openTriggerCssPath`도 함께
 
 `agent_orchestrator.py`는 각 후보에 `candidateKind`/`navigationRole`을 부여해 생성 목적별 projection을 만든다. `navigationTrigger`, `logoHome`, `footerLink`, `contentCta`, `quickLink`, `utilityLink`는 primary navigation parent가 될 수 없다.
 
-Primary navigation projection은 overlay open/close control, search/language/dark-mode 같은 header utility control, relation/external utility link, mobile-only navigation duplicate를 Level 1/2 generated spec 대상에서 제외한다. PC/desktop navigation 후보가 함께 수집된 경우 mobile navigation 후보는 fallback 후보로만 보존하고 `primaryMenuTree`에서는 제외한다. PC navigation의 top-level button과 expanded panel child는 DOM 구조(`nav ... li:nth-of-type(N)`와 `navigation-panel-N`)를 기반으로 연결하며, utility/close/open 후보 아래에는 child를 붙이지 않는다.
+Primary navigation projection은 overlay open/close control, search/language/dark-mode 같은 header utility control, relation/external utility link, mobile-only navigation duplicate를 Level 1/2 generated spec 대상에서 제외한다. PC/desktop navigation 후보가 함께 수집된 경우 mobile navigation 후보는 fallback 후보로만 보존하고 `primaryMenuTree`에서는 제외한다. Desktop navigation의 top-level trigger와 expanded panel child는 수집된 structural DOM relation을 기반으로 연결하며, utility/close/open 후보 아래에는 child를 붙이지 않는다.
 
 Docusaurus나 문서 사이트처럼 dropdown open trigger 없이 top-level nav link가 바로 이동 대상인 경우도 지원한다. `semanticRegion`이 header/nav이고, visible/high confidence이며, href와 text가 있는 direct nav link는 `depth1Index`가 null이어도 `primaryNavigationDirect` 후보로 승격할 수 있다. 단 brand home/logo, skip link, search, theme toggle, GitHub/Discord/social utility, footer/main/hero CTA/card link는 primary 대상에서 제외한다.
 

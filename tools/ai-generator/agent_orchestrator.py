@@ -94,19 +94,14 @@ UTILITY_CONTROL_TEXT_KEYWORDS = (
     "mode",
 )
 UTILITY_CONTROL_SELECTOR_KEYWORDS = (
-    "utility-close",
-    "utility-search",
-    "utility-language",
-    "utility-mode",
-    "navigation-toggle",
-    "navigation-search",
-    "theme-toggle",
-    "external-link",
-    "external-link",
-    "utility-wrap",
-    "utility-area",
-    "utility-group",
-    "utility-list",
+    "close",
+    "search",
+    "language",
+    "locale",
+    "theme",
+    "mode",
+    "utility",
+    "relation",
 )
 UTILITY_LINK_TEXTS = {
     "skip to main content",
@@ -123,21 +118,15 @@ UTILITY_LINK_KEYWORDS = (
     "새창열림",
 )
 DIRECT_NAV_CLASS_KEYWORDS = (
-    "navigation-item",
     "navigation-link",
     "nav-link",
     "nav_item",
     "nav-item",
 )
 MOBILE_NAV_SELECTOR_KEYWORDS = (
-    "mobile-navigation",
     "mobile",
-    "mobile-header",
-    "mobile-header",
 )
 DESKTOP_NAV_SELECTOR_KEYWORDS = (
-    "desktop-navigation",
-    "desktop-header",
     "desktop",
 )
 
@@ -1163,24 +1152,11 @@ def is_utility_link_candidate(menu):
     return False
 
 
-def get_main_menu_panel_index(css_path):
-    match = re.search(r"navigation-panel-(\d+)", str(css_path or ""))
-    if not match:
-        return None
-    return int(match.group(1))
-
-
 def get_nav_list_item_index(css_path):
     match = re.search(r"nav#[^ >]+[^>]*>\s*ul\.[^>]+>\s*li:nth-of-type\((\d+)\)", str(css_path or ""))
     if not match:
         return None
     return int(match.group(1)) - 1
-
-
-def belongs_to_expanded_panel(child, parent):
-    parent_nav_index = get_nav_list_item_index(parent.get("cssPath", ""))
-    child_panel_index = get_main_menu_panel_index(child.get("cssPath", ""))
-    return parent_nav_index is not None and child_panel_index is not None and parent_nav_index == child_panel_index
 
 
 def belongs_to_dropdown_container(child, parent):
@@ -1196,15 +1172,12 @@ def belongs_to_dropdown_container(child, parent):
 
 def is_top_level_nav_direct_link(menu):
     css_path = str(menu.get("cssPath", ""))
-    class_name = lower_text(menu.get("className", ""))
     tag_name = lower_text(menu.get("tagName", ""))
 
     return (
         tag_name == "a" and
         bool(menu.get("href")) and
-        "navigation-item" in class_name and
-        get_nav_list_item_index(css_path) is not None and
-        get_main_menu_panel_index(css_path) is None
+        get_nav_list_item_index(css_path) is not None
     )
 
 
@@ -1321,7 +1294,7 @@ def has_structural_child_candidate(menu, candidates):
     return any(
         candidate is not menu and
         normalize_text(candidate.get("text", "")) != normalize_text(menu.get("text", "")) and
-        (belongs_to_expanded_panel(candidate, menu) or belongs_to_dropdown_container(candidate, menu))
+        belongs_to_parent_group(candidate, menu)
         for candidate in candidates
     )
 
@@ -1385,6 +1358,11 @@ def classify_candidate_kind(menu, all_candidates):
 
     if is_top_level_nav_direct_link(menu) and not has_structural_child_candidate(menu, all_candidates):
         return "topLevelDirectLink"
+
+    if menu.get("menuDepth") == 3 and (
+        menu.get("depth1Index") is not None or menu.get("navigationGroupIndex") is not None
+    ):
+        return "primaryNavigationItem"
 
     if has_group_child_text(menu, all_candidates) or has_structural_child_candidate(menu, all_candidates):
         return "primaryNavigation"
@@ -1673,31 +1651,42 @@ def build_menu_tree(menu_candidates):
 
 
 def belongs_to_parent_group(child, parent):
-    if belongs_to_expanded_panel(child, parent):
-        return True
-
     if belongs_to_dropdown_container(child, parent):
         return True
+
+    child_parent_text = normalize_text(child.get("parentText", ""))
+    parent_text = normalize_text(parent.get("text", ""))
+    if child_parent_text and parent_text and child_parent_text == parent_text:
+        return True
+
+    child_depth = child.get("menuDepth")
+    parent_depth = parent.get("menuDepth")
+    child_depth1 = child.get("depth1Index")
+    parent_depth1 = parent.get("depth1Index")
+    if child_depth1 is not None and parent_depth1 is not None:
+        return (
+            child_depth1 == parent_depth1
+            and isinstance(child_depth, int)
+            and isinstance(parent_depth, int)
+            and child_depth > parent_depth
+        )
 
     child_group = child.get("navigationGroupIndex")
     parent_group = parent.get("navigationGroupIndex")
 
-    if child_group is not None and parent_group is not None:
-        return child_group == parent_group
-
-    child_depth1 = child.get("depth1Index")
-    parent_depth1 = parent.get("depth1Index")
-
-    if child_depth1 is not None and parent_depth1 is not None:
-        return child_depth1 == parent_depth1
+    if (
+        child_group is not None and
+        parent_group is not None and
+        child_group == parent_group and
+        isinstance(child_depth, int) and
+        isinstance(parent_depth, int)
+    ):
+        return child_depth > parent_depth
 
     return False
 
 
 def get_child_open_depth1_index(child, parent):
-    if belongs_to_expanded_panel(child, parent):
-        return parent.get("depth1Index")
-
     if belongs_to_dropdown_container(child, parent):
         return parent.get("depth1Index")
 

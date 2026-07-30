@@ -15,8 +15,8 @@ FORBIDDEN_SELECTOR_PATTERNS = [
     ("E001", "Forbidden generic selector", "form"),
     ("E001", "Forbidden generic selector", "[role=\"tab\"]"),
     ("E001", "Forbidden generic selector", "[role='tab']"),
-    ("E002", "Forbidden shortened guide selector", "main#sample-page"),
-    ("E002", "Forbidden shortened guide selector", "main#alternate-sample-page"),
+    ("E002", "Forbidden shortened sample selector", "main#sample-page"),
+    ("E002", "Forbidden shortened sample selector", "main#alternate-sample-page"),
 ]
 
 BUTTON_ASSERTION_TEXTS = {

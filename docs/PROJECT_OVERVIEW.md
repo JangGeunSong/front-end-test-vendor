@@ -119,7 +119,7 @@ target URL
 | --- | --- | --- |
 | Business/complex GNB site | 41 passed | 복합 GNB, depth2/depth3, 동일 child text 반복 |
 | Corporate PC/MO overlay GNB site | 17 passed | PC/MO duplicate, overlay utility 후보 분리 |
-| nested documentation navigation site | 8 passed | depth1Index 없는 direct top-level nav link 처리 |
+| Public documentation direct-nav site | 8 passed | depth1Index 없는 direct top-level nav link 처리 |
 
 실제 회사명과 서비스명은 문서화하지 않는다. 세부 검증 원칙은 `docs/CROSS_SITE_VALIDATION.md`를 따른다.
 
@@ -189,6 +189,7 @@ target URL
 - Safe Interaction Strategy: `docs/SAFE_INTERACTION_STRATEGY.md`
 - Interaction Approval Contract: `docs/INTERACTION_APPROVAL_CONTRACT.md`
 - cross-site 검증: `docs/CROSS_SITE_VALIDATION.md`
+- 공개 repository data/sanitization: `docs/PUBLIC_REPOSITORY_DATA_POLICY.md`
 - 작업 이력: `docs/TASK_LOG.md`
 
 참고: `docs/ARCHITECTURE.md`는 현재 비어 있다. 실제 구조 확인은 우선 `docs/MODULE_MAP.md`와 `docs/DATA_FLOW.md`를 사용한다.

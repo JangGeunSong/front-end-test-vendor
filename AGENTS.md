@@ -59,6 +59,7 @@
 - Interaction approval: `docs/INTERACTION_APPROVAL_CONTRACT.md`
 - Structured interaction plan: `docs/STRUCTURED_INTERACTION_PLAN.md`
 - 오프라인/폐쇄망: `docs/OFFLINE_NETWORK_POLICY.md`
+- 공개 repository data와 sanitization: `docs/PUBLIC_REPOSITORY_DATA_POLICY.md`
 - 검증 이력: `docs/CROSS_SITE_VALIDATION.md`
 - 작업 기록: `docs/TASK_LOG.md`
 
@@ -148,6 +149,7 @@ External LLM command 실행 전:
 - 폐쇄망에서는 현재 가능한 deterministic path와 future local model 방향을 구분해서 표현한다.
 - 현재 구현되지 않은 on-premise/local AI 기능을 구현된 것처럼 표현하지 않는다.
 - 자세한 내용은 `docs/OFFLINE_NETWORK_POLICY.md`를 따른다.
+- 공개 repository의 named entity, public validation result, generated artifact와 pre-commit sanitization은 `docs/PUBLIC_REPOSITORY_DATA_POLICY.md`를 따른다.
 
 ## Validation Cost Policy
 

@@ -2,6 +2,7 @@
 
 목적:
 - 폐쇄망 웹 시스템에서 테스트 자동화를 수행하되, 실제 업무 데이터가 외부 AI API로 전송되지 않도록 한다.
+- 공개 repository에 보존할 수 있는 정보와 sanitization 절차는 [PUBLIC_REPOSITORY_DATA_POLICY.md](PUBLIC_REPOSITORY_DATA_POLICY.md)를 따른다.
 
 원칙:
 1. 폐쇄망 내부에서는 외부 LLM API를 직접 호출하지 않는다.

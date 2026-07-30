@@ -177,7 +177,19 @@ Version transition은 완료됐다. `interaction_plan_contract.py`는 Reconcilia
 
 ## Latest Completed Work
 
-가장 최근 완료 작업은 외부 alpha 사용자의 fresh Windows install을 재현하고 Local MVP bootstrap 경계를 정리한 작업이다.
+가장 최근 완료 작업은 현재 tracked tree의 공개 정보 표현을 정리하고 repository data policy를 명문화한 maintenance 작업이다.
+
+- 회사·서비스 이름에 결합된 public validation 기록을 navigation/UI profile 중심의 범용 표현으로 일반화
+- 실제 validation target에서 유래한 menu relation, route/handler, selector와 interaction-tab example을 synthetic `Products`/`Product A`/`Sample Page` fixture로 일반화
+- README와 task history의 개인 환경 절대 경로 및 local run identifier 제거
+- reserved sample host를 사용하지 않던 URL placeholder를 `target.example.com`으로 교체
+- `PUBLIC_REPOSITORY_DATA_POLICY.md`에 public validation, generated discovery artifact, external LLM input, secret rotation과 pre-commit checklist 정책 추가
+- 현재 tracked project 파일에서 대상 named entity, private IP, 개인 절대 경로와 high-risk secret material 0건 확인
+- 전체 reachable Git history read-only 감사에서 과거 문서와 초기 source default의 회사 연계 reference 및 target-derived UI example을 확인
+- active runtime projection/navigation fallback의 target-derived selector token은 generic structural evidence와 synthetic selector로 교체했으며, `menuTree`/`depth1Index`/parent-child contract는 유지
+- commit, backup, history rewrite와 remote 변경은 수행하지 않았으며 별도 승인과 `git-filter-repo` 준비 후 검증용 clone에서 진행 필요
+
+이전 완료 작업은 외부 alpha 사용자의 fresh Windows install을 재현하고 Local MVP bootstrap 경계를 정리한 작업이다.
 
 - Node `24.15.0`, npm `11.12.1`, Python `3.12`, project venv와 `npx playwright install chromium`을 Windows Quick Start로 고정하고 Node dependency는 connected/offline 절차로 분리
 - Local MVP가 root system Chrome channel을 상속하지 않고 bundled Chromium을 사용하도록 config 분리
@@ -202,7 +214,7 @@ Version transition은 완료됐다. `interaction_plan_contract.py`는 Reconcilia
 - built-in Node UI/controller 16 tests와 approval writer 2 tests PASS
 - Playwright.dev fresh interaction run: Navigation/Identity 8/8, Interaction/Restoration 1/1, Overall PASS, HTML report 200
 - Playwright.dev 별도 fresh Navigation-only run: Navigation/Identity 8/8, Interaction/Restoration SKIPPED, Overall PASS, HTML report 200
-- complex public multi-depth navigation site fresh Navigation-only run: Navigation/Identity 41/41, eligible tab 0, Interaction/Restoration SKIPPED, Overall PASS, HTML report 200
+- Complex public multi-depth navigation site fresh Navigation-only run: Navigation/Identity 41/41, eligible tab 0, Interaction/Restoration SKIPPED, Overall PASS, HTML report 200
 
 Not completed: `interaction.expandedToggle` runtime, interaction taxonomy expansion, progress percentage, run persistence/database, localization, broad cross-site interaction regression, authentication, cloud/SaaS deployment와 production-grade UI.
 
@@ -274,7 +286,7 @@ Run-scoped deterministic approval writer와 explicit approval UI는 완료됐다
 
 Fresh Playwright public-site analysis는 safe interaction 18, interaction unknown 4, unselected tab 12, explicit-tablist restore-ready tab 12를 수집했다. Temporary Approval `3.0` 한 건은 valid reference/eligible 한 건으로 Reconciliation `3.0`을 통과했고 Plan `3.0` test 한 건으로 생성됐다.
 
-최초 Plan `3.0` run은 navigation, initial pair, target click과 target selected true까지 통과했지만 expected restore-target false assertion에서 locator 0건으로 실패했다. Trace, DOM snapshot과 screenshot은 selected peer element가 사라진 것이 아니라 producer selector의 `.tab-state--selected` state class가 click 후 제거된 것을 보여줬다.
+최초 Plan `3.0` run은 navigation, initial pair, target click과 target selected true까지 통과했지만 expected restore-target false assertion에서 locator 0건으로 실패했다. Trace, DOM snapshot과 screenshot은 selected peer element가 사라진 것이 아니라 producer selector에 포함된 synthetic state-class 형태의 mutable segment가 click 후 제거된 것을 보여줬다.
 
 Generic correction으로 explicit tablist member selector를 exact group selector 아래의 state-independent structural path로 생성했다. Group/peer contract, approval evidence, renderer와 generated spec은 완화하지 않았다. URL부터 artifact chain을 다시 생성한 뒤 동일 test를 workers 1, retries 0, trace on으로 두 번 실행했고 다음 전체 transition이 모두 PASS했다.
 

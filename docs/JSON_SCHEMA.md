@@ -25,6 +25,7 @@ The approval artifact writer/editor and runtime evidence report remain planned w
 - Do not store personal information or sensitive business values.
 - Do not store full DOM HTML when a smaller structured summary is enough.
 - External AI prompts should use only approved sample, anonymized, or non-sensitive structure data.
+- Public repository allowlist, company/service-name generalization, generated artifact handling과 pre-commit sanitization은 [PUBLIC_REPOSITORY_DATA_POLICY.md](PUBLIC_REPOSITORY_DATA_POLICY.md)를 따른다.
 
 ## Current Level 1/2 Pipeline Data
 
@@ -149,16 +150,16 @@ Example shape:
 
 ```json
 {
-  "text": "Product A",
-  "href": "#/products/product-a",
+  "text": "Products",
+  "href": "#/products",
   "id": "products",
-  "ngClick": "selectMenu('product-b')",
+  "ngClick": "selectMenu('products')",
   "menuDepth": 2,
   "depth1Index": 1,
   "children": [
     {
       "text": "Product A",
-      "href": "",
+      "href": "#/products/product-a",
       "id": "product-a",
       "ngClick": "selectMenu('product-a')",
       "menuDepth": 3,

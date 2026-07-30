@@ -69,10 +69,10 @@ Level 2에서도 위험 액션은 실행하지 않는다. 버튼, input, form은
   "elements": [],
   "pageProfiles": [
     {
-      "menuPath": ["Products", "Product A", "Product A"],
+      "menuPath": ["Products", "Product A"],
       "menu": {
         "text": "Product A",
-        "href": "",
+        "href": "#/products/product-a",
         "id": "product-a",
         "ngClick": "selectMenu('product-a')",
         "menuDepth": 3
@@ -285,7 +285,7 @@ Level 2 generated spec은 메뉴 클릭 후 다음 assertion 후보를 생성할
 ### URL/hash Assertion
 
 ```js
-await expect(page).toHaveURL(/products/product-a/);
+await expect(page).toHaveURL(/products\/product-a/);
 ```
 
 사용 조건:

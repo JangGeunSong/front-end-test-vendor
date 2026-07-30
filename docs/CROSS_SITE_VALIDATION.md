@@ -12,7 +12,7 @@
 | --- | --- | --- | --- |
 | Business/complex GNB site | 복합 GNB, depth2/depth3, 동일 child text 반복, tab-like menu | 41 passed | 같은 child text가 다른 parent 아래 반복되는 케이스 포함 |
 | Corporate PC/MO overlay GNB site | PC/MO navigation duplicate, overlay open/close, header utility links | 17 passed | mobile duplicate와 utility/overlay control 제외 규칙 확인 |
-| nested documentation navigation site | top-level direct nav link, dropdown language/runtime menu | 8 passed | `depth1Index`가 null인 direct nav link를 primary 대상으로 승격 |
+| Public documentation direct-nav site | top-level direct nav link, generic dropdown child menu | 8 passed | `depth1Index`가 null인 direct nav link를 primary 대상으로 승격 |
 
 ## Generalized Issues And Rules
 

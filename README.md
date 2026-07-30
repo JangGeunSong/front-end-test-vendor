@@ -19,8 +19,8 @@ URL 하나로 웹 navigation/Page Identity를 분석하고, 사람이 선택한 
 이 repository의 최소 `node_modules`는 폐쇄망 실행 보장을 위해 의도적으로 commit된 vendor dependency입니다. 삭제 대상이 아닙니다. 아래 `npm ci`는 외부망의 disposable clean clone에서 package-lock 재현성을 검증하는 절차이며, 폐쇄망에서는 생략하고 `npm ls --depth=0`로 vendor dependency를 확인합니다.
 
 ```powershell
-git clone https://github.com/JangGeunSong/front-end-test-vendor.git <repository-directory>
-Set-Location <repository-directory>
+git clone https://github.com/JangGeunSong/front-end-test-vendor.git
+Set-Location .\front-end-test-vendor
 
 fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
 fnm install
@@ -415,3 +415,4 @@ Playwright report에서 실행 결과, trace, screenshot 등 디버깅 정보를
 - 모듈 역할: `docs/MODULE_MAP.md`
 - generated spec validator: `docs/GENERATED_SPEC_VALIDATION.md`
 - local MVP UI: `docs/LOCAL_MVP.md`
+- public repository data policy: `docs/PUBLIC_REPOSITORY_DATA_POLICY.md`

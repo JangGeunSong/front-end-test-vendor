@@ -9,11 +9,11 @@ module.exports = defineConfig({
   fullyParallel: true,
   /* 테스트 실패 시 재시도 횟수 (폐쇄망 환경의 일시적 순발력 저하 대비) */
   retries: 1,
-  /* 테스트 결과 리포트 설정 (사내망에서는 html이 가장 가독성이 좋음) */
+  /* 테스트 결과 리포트 설정 (offline 환경에서는 html이 가장 가독성이 좋음) */
   reporter: [['html', { open: 'never' }]], // 실행 후 리포트가 자동으로 뜨는 현상 방지 (서버 실행 시 에러 방지)
 
   use: {
-    /* 사내망 설치된 크롬 사용 */
+    /* locally installed Chrome 사용 */
     channel: 'chrome', 
     /* 테스트 시 브라우저를 띄움 (기본값) */
     headless: false,

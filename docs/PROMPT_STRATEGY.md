@@ -106,7 +106,7 @@
 - Page Identity `page.locator(...)` selectors must match one collected `pageProfiles` `cssPath` exactly.
 - Generated specs must not remove trailing selector segments to create a parent/content selector.
 - Generated specs must not invent one shared content selector for multiple menus.
-- For shared menus such as `Resources > Resource A/Resource B/FAQ`, if no single stable collected `cssPath` is clear, leave a TODO instead of creating a Page Identity assertion or highlight.
+- For sibling menus such as `Resources > Resource A/Resource B/FAQ`, if no single stable collected `cssPath` is clear, leave a TODO instead of creating a Page Identity assertion or highlight.
 - For example, if scout collected `main#sample-page > section.content > article:nth-of-type(2)`, generated specs must not replace it with `main#sample-page`.
 - If a collected `cssPath` looks too long or unstable, leave a TODO instead of generating an assertion.
 - Guide pages whose heading is only the parent menu label should use collected `mainContainers[1]` or content `cssPath` for visible assertion and Page Identity highlight.
@@ -121,10 +121,10 @@
 - The helper only acts when `HIGHLIGHT=true`, so normal test runs are unaffected.
 - Prefer highlighting the heading locator.
 - Highlight the main container when no stable heading is available, or when the heading is only the parent depth2 label and does not identify the depth3 ngClick/tab page.
-- Products depth3 ngClick/tab menus such as Products and Product A children should still show PAGE IDENTITY even when URL/hash is unchanged.
+- Synthetic depth3 ngClick/tab menus such as `Products > Product A` should still show PAGE IDENTITY even when URL/hash is unchanged.
 - If a mainContainer visible assertion is generated, the same locator should be passed to `highlightPageIdentity`.
 - A stable tab locator may be highlighted only when it is not a product/model/list/button target.
-- The label should include the full menuPath, for example `Product A > Product A: content area`.
+- The label should include the full menuPath, for example `Products > Product A: content area`.
 - Buttons, tables, notice titles, FAQ questions, product names, model names, and 상세보기 buttons must not be used as Page Identity highlight targets.
 
 ## GNB depth3 duplicate menu rule
@@ -132,7 +132,7 @@
 - depth3 child menu names may be duplicated under different depth2 parents.
 - Generated tests must not click a depth3 child menu with `clickVisibleMenuByText(page, childName)` alone.
 - Generated tests should call `clickVisibleSubMenuByText(page, parentDepth2Name, childName, options)` for depth3 child menus.
-- When the menu JSON includes `id`, `ngClick`, or `cssPath`, include those values in the helper options so duplicate labels such as `Product A`, `Product B`, `Product C`, `Product D`, and `Product E` can be resolved to the intended parent.
+- When the menu JSON includes `id`, `ngClick`, or `cssPath`, include those values in the helper options so a repeated synthetic label such as `Overview` can be resolved to the intended parent.
 - If a depth3 child has `cssPath` in `menu_map`, generated specs must include it in `clickVisibleSubMenuByText` options.
 
 LLM에게 전달하는 정보:

@@ -28,11 +28,11 @@ test('analysis normalization exposes restore-ready tabs only', () => {
 
 test('Playwright JSON summary separates navigation, identity, and restoration', () => {
   const raw = { suites: [{ specs: [
-    { title: 'Navigation: Docs', file: 'generated_from_plan.spec.js', tests: [{ status: 'expected', results: [{ status: 'passed' }] }] },
+    { title: 'Navigation: Sample Page', file: 'generated_from_plan.spec.js', tests: [{ status: 'expected', results: [{ status: 'passed' }] }] },
     { title: 'Interaction: Product A tab selection', file: 'generated_interaction_plan.spec.js', tests: [{ status: 'expected', results: [{ status: 'passed' }] }] },
   ] }] };
   const result = summarizePlaywrightResult(raw,
-    { tests: [{ title: 'GNB: Docs', menuPath: ['Docs'], template: 'navigation.contentIdentity' }] },
+    { tests: [{ title: 'GNB: Sample Page', menuPath: ['Sample Page'], template: 'navigation.contentIdentity' }] },
     { tests: [{ title: 'Interaction: Product A tab selection', template: 'interaction.tabSelection' }] }, 1000, 0);
   assert.equal(result.pageNavigation.identityVerified, 1);
   assert.equal(result.softInteractions.restorationPassed, 1);
@@ -83,14 +83,14 @@ test('execute API gate accepts analysis-complete navigation-only state and rejec
 test('navigation-only failure remains overall FAIL while interaction is SKIPPED', () => {
   const raw = { suites: [{ specs: [
     {
-      title: 'Navigation: Docs',
+      title: 'Navigation: Sample Page',
       file: 'mvp-run-generated_from_plan.spec.js',
       tests: [{ status: 'expected', results: [{ status: 'failed' }] }],
     },
   ] }] };
   const result = summarizePlaywrightResult(
     raw,
-    { tests: [{ menuPath: ['Docs'], template: 'navigation.headingIdentity' }] },
+    { tests: [{ menuPath: ['Sample Page'], template: 'navigation.headingIdentity' }] },
     null,
     500,
     1,
@@ -105,14 +105,14 @@ test('navigation-only failure remains overall FAIL while interaction is SKIPPED'
 test('navigation-only success does not count skipped interaction as failure', () => {
   const raw = { suites: [{ specs: [
     {
-      title: 'Navigation: Docs',
+      title: 'Navigation: Sample Page',
       file: 'mvp-run-generated_from_plan.spec.js',
       tests: [{ status: 'expected', results: [{ status: 'passed' }] }],
     },
   ] }] };
   const result = summarizePlaywrightResult(
     raw,
-    { tests: [{ menuPath: ['Docs'], template: 'navigation.contentIdentity' }] },
+    { tests: [{ menuPath: ['Sample Page'], template: 'navigation.contentIdentity' }] },
     null,
     500,
     0,

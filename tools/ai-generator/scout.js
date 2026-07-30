@@ -313,8 +313,7 @@ async function collectPageProfile(page) {
         '.container',
         '.main',
         '.mainContainer',
-        '.subContent',
-        'main'
+        '.subContent'
       ].join(', ');
 
       return uniqueBy(

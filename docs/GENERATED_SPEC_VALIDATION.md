@@ -44,6 +44,7 @@ error는 generated spec이 생성 규칙을 명확히 위반한 경우이다.
   - `page.locator('[role="tab"]')`
 - pageProfiles에 수집되지 않은 selector를 강한 assertion으로 사용
 - 수집된 `cssPath`를 parent selector로 축약
+  - 예: 수집된 `main#sample-page > section.content > article:nth-of-type(2)`를 `main#sample-page`로 축약
 - depth3 child 메뉴 클릭에서 `clickVisibleSubMenuByText` options의 `cssPath` 누락
 - depth3 child 메뉴를 `clickVisibleMenuByText(page, childText)`로 단독 클릭
 - menuTree depth2/depth3 메뉴의 `test.step` coverage 누락

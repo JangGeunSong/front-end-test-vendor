@@ -1,15 +1,3 @@
-function inferOpenTriggerCssPath(options = {}) {
-  const cssPath = options.cssPath || '';
-  const match = String(cssPath).match(/navigation-panel-(\d+)/);
-
-  if (!match) {
-    return '';
-  }
-
-  const index = Number(match[1]) + 1;
-  return `nav#desktop-navigation > ul.navigation-list > li:nth-of-type(${index})`;
-}
-
 async function locatorExists(locator) {
   try {
     return await locator.count() > 0;
@@ -42,7 +30,6 @@ async function openNavigationByOptions(page, options = {}) {
   const selectors = [
     options.openTriggerCssPath,
     options.hoverTargetCssPath,
-    inferOpenTriggerCssPath(options),
     options.cssPath
   ].filter(Boolean);
 
@@ -187,7 +174,7 @@ async function clickVisibleSubMenuByText(page, parentText, childText, options = 
 
   if (await locatorExists(navigation)) {
     const parent = navigation
-      .locator('.depth2 > li')
+      .locator('li')
       .filter({ has: page.getByText(parentText, { exact: true }) })
       .first();
     const target = parent.getByText(childText, { exact: true }).first();

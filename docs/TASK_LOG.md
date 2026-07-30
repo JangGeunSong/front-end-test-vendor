@@ -1,5 +1,54 @@
 # Task Log
 
+## 2026-07-30 - Sanitize public repository references and audit Git history
+
+### 작업 목적
+
+- 공개 제품 개발 기록의 architecture와 검증 근거는 보존하면서 회사·서비스와 불필요하게 결합된 표현을 범용 site profile로 일반화한다.
+- 현재 tracked tree뿐 아니라 모든 reachable commit, branch와 tag를 read-only로 감사해 history rewrite 필요 범위를 분리한다.
+- 제품 기능, deterministic pipeline contract, author identity와 remote state는 변경하지 않는다.
+
+### Current tree 감사와 정리
+
+- bootstrap 기준은 `main`, clean worktree, HEAD와 `origin/main`이 모두 `f55a037be5d5b5bf0feef814e03a1312472e688a`인 상태였다.
+- `git ls-files`의 884개 tracked file을 조사했다. 이 중 807개는 문서화된 offline vendor dependency이고 project file은 77개다.
+- public multi-depth navigation 및 responsive overlay validation 기록에서 회사·서비스 이름과 domain을 제거하고 UI/navigation profile, test count와 PASS 근거는 유지했다.
+- schema/design/prompt/fixture/test에 남은 실제 menu label/relation, hash route, handler argument, DOM selector, heading text와 public documentation tab evidence를 synthetic sample로 교체했다.
+- README와 과거 task 기록의 개인 PC 절대 경로 및 local run identifier를 제거했다.
+- public reference allowlist와 generated discovery artifact, external LLM input, secret rotation, pre-commit scan 기준을 `PUBLIC_REPOSITORY_DATA_POLICY.md`에 문서화했다.
+- 현재 tracked project file 재검색 결과 대상 named entity, private IPv4, 개인 절대 경로와 high-risk secret material은 0건이었다.
+- `.env.example`의 빈 key placeholder와 reserved-domain credential rejection fixture는 실제 secret이 아닌 의도된 test data로 유지했다.
+- Playwright documentation, repository GitHub URL, npm registry lock metadata, localhost와 reserved example host는 목적이 명확한 safe public reference로 유지했다.
+- ignored generated run artifact에는 public page에서 수집한 raw contact/DOM text가 존재할 수 있음을 확인했다. Git tracked/history 노출은 아니며 generated artifact를 직접 수정하지 않고 정책과 ignore 경계를 유지했다.
+
+### 검증
+
+- `git diff --check`, Markdown relative link 검사, project JSON parse와 변경 Node syntax 검사 PASS.
+- `npm run product:mvp:test`: Node 18 tests와 approval writer 2 tests PASS.
+- Approval validator 14 scenarios, reconciliation fixture, interaction plan builder 12 failure scenarios, validator 18 failure scenarios와 renderer 9 failure scenarios PASS.
+- Synthetic UI example 교체 후 project JSON 9개 parse, 변경 Python/Node syntax, navigation plan example validator/renderer와 `npm run product:mvp:test` 18+2 tests를 다시 통과했다.
+- 첫 Local MVP 재실행은 restore text expected value 한 줄이 기존 값을 유지해 1건 실패했으며, fixture expected를 동일 synthetic value로 맞춘 뒤 18/18 PASS를 확인했다.
+- 현재 tracked project file 대상 named entity, secret material, private IPv4와 개인 절대 경로 재검색 PASS.
+
+### Full history read-only 감사
+
+- 69개 reachable commit, `main`/remote refs와 lightweight tag 1개를 조사했다. merge commit과 삭제된 generated artifact history는 없었다.
+- 회사 연계 이름/domain은 49개 commit snapshot과 3개 historical path에서 확인됐다. 초기 source의 public target default 1개와 이후 validation/task documentation이 rewrite 대상이다.
+- 개인 환경 절대 경로는 최신 baseline commit의 README와 task log에만 존재했다.
+- private IPv4, private key/token signature, 전화번호, Unix home path와 sensitive filename history는 발견되지 않았다.
+- 이메일 형태 hit는 reserved-domain credential rejection fixture 2개 경로뿐이었고 `.env` history는 빈 placeholder를 가진 `.env.example`뿐이었다.
+- commit message와 tag message에는 대상 named entity, internal URL 또는 개인 경로가 없었다.
+- Historical UI evidence는 menu/page identity example, company-site navigation selector와 public documentation tab/menu relation까지 확장해 path-aware rewrite 대상으로 분류했다.
+- Current runtime helper/scout/projection의 target-derived selector token은 generic semantic region, navigation depth/group, parent text evidence로 교체했다. Synthetic parent/child/direct-link projection regression으로 기존 tree contract를 확인했다.
+- `git-filter-repo`는 현재 환경에 설치되어 있지 않다. 자동 설치, backup, commit, history rewrite와 remote 변경은 수행하지 않았다.
+
+### 남은 작업
+
+- 사용자 승인 후 current tree 변경을 의도적으로 commit한다.
+- 원격의 rewrite 전 history를 non-overwriting mirror backup으로 생성하고 복원을 검증한다.
+- 별도 rewrite clone과 준비된 `git-filter-repo`에서 exact name/domain/path 치환과 path-aware UI example 치환만 수행한다. Ambiguous package/tool names은 broad global replacement하지 않으며 commit message callback이나 historical path 삭제는 현재 감사 결과상 필요하지 않다.
+- rewritten refs, `git fsck`, full-history forbidden scan, current tree regression, old/new commit mapping과 force-push/reclone 계획을 검증한 뒤 remote 반영 승인을 별도로 받는다.
+
 ## 2026-07-26 - Prepare reproducible Windows local alpha setup
 
 ### 작업 목적
@@ -10,7 +59,7 @@
 ### Baseline fresh clone 조사
 
 - 개발 repository는 `main`, clean worktree, HEAD와 `origin/main` 모두 `76b1218116c50bb14a6ad1458bc42f7b2b16d161`이었다.
-- 비어 있던 `<sanitized-validation-clone>`에 origin URL `https://github.com/JangGeunSong/front-end-test-vendor.git`의 `main`을 fresh clone했다.
+- 별도의 빈 temporary workspace에 origin URL `https://github.com/JangGeunSong/front-end-test-vendor.git`의 `main`을 fresh clone했다.
 - clone에는 venv, `.env`, generated run/report/test result가 없었고, 폐쇄망 실행을 위해 Git에 추적된 최소 vendor `node_modules` 807개가 repository 정책대로 포함됐다.
 - Node `24.15.0`, npm `11.12.1`, Python `3.12.10`을 확인하고 `npm ci`, 새 `venv`, requirements install, `npx playwright install chromium`을 수행했다.
 - 해당 PC의 Playwright browser cache가 이미 존재했으므로 browser command 성공은 확인했지만 실제 binary fresh download는 주장하지 않는다.
@@ -64,9 +113,9 @@
 
 ### Fresh runtime 검증
 
-- Public documentation interaction run `<interaction-run-id>`: Navigation expand/recollapse, Ready default/Selected filter, selected card state, Navigation 8/8, Page Identity 8/8, Interaction 1/1, Restoration 1/1, Overall PASS.
-- Public documentation Navigation-only run `<navigation-run-id>`: Navigation 8/8, Page Identity 8/8, Interaction/Restoration SKIPPED, Overall PASS.
-- complex public multi-depth navigation site Navigation-only run `<complex-navigation-run-id>`: Navigation 41/41, Page Identity 41/41, restore-ready tab 0, Interaction/Restoration SKIPPED, Overall PASS.
+- Public documentation interaction run: Navigation expand/recollapse, Ready default/Selected filter, selected card state, Navigation 8/8, Page Identity 8/8, Interaction 1/1, Restoration 1/1, Overall PASS.
+- Public documentation Navigation-only run: Navigation 8/8, Page Identity 8/8, Interaction/Restoration SKIPPED, Overall PASS.
+- Complex public multi-depth navigation site Navigation-only run: Navigation 41/41, Page Identity 41/41, restore-ready tab 0, Interaction/Restoration SKIPPED, Overall PASS.
 - 세 run 모두 `workers=1`, `retries=0`, fresh analysis였다. HTML report endpoint는 모두 HTTP 200과 Playwright report title을 반환했다.
 - 두 Navigation-only run에는 approval, reconciliation, interaction plan과 interaction spec이 생성되지 않았고 Navigation spec과 HTML report만 생성됐다.
 - 첫 sandbox run은 외부 network access 차단으로 `ERR_NETWORK_ACCESS_DENIED`가 발생했다. 권한 있는 동일 smoke 명령으로 재실행해 위 세 fresh 결과를 확인했다.
@@ -111,7 +160,7 @@
 - Report는 interaction candidate 22건(safe 18, unsafe 0, unknown 4), safe tab 18건, unselected/restore-ready tab 12건, unique explicit tab group 6개를 제공했다.
 - Exact fresh pair 한 건을 temporary Approval `3.0`으로 검증했고 reconciliation은 approval 1, valid reference 1, eligible 1이었다. Plan `3.0`과 generated spec은 test 한 건, reload/runtime peer search 0건으로 static validation을 통과했다.
 - 최초 run은 navigation, target/restore initial resolution, false/true initial pair, target click과 target selected true까지 통과했다. Expected restore target false assertion은 locator 0건으로 실패했다.
-- Screenshot, error context와 trace DOM snapshot은 selected peer가 DOM에서 사라진 것이 아니라 selector의 mutable `.tab-state--selected` class가 target click 후 제거됐음을 보여줬다.
+- Screenshot, error context와 trace DOM snapshot은 selected peer가 DOM에서 사라진 것이 아니라 selector에 포함된 mutable state-class segment가 target click 후 제거됐음을 보여줬다.
 
 ### Generic Correction
 
@@ -243,7 +292,7 @@ tab group + previous selected peer evidence
 
 ### 작업 목적
 
-- 실제 generated interaction spec의 approved `Product A` tab 한 건을 Playwright로 실행한다.
+- 실제 generated interaction spec의 approved synthetic tab 한 건을 Playwright로 실행한다.
 - 기본 HTML report, trace, screenshot과 assertion evidence로 runtime failure stage와 root cause 계층을 확인한다.
 
 ### 실행 결과
@@ -251,7 +300,7 @@ tab group + previous selected peer evidence
 - Schema `2.0` plan strict validation, renderer 반복 output byte equality, Node syntax와 1-test discovery를 다시 확인했다.
 - Project venv Python 3.10.11, fnm Node 24.15.0, npm 11.12.1과 Playwright 1.59.1을 사용했다. Installed Chromium을 재사용하고 browser를 재설치하지 않았다.
 - Generated spec의 `interaction:selector:f3e8ee3f82c5ccb372ab62e2` 한 건만 workers 1, retries 0, trace on으로 실행했다.
-- Exact `https://playwright.dev` navigation, target resolution, initial `aria-selected=false`, click과 expected `aria-selected=true`는 성공했다.
+- Exact public documentation nested-route navigation, target resolution, initial `aria-selected=false`, click과 expected `aria-selected=true`는 성공했다.
 - `page.reload()`과 동일 URL/selector 재해석은 성공했지만 target이 계속 `aria-selected=true`여서 restored false assertion이 실패했다.
 - Console assertion, HTML report, trace action timeline, DOM snapshot, failure screenshot과 video가 동일 restore mismatch를 보여줬다.
 
@@ -322,9 +371,9 @@ tab group + previous selected peer evidence
 - Project `venv` Python 3.10.11에서 변경 module syntax와 classifier, report, approval validator, reconciliation, plan builder/validator fixture를 통과했다.
 - Missing/invalid/cross-origin observed URL, old schema version, URL-only stale change, missing/mismatched/query/hash/trailing-slash/cross-origin start URL과 source conflict를 검증했다.
 - `https://playwright.dev`를 `npm run ai:generate-plan -- --url https://playwright.dev --clear-profile-cache`로 fresh 수집했다. Windows CP949 진단 실패는 source 변경 없이 UTF-8 console environment로 재실행해 해결했다.
-- Fresh report의 interaction candidate는 22개, unique observed URL은 2개였다. `https://playwright.dev/` 4개, `https://playwright.dev` 18개이며 missing/invalid/cross-origin은 0개였다.
-- Nested `/docs/intro`의 unselected `Product A` tab 1개를 local ignored temporary approval로 검증했다. Approval validation, reconciliation 1 eligible/21 unreviewed, plan build 1 tabSelection, plan validation을 통과했으며 smoke 후 temporary approval file은 제거했다.
-- Candidate/report/approval/eligible/plan의 URL이 모두 `https://playwright.dev`로 exact 일치했고 report, reconciliation, plan 반복 생성은 byte-stable했다.
+- Fresh report의 interaction candidate는 22개, unique observed URL은 2개였다. Root context 4개, nested documentation context 18개이며 missing/invalid/cross-origin은 0개였다.
+- Nested documentation route의 unselected synthetic tab 1개를 local ignored temporary approval로 검증했다. Approval validation, reconciliation 1 eligible/21 unreviewed, plan build 1 tabSelection, plan validation을 통과했으며 smoke 후 temporary approval file은 제거했다.
+- Candidate/report/approval/eligible/plan의 observed URL provenance가 모두 exact 일치했고 report, reconciliation, plan 반복 생성은 byte-stable했다.
 - Renderer, generated interaction spec, interaction click, reset/restore browser execution, screenshot, execution report와 external LLM API는 구현하거나 실행하지 않았다.
 
 ### 다음 작업
@@ -698,7 +747,7 @@ tab group + previous selected peer evidence
 - `docs/PRODUCT_DIRECTION.md`를 추가했다.
   - AX 관점, 목표 사용자, 제품 철학, 현재 지원 범위, 기술적 제품 방향을 정리했다.
 - `docs/CROSS_SITE_VALIDATION.md`를 추가했다.
-  - Business/complex GNB, Corporate PC/MO overlay GNB, nested documentation navigation site 유형별 검증 결과를 기록했다.
+  - complex multi-depth GNB, responsive overlay GNB, public documentation direct-nav site 유형별 검증 결과를 기록했다.
   - utility/mobile exclusion, direct top-level nav, generic navigation open, duplicate title uniqueness를 일반화 규칙으로 정리했다.
 - `docs/DATA_FLOW.md`의 현재 흐름을 structured plan 중심으로 보강했다.
 - `docs/STRUCTURED_PLAN_MIGRATION.md`에 AI-assisted but deterministic-controlled 방향과 LLM structured plan opt-in 경로를 보강했다.
@@ -731,11 +780,11 @@ tab group + previous selected peer evidence
 
 - `python -m py_compile tools/ai-generator/render_test_plan.py` 통과.
 - `python -m py_compile tools/ai-generator/validate_test_plan.py` 통과.
-- complex public navigation site 대상 `npm run ai:plan:llm -- --url https://public-navigation.example.com` 실행 후 `npm run ai:validate-llm-plan` 통과.
-- complex public navigation site 대상 `npm run test:generated` 결과 41 passed 확인.
-  - 동일 child text가 `Navigation: Products > Product A`, `Navigation: Product A > Product A`처럼 full menuPath 기반 title로 구분되어 duplicate title 중단이 사라졌다.
+- Complex public multi-depth navigation site 대상 LLM plan 생성 후 `npm run ai:validate-llm-plan` 통과.
+- 같은 site profile 대상 `npm run test:generated` 결과 41 passed 확인.
+  - 동일한 synthetic child text가 `Navigation: Products > Overview`, `Navigation: Resources > Overview`처럼 full menuPath 기반 title로 구분되어 duplicate title 중단이 사라졌다.
 - Playwright 공식 사이트 대상 `npm run ai:plan:llm -- --url https://playwright.dev` 실행 후 `npm run test:generated` 결과 8 passed 확인.
-- public responsive overlay site 대상 `npm run ai:plan:llm -- --url https://public-overlay.example.com` 실행 후 `npm run test:generated` 결과 17 passed 확인.
+- Public responsive overlay navigation site 대상 LLM plan 생성 후 `npm run test:generated` 결과 17 passed 확인.
 
 ### 다음 작업
 
@@ -746,14 +795,14 @@ tab group + previous selected peer evidence
 ### 작업 목적
 
 - Docusaurus/문서형 사이트처럼 top-level nav link가 dropdown 없이 바로 이동 대상인 경우 `depth1Index`가 null이라는 이유만으로 `primaryMenuTree`가 비는 문제를 보완한다.
-- Playwright 공식 사이트에서 top-level documentation links를 Level 1/2 primary navigation 대상으로 projection할 수 있게 한다.
+- Public documentation site의 direct nav link를 Level 1/2 primary navigation 대상으로 projection할 수 있게 한다.
 
 ### 변경 내용
 
 - `agent_orchestrator.py`에 `primaryNavigationDirect` 분류를 추가했다.
   - header/nav 영역, high confidence, visible, href/text가 있는 direct nav link는 `depth1Index`가 null이어도 primary parent 후보로 승격할 수 있다.
   - brand/logo home, skip link, search, theme toggle, GitHub/Discord/social utility, external utility, hero CTA/card link는 primary 대상에서 제외한다.
-- nested documentation layout `navigation-item`, `navigation-link` 같은 top-level nav signal을 generic direct nav 후보로 처리했다.
+- Public documentation UI의 top-level nav signal을 generic direct-nav 후보로 처리했다.
 - dropdown parent와 child의 cssPath DOM 관계를 이용해 child를 parent 아래로 연결하고, child open trigger로 parent dropdown cssPath를 보존하도록 했다.
 - menu 후보가 수집되었지만 `primaryMenuTree`가 비는 경우 `projectionDiagnostics`에 warning을 남기도록 했다.
 - LLM structured plan normalization에서 exact `menuPath`에 해당하는 `openTriggerCssPath`/`hoverTargetCssPath`를 menu_map에서 보강하고, `href: "#"` URL assertion은 `/`로 보수 보정하도록 했다.
@@ -763,15 +812,14 @@ tab group + previous selected peer evidence
 
 - `python -m py_compile tools/ai-generator/agent_orchestrator.py` 통과.
 - Playwright 공식 사이트 대상 `npm run ai:plan:llm -- --url https://playwright.dev` 실행 결과 `primaryMenuTree`가 parent 5개, child 3개로 구성되었다.
-  - primary parent: Section A, Section B, Section C, Section D, Section E
-  - dropdown child: Topic A, Topic B, Topic C
+  - synthetic summary: direct parent 5개, dropdown child 3개
   - Search/GitHub/Discord/theme toggle/brand/hero CTA는 primary 대상에서 제외되었다.
 - Playwright 공식 사이트 대상 `npm run ai:validate-llm-plan` 통과.
 - Playwright 공식 사이트 대상 `npm run test:generated` 결과 8 passed 확인.
-- public responsive overlay site 대상 회귀 확인에서 `primaryMenuTree` parent 5개, child 12개를 유지했고 `npm run test:generated` 결과 17 passed 확인.
-- complex navigation target `npm run ai:plan:llm -- --url https://public-navigation.example.com` 실행 결과 parent 9개, child 32개, validation/render 완료를 확인했다.
-- complex navigation target `npm run test:generated`는 브라우저 실행 전 renderer 산출물의 중복 test title에서 중단되었다.
-  - 예: 서로 다른 parent 아래의 `Product A`, `Product B`, `Product C`, `LTE`, `5G`가 동일 test title로 생성됨.
+- Public responsive overlay navigation site 회귀 확인에서 `primaryMenuTree` parent 5개, child 12개를 유지했고 `npm run test:generated` 결과 17 passed 확인.
+- Complex public multi-depth navigation site 실행 결과 parent 9개, child 32개, validation/render 완료를 확인했다.
+- 같은 site profile의 `npm run test:generated`는 브라우저 실행 전 renderer 산출물의 중복 test title에서 중단되었다.
+  - 예: 서로 다른 parent 아래의 `Overview` 같은 synthetic child가 동일 test title로 생성됨.
   - 이번 projection 보강과 별개인 renderer title 고유성 이슈로 분리한다.
 
 ### 다음 작업
@@ -806,15 +854,15 @@ tab group + previous selected peer evidence
 
 ### 작업 목적
 
-- structured plan renderer 산출물이 특정 사이트 전용 `nav > ul > li` selector에만 의존하지 않도록 개선한다.
+- structured plan renderer 산출물이 특정 target-derived navigation selector에만 의존하지 않도록 개선한다.
 - `test_plan`에 포함된 `openTriggerCssPath`, `hoverTargetCssPath`, `cssPath`를 navigation open 단계에서 우선 활용해 URL-first cross-site 실행 안정성을 높인다.
 
 ### 변경 내용
 
 - `utils/gnb.js`에 plan 기반 navigation open helper를 추가했다.
-  - `openTriggerCssPath`, `hoverTargetCssPath`, public responsive overlay site PC `navigation-panel-N` 기반 추론 selector, `cssPath` 순서로 open 후보를 시도한다.
+  - `openTriggerCssPath`, `hoverTargetCssPath`, collected desktop trigger relation, `cssPath` 순서로 open 후보를 시도한다.
   - 후보 selector가 DOM에는 있지만 hidden인 경우 실패로 끝내지 않고 다음 후보 또는 기존 `depth1Index` fallback으로 내려가도록 했다.
-  - 기존 `nav > ul > li` fallback은 유지해 기존 complex public navigation site 계열 generated test 동작을 보존했다.
+  - 기존 target-derived depth1 fallback은 유지해 complex multi-depth navigation profile의 generated test 동작을 보존했다.
 - `clickVisibleMenuByText`, `clickVisibleSubMenuByText`가 plan options를 받아 generic open 후 cssPath/id/text 기반 클릭을 수행하도록 보강했다.
 - `render_test_plan.py`가 `click.openTriggerCssPath`와 `click.hoverTargetCssPath`를 generated spec 호출 options에 포함하도록 수정했다.
 - `validate_test_plan.py`에서 `click.openTriggerCssPath`, `click.hoverTargetCssPath`를 optional string field로 허용했다.
@@ -824,10 +872,10 @@ tab group + previous selected peer evidence
 
 - `python -m py_compile tools/ai-generator/render_test_plan.py tools/ai-generator/validate_test_plan.py` 통과.
 - `node -c utils/gnb.js` 통과.
-- `npm run ai:plan:llm -- --url https://public-overlay.example.com` 실행 후 `npm run ai:validate-llm-plan` 통과.
-- public responsive overlay site 대상 `npm run test:generated` 결과 17 passed 확인.
-- `npm run ai:plan:llm -- --url https://public-navigation.example.com` 실행 후 `npm run ai:validate-llm-plan` 통과.
-- complex public navigation site 대상 `npx playwright test tests/generated --reporter=dot` 결과 41 passed 확인.
+- Public responsive overlay navigation site의 LLM plan 생성 후 `npm run ai:validate-llm-plan` 통과.
+- 해당 site profile 대상 `npm run test:generated` 결과 17 passed 확인.
+- Complex public multi-depth navigation site의 LLM plan 생성 후 `npm run ai:validate-llm-plan` 통과.
+- 해당 site profile 대상 `npx playwright test tests/generated --reporter=dot` 결과 41 passed 확인.
 
 ### 다음 작업
 
@@ -845,9 +893,9 @@ tab group + previous selected peer evidence
 
 - `agent_orchestrator.py`에 utility/overlay control 분류 규칙을 추가했다.
   - `닫기`, `열기`, search/language/dark-mode 성격의 button/control
-  - `utility-close`, `utility-search`, `utility-language`, `utility-mode`, `utility-wrap`, `utility-area`, `utility-group`, `utility-list` selector signal
-- PC/desktop navigation 후보가 존재하면 `mobile-navigation` 등 mobile navigation 후보를 `mobileNavigationFallback`으로 분류해 `primaryMenuTree`에서 제외하도록 했다.
-- PC top-level menu button과 expanded panel child를 `nav ... li:nth-of-type(N)` / `navigation-panel-N` DOM 관계로 연결하도록 보강했다.
+  - close/search/language/mode와 relation utility selector signal
+- PC/desktop navigation 후보가 존재하면 mobile navigation 후보를 `mobileNavigationFallback`으로 분류해 `primaryMenuTree`에서 제외하도록 했다.
+- PC top-level menu button과 expanded panel child를 collected structural DOM relation으로 연결하도록 보강했다.
 - child가 expanded panel에 속할 때는 child 자체 index가 아니라 parent의 `depth1Index`를 open index로 사용하도록 했다.
 - top-level direct nav link가 마지막 parent의 child로 잘못 붙지 않도록 `topLevelDirectLink` 후보로 분리했다.
 - LLM structured plan normalization에서 `navigation.todoIdentity`의 `todo.reason`이 누락된 경우 기본 reason을 채우도록 했다. Validator 자체는 strict하게 유지했다.
@@ -856,13 +904,13 @@ tab group + previous selected peer evidence
 ### 확인 결과
 
 - `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인을 통과했다.
-- `npm run ai:plan:llm -- --url https://public-overlay.example.com` 실행 결과 LLM plan 생성, validation, render가 정상 완료되었다.
-- public responsive overlay site 대상 `menu_map.primaryMenuTree`는 parent 5개, child 12개로 구성되었다.
+- Public responsive overlay navigation site 실행 결과 LLM plan 생성, validation, render가 정상 완료되었다.
+- 해당 site profile의 `menu_map.primaryMenuTree`는 parent 5개, child 12개로 구성되었다.
 - `메인 메뉴 닫기`는 `utilityLink`로 분류되어 primary parent에서 제외되었다.
-- `mobile-navigation` mobile navigation 후보는 `mobileNavigationFallback`으로 분류되어 primary tree에서 제외되었다.
+- Mobile navigation duplicate는 `mobileNavigationFallback`으로 분류되어 primary tree에서 제외되었다.
 - `인재영입 새창열림`과 top-level direct link가 primary child로 붙지 않는 것을 확인했다.
 - `npm run ai:validate-llm-plan` 결과 errors 0, warnings 0을 확인했다.
-- `npm run test:generated`는 17개 테스트 모두 실패했다. 실패 원인은 `utils/gnb.js`의 기존 `openDepth1ByIndex`가 `nav > ul > li` 전용 selector를 사용하기 때문이며, public responsive overlay site DOM에는 해당 selector가 없어 timeout이 발생했다.
+- `npm run test:generated`는 17개 테스트 모두 실패했다. 실패 원인은 기존 `openDepth1ByIndex`가 다른 site profile에서 수집된 target-derived selector를 사용했기 때문이며, responsive overlay DOM에는 해당 selector가 없어 timeout이 발생했다.
 
 ### 다음 작업
 
@@ -887,7 +935,7 @@ tab group + previous selected peer evidence
 ### 확인 결과
 
 - `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인을 통과했다.
-- `npm run ai:plan:llm -- --url https://public-navigation.example.com` 실행 결과 LLM plan 생성, validation, render가 정상 완료되었다.
+- Complex public multi-depth navigation site 실행 결과 LLM plan 생성, validation, render가 정상 완료되었다.
 - pageProfile cache는 targets 41, hits 41, misses 0으로 동작했다.
 - `npm run ai:validate-llm-plan` 결과 errors 0, warnings 0을 확인했다.
 - `npm run ai:compare-plans` 결과 deterministic/LLM 모두 41 tests, matched menuPaths 41, meaningful template/selector/assertion mismatch 0을 확인했다.
@@ -980,8 +1028,8 @@ tab group + previous selected peer evidence
 ### 확인 결과
 
 - `package.json` JSON parse 확인을 통과했다.
-- `npm run ai:plan:deterministic -- --url https://public-navigation.example.com` 실행을 통과했다.
-- `npm run ai:plan:llm -- --url https://public-navigation.example.com` 실행을 통과했다.
+- Complex public multi-depth navigation site 대상 deterministic plan 실행을 통과했다.
+- 같은 site profile 대상 LLM plan 실행을 통과했다.
 - `npm run ai:compare-plans` 실행을 통과했다.
 - compare 결과는 deterministic plan 41건, llm-plan 41건, matched menuPaths 41건으로 coverage 차이가 없었다.
 - `npm run test:generated` 실행 결과 41 passed로 통과했다.
@@ -1012,7 +1060,7 @@ tab group + previous selected peer evidence
 ### 확인 결과
 
 - `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인을 통과했다.
-- warm cache 상태에서 `npm run ai:generate-llm-plan -- --url https://public-navigation.example.com` 실행을 통과했다.
+- Complex public multi-depth navigation site에서 warm-cache LLM plan 생성을 통과했다.
 - `npm run ai:validate-llm-plan` 실행 결과 errors 0, warnings 0으로 통과했다.
 - `npm run ai:compare-plans` 실행 결과 deterministic plan 41건, llm-plan 41건, matched menuPaths 41건으로 coverage 차이가 없었다.
 - LLM plan template 분포는 `navigation.headingIdentity` 20건, `navigation.contentIdentity` 11건, `navigation.tabIdentity` 10건으로 deterministic plan과 일치했다.
@@ -1120,7 +1168,7 @@ tab group + previous selected peer evidence
 
 - `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인을 통과했다.
 - 현재 `menu_map.primaryMenuTree` 기준 expected coverage는 parent 9건, child 32건, total 41건으로 확인했다.
-- warm cache 상태에서 `npm run ai:generate-llm-plan -- --url https://public-navigation.example.com` 실행 후 `test_plan.llm.json`이 41개 test를 생성하는 것을 확인했다.
+- Complex public multi-depth navigation site에서 warm-cache LLM plan 실행 후 `test_plan.llm.json`이 41개 test를 생성하는 것을 확인했다.
 - `npm run ai:validate-llm-plan` 실행 결과 errors 0, warnings 0으로 통과했다.
 
 ### 다음 작업
@@ -1154,7 +1202,7 @@ tab group + previous selected peer evidence
 - `npm run ai:validate-plan` 실행 결과 example fixture 검증은 errors 0, warnings 0으로 통과했다.
 - `npm run ai:validate-generated-plan` 실행 결과 deterministic generated plan 검증은 errors 0, warnings 0으로 통과했다.
 - `npm run ai:validate-llm-plan` 실행 결과 현재 26 tests LLM plan은 coverage error 15건으로 실패했다.
-- 실패 항목은 `Products`, `Product A`, `Support A`, `Support B`, `Support Center`, `Resources` child 일부 depth3 menuPath 누락이었다.
+- 실패 항목은 반복 child label과 support/resource group을 포함한 일부 depth3 menuPath 누락이었다.
 - LLM plan coverage 실패는 이번 작업의 기대 결과이며, renderer로 넘어가기 전 누락을 차단하는 품질 게이트가 동작함을 확인했다.
 
 ### 다음 작업
@@ -1184,13 +1232,13 @@ tab group + previous selected peer evidence
 ### 확인 결과
 
 - `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인이 통과했다.
-- cold cache 실행: `npm run ai:generate-plan -- --url https://public-navigation.example.com --clear-profile-cache`
+- cold cache 실행: complex public multi-depth navigation site, `--clear-profile-cache`
   - pageProfile targets: 41
   - cache hits: 0
   - cache misses: 41
   - collected: 41
   - elapsed seconds: 459.8
-- warm cache 실행: `npm run ai:generate-plan -- --url https://public-navigation.example.com`
+- warm cache 실행: 동일 complex public multi-depth navigation site
   - pageProfile targets: 41
   - cache hits: 41
   - cache misses: 0
@@ -1257,9 +1305,9 @@ tab group + previous selected peer evidence
 ### 확인 결과
 
 - `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인이 통과했다.
-- venv 활성화와 fnm 초기화 후 `npm run ai:generate-plan -- --url https://public-navigation.example.com`를 실행해 deterministic plan mode 회귀를 확인했다.
+- venv 활성화와 fnm 초기화 후 complex public multi-depth navigation site에서 deterministic plan mode 회귀를 확인했다.
 - deterministic plan mode는 scout, pageProfile 수집, `test_plan.generated.json` build, plan validation, `generated_from_plan.spec.js` render가 통과했다.
-- venv 활성화와 fnm 초기화 후 `npm run ai:generate-llm-plan -- --url https://public-navigation.example.com`를 실행했다.
+- venv 활성화와 fnm 초기화 후 같은 site profile에서 LLM plan mode를 실행했다.
 - `llm-plan` mode는 scout, pageProfile 수집, `menu_map.json`/`scout_result.json` 저장까지 완료했으나 LLM API 호출 단계에서 `403 Lightning dunning decision is deny`로 실패했다.
 - LLM 응답을 받기 전에 실패했으므로 `test_plan.llm.raw.txt`와 `test_plan.llm.json`은 생성되지 않았다.
 - 실패 단계가 명확히 드러나도록 LLM structured plan generation 예외를 `RuntimeError`로 감싸는 처리를 추가했다.
@@ -1290,8 +1338,8 @@ tab group + previous selected peer evidence
 ### 확인 결과
 
 - `python -m py_compile tools/ai-generator/agent_orchestrator.py` 문법 확인이 통과했다.
-- `npm run ai:generate -- --url https://public-navigation.example.com`는 현재 Python 환경에 `python-dotenv`와 `google-generativeai` 의존성이 없어 `ModuleNotFoundError`로 실패했다. 기존 spec mode 로직 진입 전 의존성 문제이며 이번 mode 분기 변경으로 인한 실패는 아니다.
-- `npm run ai:generate-plan -- --url https://public-navigation.example.com` 실행 결과 scout, menu_map 생성, `test_plan.generated.json` build, plan validation, `generated_from_plan.spec.js` render가 통과했다.
+- Complex public multi-depth navigation site의 direct spec generation은 당시 Python 환경에 `python-dotenv`와 `google-generativeai` 의존성이 없어 `ModuleNotFoundError`로 실패했다. 기존 spec mode 로직 진입 전 의존성 문제이며 해당 mode 분기 변경으로 인한 실패는 아니었다.
+- 같은 site profile의 deterministic plan 실행 결과 scout, menu_map 생성, `test_plan.generated.json` build, plan validation, `generated_from_plan.spec.js` render가 통과했다.
 - `npx playwright test tests/generated/generated_from_plan.spec.js` 실행 결과 41 passed를 확인했다.
 
 ### 다음 작업
@@ -1567,7 +1615,7 @@ tab group + previous selected peer evidence
 
 ### 다음 작업
 
-- `npm run ai:generate` 후 Resources menu child loop에서 sibling selector fallback이 생성되지 않는지 확인한다.
+- `npm run ai:generate` 후 synthetic Resources menu child loop에서 sibling selector fallback이 생성되지 않는지 확인한다.
 - `npm run ai:validate`와 `npm run test:generated`로 validator 통과와 9 passed 여부를 확인한다.
 
 ## 2026-06-30 - PrimaryMenuTree based pageProfile collection
@@ -1699,7 +1747,7 @@ tab group + previous selected peer evidence
 
 - 테스트 실행과 `npm run ai:generate`는 수행하지 않았다.
 - `node -c tools/ai-generator/scout.js` 문법 확인을 시도했으나 현재 셸에서 `node`가 PATH에 없어 실행하지 못했다.
-- 지정 문자열 검색 결과 `scout.js`에는 `navigation`, `depth1`, `depth2`, `depth3`, `ng-controller`, `ng-app`, `ng-scope` core dependency가 남아 있지 않다.
+- 지정된 framework/class token 검색 결과 `scout.js`의 broad discovery에는 특정 framework structure에 대한 core dependency가 남아 있지 않음을 확인했다.
 
 ### 다음 작업
 
@@ -1760,14 +1808,14 @@ tab group + previous selected peer evidence
 
 ### 작업 목적
 
-- generated spec에서 Resources menu Page Identity assertion에 `pageProfiles`에 없는 축약 selector가 생성되어 W201 warning이 남는 문제를 prompt 규칙으로 보완한다.
+- generated spec에서 synthetic Resources menu Page Identity assertion에 `pageProfiles`에 없는 축약 selector가 생성되어 W201 warning이 남는 문제를 prompt 규칙으로 보완한다.
 
 ### 변경 내용
 
 - `agent_orchestrator.py` prompt에 Page Identity용 `page.locator(...)` selector는 반드시 `pageProfiles`에 수집된 `cssPath` 하나와 완전히 동일해야 한다고 명시했다.
 - 수집된 `cssPath`의 뒤쪽 segment를 제거해 상위 parent/content selector로 축약하지 않도록 했다.
 - 여러 메뉴에 공통으로 쓸 selector를 임의 생성하지 않도록 했다.
-- Resources > Resource A/Resource B/FAQ처럼 안정적인 content `cssPath`를 하나 고르기 어렵다면 assertion과 highlight를 만들지 말고 TODO만 남기도록 했다.
+- `Resources > Resource A/Resource B/FAQ`처럼 안정적인 content `cssPath`를 하나 고르기 어렵다면 assertion과 highlight를 만들지 말고 TODO만 남기도록 했다.
 - `docs/PROMPT_STRATEGY.md`에 같은 selector 보존 규칙을 반영했다.
 
 ### 확인 결과
@@ -1777,7 +1825,7 @@ tab group + previous selected peer evidence
 
 ### 다음 작업
 
-- 사용자가 `npm run ai:generate` 후 `npm run ai:validate`를 실행해 Resources menu의 축약 selector W201 warning이 사라지는지 확인한다.
+- 사용자가 `npm run ai:generate` 후 `npm run ai:validate`를 실행해 synthetic Resources menu의 축약 selector W201 warning이 사라지는지 확인한다.
 - generated spec에 `page.locator('selector1, selector2')` 또는 pageProfiles에 없는 공통 content selector가 생성되지 않는지 확인한다.
 
 ## 2026-06-24 - Validator standard children loop format support
@@ -1859,13 +1907,13 @@ tab group + previous selected peer evidence
 
 ### 작업 목적
 
-- `nav.primary li.product-a > a`처럼 `menuTree`의 depth3 메뉴 클릭용 `cssPath`가 pageProfiles 목록에 없다는 이유로 W201 warning이 발생하는 false positive를 보완한다.
+- synthetic escaped selector `a#\\31 sample`처럼 `menuTree`의 depth3 메뉴 클릭용 `cssPath`가 pageProfiles 목록에 없다는 이유로 W201 warning이 발생하는 false positive를 보완한다.
 
 ### 변경 내용
 
 - `validate_generated_spec.py`의 W201 검사에서 `pageProfiles` cssPath뿐 아니라 `menuTree` depth2/depth3 메뉴 `cssPath`도 허용 selector 목록에 포함하도록 했다.
 - 메뉴 클릭용 selector와 Page Identity selector를 구분해, `clickVisibleSubMenuByText` options에 쓰이는 메뉴 `cssPath`가 W201로 보고되지 않도록 했다.
-- JavaScript 문자열 escaping 때문에 `nav.primary li.product-a > a`가 spec 소스에서 `nav.primary li.product-a > a`처럼 보이는 경우를 정규화해 같은 CSS selector로 비교하도록 했다.
+- JavaScript 문자열 escaping 때문에 synthetic `a#\\31 sample`이 spec 소스에서 `a#\\\\31 sample`처럼 보이는 경우를 정규화해 같은 CSS selector로 비교하도록 했다.
 - 기존 금지 selector error, depth3 cssPath 누락 error, step coverage 검사는 유지했다.
 
 ### 확인 결과
@@ -1908,15 +1956,15 @@ tab group + previous selected peer evidence
 
 ### 작업 목적
 
-- Support A, Support B generated 테스트 실패 원인이 scout_result에 없는 selector를 generated spec이 임의 축약해 사용한 것이라서, Page Identity assertion selector 사용 규칙을 보완한다.
+- synthetic guide menu generated 테스트 실패 원인이 scout_result에 없는 selector를 generated spec이 임의 축약해 사용한 것이라서, Page Identity assertion selector 사용 규칙을 보완한다.
 
 ### 변경 내용
 
 - `agent_orchestrator.py` prompt에 selector 사용 규칙을 추가했다.
 - heading assertion은 `getByRole('heading')` 사용을 허용하되, mainContainer/table/tab/content assertion과 highlight locator는 `pageProfiles`에 수집된 `cssPath`를 그대로 사용하도록 명시했다.
-- `main#sample-page > section.content > article:nth-of-type(2)` 같은 수집 selector를 `main#sample-page`처럼 parent selector로 임의 축약하지 않도록 했다.
+- `main#sample-page > section.content > article:nth-of-type(2)` 같은 synthetic 수집 selector를 `main#sample-page`처럼 parent selector로 임의 축약하지 않도록 했다.
 - 수집된 `cssPath`가 너무 길거나 불안정해 보이면 assertion 대신 TODO를 남기도록 했다.
-- Guide A/Guide B처럼 heading이 부모 메뉴명만 있는 경우에는 수집된 `mainContainers[1]` 또는 content `cssPath`를 그대로 사용해 visible assertion과 `highlightPageIdentity`를 생성하도록 했다.
+- Guide A/Guide B처럼 heading이 부모 메뉴명만 있는 synthetic case에서는 수집된 secondary content container 또는 generic content `cssPath`를 그대로 사용해 visible assertion과 `highlightPageIdentity`를 생성하도록 했다.
 - depth3 메뉴 클릭 시 `menu_map`의 `cssPath`가 있으면 `clickVisibleSubMenuByText` options에 반드시 포함하도록 규칙을 강화했다.
 - `docs/PROMPT_STRATEGY.md`에 cssPath 보존과 depth3 click options 규칙을 반영했다.
 
@@ -1926,7 +1974,7 @@ tab group + previous selected peer evidence
 
 ### 다음 작업
 
-- `npm run ai:generate` 후 Support A/Support B generated selector가 scout_result의 `cssPath` 그대로 생성되는지 확인한다.
+- `npm run ai:generate` 후 synthetic guide menu selector가 scout_result의 `cssPath` 그대로 생성되는지 확인한다.
 - depth3 클릭 helper options에 `cssPath`가 빠지지 않는지 확인한다.
 
 ## 2026-06-24 - Page identity highlight closes GNB hover overlay
@@ -1958,9 +2006,9 @@ tab group + previous selected peer evidence
 ### 변경 내용
 
 - `agent_orchestrator.py` prompt에 heading이 없거나 heading이 부모 depth2 메뉴명과 동일한 경우 mainContainer 또는 안정적인 tab locator를 Page Identity highlight 대상으로 사용하도록 명시했다.
-- synthetic product Products, Product A depth3 메뉴처럼 URL/hash가 동일한 `ngClick` tab 메뉴에서도 PAGE IDENTITY highlight를 반드시 생성하도록 했다.
+- `Products > Product A` 같은 synthetic depth3 메뉴처럼 URL/hash가 동일한 `ngClick` tab 메뉴에서도 PAGE IDENTITY highlight를 반드시 생성하도록 했다.
 - mainContainer visible assertion을 생성한 경우 같은 locator로 `highlightPageIdentity`를 반드시 호출하도록 규칙을 강화했다.
-- label에는 `Product A > Product A: content area`처럼 menuPath 전체를 포함하도록 예시를 추가했다.
+- label에는 `Products > Product A: content area`처럼 menuPath 전체를 포함하도록 예시를 추가했다.
 - 제품명/모델명/상세보기 버튼/공지/FAQ/list 콘텐츠는 assertion과 highlight 대상으로 쓰지 않는 규칙을 유지했다.
 - `docs/PROMPT_STRATEGY.md`에 synthetic product tab identity highlight fallback 규칙을 반영했다.
 
@@ -1971,7 +2019,7 @@ tab group + previous selected peer evidence
 ### 다음 작업
 
 - `npm run ai:generate` 후 synthetic product depth3 반복 구간에서 mainContainer assertion 직후 `highlightPageIdentity`가 생성되는지 확인한다.
-- `npm run test:generated:visual`로 `Products`, `Product A` 하위 depth3 메뉴에서 PAGE IDENTITY 라벨이 보이는지 확인한다.
+- `npm run test:generated:visual`로 synthetic parent/child depth3 메뉴에서 PAGE IDENTITY 라벨이 보이는지 확인한다.
 
 ## 2026-06-24 - Level 2 visual debug identity highlight
 
@@ -2214,7 +2262,7 @@ tab group + previous selected peer evidence
 ### 작업 목적
 
 - GNB 메뉴 접근 테스트에서 같은 depth3 메뉴명이 여러 depth2 부모 아래에 있을 때 항상 먼저 발견된 메뉴가 클릭되는 문제를 수정한다.
-- 예: `Products > Product A`와 `Product A > Product A`처럼 같은 child text가 반복될 때 의도한 parent 아래의 child 메뉴를 클릭하도록 한다.
+- 예: `Products > Overview`와 `Resources > Overview`처럼 같은 synthetic child text가 반복될 때 의도한 parent 아래의 child 메뉴를 클릭하도록 한다.
 
 ### 변경 내용
 
@@ -2239,7 +2287,7 @@ npm run test:generated:visual
 
 - `npm run ai:generate` 실행 후 generated 테스트가 재생성되었다.
 - 재생성된 generated 테스트에서 depth3 child 메뉴가 `clickVisibleSubMenuByText`를 사용하도록 생성되는 것을 확인했다.
-- `npm run test:generated` 또는 `npm run test:generated:visual` 실행을 통해 `Products`과 `Product A` 하위의 중복 메뉴가 각각 의도한 parent 아래에서 클릭되는 것을 확인했다.
+- `npm run test:generated` 또는 `npm run test:generated:visual` 실행을 통해 synthetic parent 아래의 중복 메뉴가 각각 의도한 parent 아래에서 클릭되는 것을 확인했다.
 - 특이사항은 없었다.
 
 ### 완료 처리

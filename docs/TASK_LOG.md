@@ -1,5 +1,49 @@
 # Task Log
 
+## 2026-08-02 - Standardize Python compatibility and uv bootstrap
+
+### 작업 목적
+
+- fresh Windows clone의 Python environment를 uv 기반으로 재현 가능하게 표준화한다.
+- Python 3.12, 3.13, 3.14의 interpreter, pinned dependency, wheel, import, syntax와 repository test 호환성을 실제 독립 환경에서 검증한 뒤 지원 정책을 결정한다.
+- 기존 offline tracked `node_modules`, sanitization과 generated artifact 정책은 유지한다.
+
+### 조사와 결정
+
+- bootstrap은 `main`, HEAD/origin/main `6c40921`, 미추적 `.python-version`만 존재하는 허용된 dirty 상태에서 시작했다.
+- Node `24.15.0`, npm `11.12.1`, fnm `1.39.0`, uv `0.11.32`와 `.node-version=24.15.0`을 확인했다.
+- uv-managed Python 3.12.13, 3.13.14, 3.14.6으로 `.venv-py312`, `.venv-py313`, `.venv-py314`를 각각 새로 생성했다.
+- 세 환경 모두 pinned 32-package resolution과 Windows wheel-only strict sync, dependency check, normal import, `compileall`, Python 2 tests, npm MVP Node 18 + Python 2 tests를 통과했다. source build와 transitive conflict는 없었다.
+- Python 3.14 removed standard-library API를 source import와 compile/runtime test로 감사했으며 해당 사용은 없었다.
+- 공식 지원 범위는 Python 3.12~3.14로 정하고 기본 minor는 안정적인 하한인 3.12로 유지했다. 3.14 전용 기능이 없으므로 3.14-only 전환은 선택하지 않았다.
+- `pyproject.toml`은 installable package metadata나 별도 dependency source가 필요하지 않아 생성하지 않았다. fully pinned `tools/ai-generator/requirements.txt`를 source of truth로 유지한다.
+- 현재 dependency pin은 전체 matrix를 통과하므로 최신 버전 일괄 upgrade를 하지 않았다. `google-generativeai==0.8.6`은 모든 Python에서 동작하지만 지원 종료 warning을 내므로 authenticated LLM regression을 포함한 별도 `google-genai` migration 대상으로 기록했다.
+
+### 변경 내용
+
+- `.python-version`을 minor pin `3.12`로 commit 대상으로 추가하고 `.venv/`, `.venv-*`, repository-local uv validation/cache를 ignore했다.
+- `tools/environment/sync-python.ps1`에 interpreter install, `.venv` create/recreate, strict wheel-only requirements sync와 dependency check를 표준화했다.
+- `tools/environment/test-python-compat.ps1`에 Python 3.12~3.14 clean matrix를 자동화했다.
+- npm Python entrypoint를 `tools/environment/run-python.js`를 통한 uv + explicit project interpreter 실행으로 전환하고 `env:bootstrap`, `env:sync`, `env:recreate`, `test:python`, `test:compat` script를 추가했다.
+- Local MVP controller의 기본 interpreter를 `.venv\Scripts\python.exe`로 변경하고 recovery 안내를 uv sync 명령에 맞췄다.
+- README, AGENTS, DEVELOPMENT_ENVIRONMENT, CURRENT_STATE와 package별 PYTHON_COMPATIBILITY audit를 현재 정책에 맞췄다.
+
+### 검증
+
+- `npm.cmd run test:compat`: Python 3.12/3.13/3.14 전체 PASS.
+- approval validator 14 scenarios, reconciliation fixture, interaction plan builder 12 failure scenarios, validator 18 failure scenarios, renderer 9 failure scenarios PASS.
+- navigation plan example validator/renderer와 interaction candidate fixture PASS.
+- `git diff --check`, project JavaScript 13개 syntax, tracked project JSON 9개 parse와 Markdown relative link 32개 검사 PASS.
+- `npm.cmd ls --depth=0`에서 pinned Node baseline 확인.
+- `.venv` 삭제 동등 조건의 `npm.cmd run env:recreate` 후 Python 3.12.13, 32-package wheel-only sync와 `uv pip check` PASS.
+- staged 변경을 적용한 격리 local clone에서 `npm.cmd ci`, `npm.cmd run env:bootstrap`, `npm.cmd run product:mvp:test`를 실행해 fresh clone equivalent bootstrap PASS.
+
+### 알려진 제한
+
+- `google-generativeai` import의 support-ended `FutureWarning`은 세 Python minor에서 동일하다. Python 3.14 전용 실패는 아니다.
+- uv가 sandbox에서 Windows registry shim을 등록하지 못했다는 warning이 있었으나 repository-local interpreter, venv, install과 test에는 영향이 없었다.
+- hash lock은 아직 사용하지 않는다. exact pins와 TLS index를 유지하며 multi-platform hash 정책은 별도 결정이 필요하다.
+
 ## 2026-07-30 - Sanitize public repository references and audit Git history
 
 ### 작업 목적

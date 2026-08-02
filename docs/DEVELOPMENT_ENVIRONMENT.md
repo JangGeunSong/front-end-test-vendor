@@ -1,230 +1,182 @@
 # Development Environment
 
-## Purpose
+## Supported Baseline
 
-이 문서는 fresh clone, 새 PowerShell, 새 agent session이 특정 PC 경로나 사용자명에 의존하지 않고 repository의 local execution environment를 복원하기 위한 계약이다.
+Windows PowerShell is the verified development shell.
 
-환경 확인과 활성화가 필요한 command task에서는 구현 실패를 판단하기 전에 이 문서의 Python과 Node bootstrap을 수행한다. Dependency는 먼저 현재 상태를 확인하고 누락되었을 때만 설치한다.
+- Python support: `3.12` through `3.14`
+- Default Python minor: `3.12` from `.python-version`
+- Python manager and installer: uv
+- Python environment: `.venv`
+- Python dependency source of truth: fully pinned `tools/ai-generator/requirements.txt`
+- Node: `24.15.0` from `.node-version`, selected with fnm
+- Expected npm for the pinned Node distribution: `11.12.1`
+- Node lock: `package-lock.json`
+- Offline Node baseline: repository-tracked minimal `node_modules`
 
-현재 repository의 검증된 local development shell은 Windows PowerShell이다. Linux/macOS bootstrap은 아직 repository에서 검증된 requirement가 아니므로 추측한 command를 별도 contract로 제공하지 않는다.
+The Python decision and package-by-package evidence are in [Python Compatibility Audit](PYTHON_COMPATIBILITY.md). There is no `pyproject.toml`: this is not an installable Python package, and requirements plus `.python-version` are intentionally the only Python environment declarations.
 
-## Environment Sources Of Truth
+## Fresh Clone
 
-- Python environment directory: `venv`
-- Python dependency source: `tools/ai-generator/requirements.txt`
-- Node version manager: `fnm`
-- Node version declaration: `.node-version`
-- Node dependency lock: `package-lock.json`
-- Offline Node dependency baseline: repository-tracked minimal `node_modules`
-- Local secret file: `.env`
-
-현재 외부 alpha 재현 기준은 Node `24.15.0` (`.node-version`), npm `11.12.1`, Python `3.12`다. Python `3.10`과 `3.12`에서 repository command를 검증했으며 fresh install은 `3.12`를 권장한다. Python `3.13` 이상은 아직 검증된 contract가 아니다. Existing `venv`의 local interpreter metadata를 portable version declaration으로 취급하지 않는다.
-
-## Python Bootstrap
-
-Python command는 system/global package가 아니라 project-local `venv`를 사용한다.
-
-### Existing venv
-
-Repository root에서 다음을 실행한다.
+From the repository root in PowerShell:
 
 ```powershell
-Test-Path .\venv\Scripts\Activate.ps1
-.\venv\Scripts\Activate.ps1
-python -c "import sys; print(sys.executable)"
-python --version
-python -m pip --version
+fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
+fnm install
+fnm use
+node --version
+npm.cmd --version
+
+uv --version
+uv python install
+npm.cmd run env:bootstrap
+
+npm.cmd ls --depth=0
+npx.cmd playwright install chromium
+npm.cmd run product:mvp:test
 ```
 
-`sys.executable`이 현재 repository의 `venv` interpreter를 가리키는지 확인한다. 특정 drive나 사용자별 absolute path와 비교하지 않는다.
+`uv python install` reads `.python-version`. `env:bootstrap` creates `.venv` when absent, verifies its minor version, then performs strict wheel-only sync from the pinned requirements. Activation is optional because repository npm commands select `.venv` explicitly through uv.
 
-### Missing venv or dependencies
+For a connected disposable clone, `npm.cmd ci` verifies `package-lock.json`. Do not run it routinely in a working tree: it replaces the intentionally tracked offline `node_modules` baseline. In a closed network, retain the tracked directory and use `npm.cmd ls --depth=0`.
 
-`venv`가 없는 fresh clone에서는 Windows Python launcher로 명시적인 supported version을 선택해 생성한 뒤 활성화한다.
+PowerShell may block the `npm.ps1` shim under the local execution policy. `npm.cmd` and `npx.cmd` are equivalent direct Windows shims and require no policy change.
+
+## Python Environment Operations
+
+Create or sync the default environment:
 
 ```powershell
-py -3.12 -m venv venv
-.\venv\Scripts\Activate.ps1
-python -m pip install -r tools/ai-generator/requirements.txt
+npm.cmd run env:bootstrap
 ```
 
-`py -0p`로 설치된 interpreter를 확인할 수 있다. `py`가 없다면 `python --version`이 3.10 또는 3.12인지 확인한 뒤 `python -m venv venv`를 사용한다.
-
-Existing `venv`가 있으면 먼저 필요한 import 또는 command를 실행해 dependency availability를 확인한다. Import가 누락되었거나 requirements가 변경된 경우에만 다음을 실행한다.
+Recreate an existing `.venv` after corruption or a Python minor change:
 
 ```powershell
-python -m pip install -r tools/ai-generator/requirements.txt
+npm.cmd run env:recreate
 ```
 
-Global Python에 package가 설치되어 있다는 이유로 project dependency가 준비되었다고 판단하지 않는다.
+Change the default minor only after updating the support decision and `.python-version`, then run the same recreate command. For a one-off supported alternate minor without changing the project default:
 
-## Node And fnm Bootstrap
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/environment/sync-python.ps1 -PythonVersion 3.14 -Recreate
+```
 
-새 shell에서 `fnm`은 보이지만 `node`와 `npm`이 PATH에 없을 수 있다. Node 미설치나 implementation failure로 판단하기 전에 fnm shell environment를 활성화한다.
+After editing requirements:
 
-현재 repository에서 검증한 PowerShell flow:
+```powershell
+npm.cmd run env:sync
+npm.cmd run test:compat
+```
+
+`uv pip sync` removes packages that are not listed. That is expected inside the disposable project environment, so do not point it at system Python or an environment shared with another project.
+
+Direct uv equivalents:
+
+```powershell
+uv venv .venv --python 3.12 --clear
+uv pip sync --python .venv\Scripts\python.exe tools/ai-generator/requirements.txt --strict --only-binary :all:
+uv pip check --python .venv\Scripts\python.exe
+uv run --python .venv --with-requirements tools/ai-generator/requirements.txt python --version
+```
+
+## Node And fnm
+
+The Node `24.15.0` pin remains the verified baseline. npm `11.12.1` is supplied by that Node installation; npm is not pinned or upgraded separately.
 
 ```powershell
 fnm --version
 fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
+fnm install
 fnm use
 node --version
-npm --version
+npm.cmd --version
 ```
 
-`fnm use`는 repository root의 `.node-version`을 읽는다. 현재 fnm CLI에서 `fnm use --lts`는 지원되는 syntax가 아니므로 사용하지 않는다.
-
-Sandbox가 fnm multishell symlink 생성을 차단해 `fnm env`가 실패하면 repository 안에 임시 multishell directory나 Node binary를 만들지 않는다. Installed repository version을 다음처럼 직접 실행한다.
+`fnm use` reads `.node-version`. With `--use-on-cd`, entering the repository automatically selects the declaration in a prepared shell. If a sandbox cannot create fnm multishell links, use the installed version directly:
 
 ```powershell
 fnm exec --using=24.15.0 node --version
 fnm exec --using=24.15.0 npm.cmd --version
-fnm exec --using=24.15.0 npx.cmd playwright test <spec-path> --list
 ```
 
-이 fallback은 `.node-version`과 일치하는 installed version이 있을 때만 사용한다.
+## Standard Checks
 
-선언된 version이 local fnm installation에 없을 때만 설치한다.
+Smoke checks:
 
 ```powershell
-fnm install
-fnm use
+npm.cmd run test:python
+npm.cmd run product:mvp:test
 ```
 
-Dependency 상태는 먼저 확인한다.
+Full local regression without an external target or LLM call:
 
 ```powershell
-Test-Path package-lock.json
-Test-Path node_modules
-npm ls --depth=0
+npm.cmd run test:compat
+npm.cmd run ai:validate-plan
+npm.cmd run ai:validate-interaction-approvals -- --fixture tools/ai-generator/fixtures/interaction_approvals.fixture.json
+npm.cmd run ai:reconcile-interaction-approvals -- --fixture tools/ai-generator/fixtures/interaction_approval_reconciliation.fixture.json
 ```
 
-이 repository는 두 Node dependency 경로를 의도적으로 구분한다.
+`test:compat` creates and clears `.venv-py312`, `.venv-py313`, and `.venv-py314`. It installs each interpreter with uv, requires binary wheels, checks dependencies/imports/syntax, runs all Python tests, and runs the npm MVP test under that exact interpreter. These environments are disposable and ignored by Git.
 
-- 폐쇄망/offline 실행: repository에 commit된 최소 `node_modules` vendor baseline을 삭제하지 않고 사용한다. 외부 registry가 없는 환경에서 `npm ci`를 실행하지 않는다.
-- 외부망 connected install 검증: `package-lock.json` 기준으로 dependency를 다시 설치하고 재현성을 확인할 때만 `npm ci`를 사용한다.
-
-폐쇄망에서는 먼저 다음을 확인한다.
+Browser-backed smoke/regression requires the appropriate tracked tests and browser installation:
 
 ```powershell
-npm ls --depth=0
+npm.cmd run test:smoke
+npm.cmd run test:regression
 ```
 
-외부망의 disposable clean clone에서 lock 기반 reinstall을 검증할 때는 다음을 사용한다.
+## Dependency Update Policy
+
+`tools/ai-generator/requirements.txt` is a fully pinned reproducibility snapshot containing direct and transitive packages. Project source directly imports `google-generativeai` and `python-dotenv`; update review starts with those requirements and then resolves and reviews the complete transitive snapshot.
+
+- Do not bulk-upgrade merely to match latest releases.
+- Review release notes and `Requires-Python` for direct dependencies.
+- Resolve in clean 3.12, 3.13, and 3.14 environments.
+- Require Windows wheels with `--only-binary :all:`; investigate rather than silently accepting source builds.
+- Run `npm.cmd run test:compat` before replacing pins.
+- Keep external LLM SDK changes separate from routine environment refreshes.
+- Hash locking is not currently enabled. Exact pins provide deterministic versions, while package authenticity relies on the configured index/TLS. Adding hashes requires a reviewed multi-platform artifact policy.
+
+The legacy `google-generativeai` SDK is end-of-life and emits a warning on import. It currently passes all supported Python versions. Migration to `google-genai` remains a known follow-up because its API surface changes and the authenticated LLM path must be tested.
+
+## Troubleshooting
+
+Dependency conflict or stale environment:
 
 ```powershell
-npm ci
+npm.cmd run env:recreate
 ```
 
-`npm ci`는 기존 `node_modules`를 교체하므로 tracked vendor 파일이 있는 개발 worktree에서 routine command로 실행하지 않는다. Connected reinstall 검증은 별도 clean clone에서 수행하고, 검증 후 source 변경과 dependency 재설치에 따른 worktree 변경을 구분한다.
-
-Local MVP browser task에는 bundled Chromium만 설치한다.
+Repository-local uv cache corruption (only when `UV_CACHE_DIR` was explicitly placed in the repository):
 
 ```powershell
-npx playwright install chromium
+uv cache clean
+npm.cmd run env:recreate
 ```
 
-Local MVP config는 system Chrome channel을 요구하지 않는다. Root `playwright.config.js`를 직접 사용하는 legacy/headed command와 `codegen`은 별도로 system Chrome channel을 사용한다. Deterministic JSON validator/reconciler에는 browser install이 필요하지 않다.
+For the normal user-level uv cache, inspect first and use `uv cache clean` only when cache corruption is confirmed. A failed package download may instead be DNS, proxy, certificate, firewall, or registry access.
 
-PowerShell에서 대화형으로는 `npm`/`npx`를 사용한다. Node child process나 command resolution 문제를 조사할 때는 Windows shim을 명시한 `npm.cmd`/`npx.cmd`가 같은 command의 직접 실행 형태다. Global npm package는 요구하지 않는다.
+Other common cases:
 
-## Local `.env` And Secret Policy
+- `.venv` uses the wrong minor: `npm.cmd run env:recreate`.
+- `python` points elsewhere: use npm scripts or `uv run --python .venv ...`; activation is not required.
+- missing module: `npm.cmd run env:sync`.
+- no compatible wheel: keep the current pin or choose a reviewed compatible release; do not add local compiler requirements silently.
+- Playwright executable missing: `npx.cmd playwright install chromium`.
+- fnm does not switch: initialize `fnm env`, then run `fnm use` from the repository root.
+- uv user cache is inaccessible in a sandbox: set `UV_CACHE_DIR` to a disposable writable directory; never commit it.
+- target network error: check URL, proxy/firewall, DNS, and outbound access before diagnosing product assertions.
 
-`.env`는 local-only secret/configuration state이며 Git commit 대상이 아니다.
+## Local Secrets
+
+`.env` is local-only and ignored. Do not print or commit its values. It is needed only for external LLM modes; deterministic validators, renderers, Local MVP tests, and compatibility tests do not need an API key.
 
 ```powershell
 Test-Path .env
 git check-ignore -v .env
-```
-
-원칙:
-
-- `.env` 내용이나 API key 값을 console, documentation, fixture, TASK_LOG에 출력하지 않는다.
-- External LLM generation command를 실행할 때만 필요한 key의 local 존재를 확인한다.
-- `validate_interaction_approvals.py`, `reconcile_interaction_approvals.py` 같은 deterministic local command는 `.env`나 external LLM API key를 요구하지 않는다.
-- `.env`가 없다는 이유만으로 deterministic validation을 중단하지 않는다.
-
-필요한 경우에만 안전한 template을 복사하고 값은 사용자가 직접 입력한다.
-
-```powershell
 Copy-Item .env.example .env
 ```
 
-| 변수 | 구분 | 용도 |
-| --- | --- | --- |
-| `GEMINI_API_KEY` | 선택 | `ai:generate`, `ai:plan:llm` 등 external LLM mode |
-| `MVP_PORT` | 선택 | Local MVP listen port, 기본 `4173` |
-| `MVP_PYTHON` | 선택 | controller Python executable override; 기본은 `venv\Scripts\python.exe` |
-| `TARGET_URL` | 선택 | CLI plan command의 `--url` fallback |
-| `BASE_URL` | 선택 | rendered Playwright spec의 execution URL override |
-
-Local MVP의 deterministic `plan` analysis, approval validator/reconciler와 renderer에는 `GEMINI_API_KEY`가 필요하지 않다.
-
-## Fresh Alpha Install
-
-새 clone에는 폐쇄망 실행용 최소 tracked `node_modules`가 포함되는 것이 정상이다. 반면 `venv`, `.env`, generated run, report와 test result는 포함되지 않아야 한다.
-
-외부망에서 package-lock 재현성까지 확인하는 connected alpha install은 다음 순서로 수행한다.
-
-```powershell
-fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
-fnm install
-fnm use
-node --version
-npm --version
-npm ci
-
-py -3.12 -m venv venv
-.\venv\Scripts\Activate.ps1
-python -m pip install -r tools/ai-generator/requirements.txt
-npx playwright install chromium
-npm run product:mvp
-```
-
-Expected version은 Node `v24.15.0`, npm `11.12.1`, Python `3.12.x`다.
-
-폐쇄망 설치에서는 위 순서의 `npm ci`를 생략하고 repository vendor dependency를 `npm ls --depth=0`로 확인한다. Vendor `node_modules`는 기존 개발 PC에서 복사한 local artifact가 아니라 repository source policy의 일부다.
-
-## Common Bootstrap Errors
-
-- `node`/`npm` command 없음: 먼저 `fnm env ... | Invoke-Expression`, `fnm install`, `fnm use`를 실행한다.
-- `venv\Scripts\python.exe` 또는 Python executable 없음: supported Python을 설치하고 `py -3.12 -m venv venv`를 실행한다.
-- `ModuleNotFoundError`: venv를 활성화하고 requirements 설치 명령을 다시 실행한다.
-- `Executable doesn't exist` 또는 browser launch 실패: `npx playwright install chromium`을 실행한다.
-- port `4173` 사용 중: `$env:MVP_PORT=4174; npm run product:mvp`처럼 다른 port를 지정한다.
-- `ERR_NAME_NOT_RESOLVED`, `ERR_CONNECTION_*`, `ERR_NETWORK_ACCESS_DENIED`: 제품 assertion 문제가 아니라 target DNS/proxy/firewall/outbound network를 먼저 확인한다.
-- PowerShell activation policy가 `Activate.ps1`을 막는 경우 current process에만 허용하거나 activation 없이 `.\venv\Scripts\python.exe -m pip ...`를 사용한다. 조직 보안 정책을 영구 변경하지 않는다.
-
-## Validation Bootstrap
-
-Python venv와 fnm environment를 같은 PowerShell session에서 활성화한 뒤 repository command를 실행한다.
-
-```powershell
-.\venv\Scripts\Activate.ps1
-fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
-fnm use
-python -c "import sys; print(sys.executable)"
-node --version
-npm --version
-npm run ai:validate-interaction-approvals
-npm run ai:reconcile-interaction-approvals
-```
-
-Default approval artifact가 없으면 마지막 두 command는 Python entry point까지 정상 호출된 뒤 explicit missing-input error와 non-zero exit code를 반환하는 것이 계약상 정상이다. Success path는 neutral fixture로 검증한다.
-
-```powershell
-npm run ai:validate-interaction-approvals -- --fixture tools/ai-generator/fixtures/interaction_approvals.fixture.json
-npm run ai:reconcile-interaction-approvals -- --fixture tools/ai-generator/fixtures/interaction_approval_reconciliation.fixture.json
-```
-
-## Agent Checklist
-
-Command validation이 필요한 새 session은 다음 순서를 따른다.
-
-1. `venv`, requirements, `.node-version`, package lock과 `.env` ignore policy를 확인한다.
-2. Project venv를 활성화하고 `sys.executable`을 확인한다.
-3. `node`/`npm`이 없으면 먼저 fnm 존재와 shell environment activation을 확인한다.
-4. `.node-version`에 선언된 version을 `fnm use`로 선택하고 Node/npm version을 확인한다.
-5. Dependency는 availability를 먼저 확인하고 필요한 경우에만 requirements 또는 lock file 기준으로 설치한다.
-6. External LLM command에서만 local `.env` 존재를 확인하며 secret 값은 읽거나 출력하지 않는다.
-7. Runtime local state missing과 implementation failure를 구분해 보고한다.
+`MVP_PYTHON` may override the Python executable for matrix validation or diagnostics. Normal development should leave it unset so `.venv\Scripts\python.exe` is selected.

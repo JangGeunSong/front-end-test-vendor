@@ -127,7 +127,7 @@ test('bootstrap failures provide actionable local recovery commands', () => {
   assert.match(
     friendlyError('Website analysis', Object.assign(new Error('spawn ENOENT'), {
       code: 'ENOENT',
-      path: 'venv\\Scripts\\python.exe',
+      path: '.venv\\Scripts\\python.exe',
     })),
     /Create the project venv/,
   );
@@ -135,7 +135,7 @@ test('bootstrap failures provide actionable local recovery commands', () => {
     friendlyError('Website analysis', {
       result: { stderr: "ModuleNotFoundError: No module named 'dotenv'", stdout: '' },
     }),
-    /pip install -r tools\/ai-generator\/requirements\.txt/,
+    /npm run env:sync/,
   );
   assert.match(
     friendlyError('Playwright execution', {

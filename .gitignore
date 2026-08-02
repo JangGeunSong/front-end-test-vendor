@@ -12,9 +12,13 @@ tests/generated/
 .env
 
 # python opensource library
+.venv/
+.venv-*/
 venv/
 __pycache__/
 *.py[cod]
+.uv-cache/
+.uv-validation/
 
 tools/ai-generator/generated/*
 tools/ai-generator/generated/*.json

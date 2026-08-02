@@ -6,7 +6,7 @@ const { spawn } = require('child_process');
 const ROOT = path.resolve(__dirname, '..', '..');
 const GENERATED = path.join(ROOT, 'tools', 'ai-generator', 'generated');
 const RUNS_DIR = path.join(GENERATED, 'mvp-runs');
-const PYTHON = process.env.MVP_PYTHON || path.join(ROOT, 'venv', 'Scripts', 'python.exe');
+const PYTHON = process.env.MVP_PYTHON || path.join(ROOT, '.venv', 'Scripts', 'python.exe');
 const PLAYWRIGHT = process.execPath;
 const PLAYWRIGHT_CLI = require.resolve('@playwright/test/cli');
 const STAGES = [
@@ -225,7 +225,7 @@ function friendlyError(stageName, error) {
     return `Required executable unavailable: ${error?.path || 'unknown executable'}. Create the project venv and install dependencies as described in docs/DEVELOPMENT_ENVIRONMENT.md.`;
   }
   if (/ModuleNotFoundError|No module named/.test(output)) {
-    return 'Python dependency missing. Activate the project venv and run: python -m pip install -r tools/ai-generator/requirements.txt';
+    return 'Python dependency missing. Run: npm run env:sync';
   }
   if (/Executable doesn't exist|browserType\.launch.*executable/i.test(output)) {
     return 'Playwright Chromium is unavailable. Run: npx playwright install chromium';

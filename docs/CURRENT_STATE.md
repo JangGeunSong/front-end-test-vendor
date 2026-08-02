@@ -92,8 +92,8 @@ analysis_review_report.json
 - run-scoped evidence/approval/plan/result/report lifecycle과 HTML + JSON Playwright reporter summary
 - interaction approval 없이 Navigation/Page Identity를 실행하고 optional interaction downstream을 explicit `skipped`로 기록하는 Navigation-only Local MVP path
 - 접힌 Navigation/identity summary, interaction Ready/Needs review/All/Selected filter, card selection state와 sticky run summary를 제공하는 Local MVP review UI
-- project venv, requirements, fnm, repository Node version, local `.env` policy를 복원하는 documented environment bootstrap
-- connected `npm ci` reinstall과 offline tracked vendor dependency를 분리하고, Python 3.12 project venv, bundled Chromium과 optional `.env.example`을 사용하는 Windows alpha bootstrap
+- uv, `.python-version`, `.venv`, pinned requirements, fnm, repository Node version과 local `.env` policy를 복원하는 documented environment bootstrap
+- connected `npm ci` reinstall과 offline tracked vendor dependency를 분리하고, Python 3.12~3.14 support matrix(기본 3.12), bundled Chromium과 optional `.env.example`을 사용하는 Windows alpha bootstrap
 - Local MVP의 project Python/dependency/browser/network/port bootstrap 오류에 대한 actionable recovery message
 - generated artifact와 source/docs를 분리하는 ignore 정책
 
@@ -177,7 +177,16 @@ Version transition은 완료됐다. `interaction_plan_contract.py`는 Reconcilia
 
 ## Latest Completed Work
 
-가장 최근 완료 작업은 현재 tracked tree의 공개 정보 표현을 정리하고 repository data policy를 명문화한 maintenance 작업이다.
+가장 최근 완료 작업은 Python/uv 개발환경과 호환성 범위를 표준화한 maintenance 작업이다.
+
+- Python 3.12.13, 3.13.14, 3.14.6의 독립 uv environment에서 동일 pinned requirements의 Windows wheel-only install, dependency check, import, compile, Python tests와 npm MVP tests PASS
+- 공식 Python 지원 범위는 3.12~3.14, `.python-version` 기본값은 ecosystem 안정성을 고려한 minor pin `3.12`로 결정
+- `.venv`와 `uv pip sync`를 표준화하고 npm Python entrypoint가 active shell의 bare `python` 대신 uv와 명시적 project interpreter를 사용하도록 변경
+- Node `24.15.0`/npm `11.12.1` baseline과 tracked offline `node_modules` 정책 유지
+- fully pinned requirements를 dependency source of truth로 유지하고 package별 metadata/최신 버전/wheel 조사와 deprecated `google-generativeai` migration risk 기록
+- `pyproject.toml`은 installable package metadata나 별도 dependency source가 필요하지 않아 생성하지 않음
+
+이전 완료 작업은 현재 tracked tree의 공개 정보 표현을 정리하고 repository data policy를 명문화한 maintenance 작업이다.
 
 - 회사·서비스 이름에 결합된 public validation 기록을 navigation/UI profile 중심의 범용 표현으로 일반화
 - 실제 validation target에서 유래한 menu relation, route/handler, selector와 interaction-tab example을 synthetic `Products`/`Product A`/`Sample Page` fixture로 일반화

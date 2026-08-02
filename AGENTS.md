@@ -72,7 +72,7 @@
 3. `docs/CURRENT_STATE.md`에서 active development frontier와 latest completed work를 식별한다.
 4. 현재 요청이 frontier를 이어가는지, 별도 유지보수 작업인지 확인한다.
 5. 관련 문서와 source가 충돌하는지 구현 전에 확인한다.
-6. command 실행이 필요한 task이면 `docs/DEVELOPMENT_ENVIRONMENT.md`에 따라 project venv와 fnm/Node environment를 확인하고 활성화한다.
+6. command 실행이 필요한 task이면 `docs/DEVELOPMENT_ENVIRONMENT.md`에 따라 uv project environment와 fnm/Node environment를 확인한다.
 7. 충돌이 없으면 관련 module만 읽고 작업 범위를 확정한다.
 
 local path, session ID, conversation transcript를 project memory로 사용하지 않는다. repository documentation과 검증 가능한 source/history를 durable context로 사용한다. 기존 architecture를 이유 없이 다시 설계하지 않으며, 현재 contract를 바꿔야 한다면 영향과 필요한 decision을 먼저 보고한다.
@@ -81,10 +81,10 @@ local path, session ID, conversation transcript를 project memory로 사용하�
 
 Python command 실행 전:
 
-- project-local `venv` policy와 `tools/ai-generator/requirements.txt`를 확인한다.
-- `venv`를 활성화하고 `sys.executable`이 project venv interpreter인지 확인한다.
+- `.python-version`, project-local `.venv` policy와 `tools/ai-generator/requirements.txt`를 확인한다.
+- `npm run env:bootstrap` 또는 문서화된 uv 명령으로 `.venv`를 준비하고, repository command는 activation 대신 명시적인 project interpreter를 사용한다.
 - system/global Python dependency를 전제로 하지 않는다.
-- dependency availability를 먼저 확인하고 누락된 경우에만 requirements 기준으로 설치한다.
+- dependency availability를 먼저 확인하고 누락 또는 drift가 있으면 `uv pip sync`로 requirements와 일치시킨다.
 
 Node/npm command 실행 전:
 

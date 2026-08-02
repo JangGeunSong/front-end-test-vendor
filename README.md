@@ -14,7 +14,7 @@ URL 하나로 웹 navigation/Page Identity를 분석하고, 사람이 선택한 
 
 ## Windows 5분 Quick Start
 
-다운로드 시간을 제외한 외부망 connected-install PowerShell 절차입니다. Node `24.15.0`, npm `11.12.1`, Python `3.12`를 권장합니다.
+다운로드 시간을 제외한 외부망 connected-install PowerShell 절차입니다. Node `24.15.0`, npm `11.12.1`, Python `3.12`가 기본 개발환경입니다. Python `3.12`~`3.14`를 공식 지원합니다.
 
 이 repository의 최소 `node_modules`는 폐쇄망 실행 보장을 위해 의도적으로 commit된 vendor dependency입니다. 삭제 대상이 아닙니다. 아래 `npm ci`는 외부망의 disposable clean clone에서 package-lock 재현성을 검증하는 절차이며, 폐쇄망에서는 생략하고 `npm ls --depth=0`로 vendor dependency를 확인합니다.
 
@@ -26,15 +26,14 @@ fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
 fnm install
 fnm use
 node --version
-npm --version
-npm ci
+npm.cmd --version
+npm.cmd ci
 
-py -3.12 -m venv venv
-.\venv\Scripts\Activate.ps1
-python -m pip install -r tools/ai-generator/requirements.txt
+uv python install
+npm.cmd run env:bootstrap
 
-npx playwright install chromium
-npm run product:mvp
+npx.cmd playwright install chromium
+npm.cmd run product:mvp
 ```
 
 브라우저에서 `http://127.0.0.1:4173`을 열고 URL을 분석한 뒤 Navigation-only 또는 승인한 interaction 포함 실행을 선택합니다. Local MVP에는 `.env`나 API key가 필요하지 않습니다.
@@ -106,28 +105,29 @@ Level 3 `interaction.tabSelection`의 previous-selection restore는 fresh public
 
 상세한 fresh clone/new shell bootstrap은 `docs/DEVELOPMENT_ENVIRONMENT.md`를 따릅니다.
 
-- **Python**: project-local `venv`, `tools/ai-generator/requirements.txt` 기준
+- **Python**: `.python-version`의 기본 `3.12`, 공식 지원 `3.12`~`3.14`, project-local `.venv`
+- **Python dependency**: uv와 fully pinned `tools/ai-generator/requirements.txt` 기준
 - **Node.js**: `fnm`, `.node-version` 기준
 - **Node dependency**: `package-lock.json` 기준
 - **Playwright**: `package.json` 기준 버전
 
 ## 사전 준비
 
-PowerShell에서 project venv와 fnm environment를 활성화합니다.
+PowerShell에서 fnm environment와 uv 기반 project environment를 확인합니다. Python venv activation은 필수가 아닙니다.
 
 ```powershell
-.\venv\Scripts\Activate.ps1
-python -c "import sys; print(sys.executable)"
 fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
 fnm use
 node --version
-npm --version
+fnm exec --using=24.15.0 npm.cmd --version
+uv python install
+npm.cmd run env:bootstrap
 ```
 
-Python dependency는 project venv에 requirements 기준으로 설치합니다. Node dependency는 환경에 따라 구분합니다.
+Python dependency는 `.venv`에 exact sync합니다. Node dependency는 환경에 따라 구분합니다.
 
 ```powershell
-python -m pip install -r tools/ai-generator/requirements.txt
+npm.cmd run env:sync
 
 # 외부망 connected reinstall 검증
 npm ci
@@ -135,6 +135,8 @@ npm ci
 # 폐쇄망 vendor dependency 확인
 npm ls --depth=0
 ```
+
+Python 전체 지원 matrix는 `npm.cmd run test:compat`으로 독립된 uv environment에서 검증합니다. 세부 정책과 문제 해결은 [Development Environment](docs/DEVELOPMENT_ENVIRONMENT.md), package별 감사 결과는 [Python Compatibility Audit](docs/PYTHON_COMPATIBILITY.md)을 따릅니다.
 
 Local MVP browser task에는 bundled Chromium만 설치합니다.
 

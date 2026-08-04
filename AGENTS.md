@@ -47,6 +47,7 @@
 
 - local development environment: `docs/DEVELOPMENT_ENVIRONMENT.md`
 - 제품 방향: `docs/PRODUCT_DIRECTION.md`
+- Hosted MVP engine 경계와 전환 백로그: `docs/HOSTED_MVP_ENGINE_BOUNDARY.md`, `docs/HOSTED_MVP_BACKLOG.md`
 - 아키텍처와 data flow: `docs/MODULE_MAP.md`, `docs/DATA_FLOW.md`
 - 테스트 단계: `docs/TEST_LEVELS.md`
 - 생성 규칙: `docs/TEST_GENERATION_RULES.md`

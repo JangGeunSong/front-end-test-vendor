@@ -1,5 +1,48 @@
 # Task Log
 
+## 2026-08-04 - Define Hosted MVP engine boundaries and migration backlog
+
+### 작업 목적
+
+- Local MVP URL 입력부터 deterministic engine, optional interaction, Playwright result/report까지 실제 호출 흐름과 결합 지점을 source/test로 분석한다.
+- Hosted Web SaaS 전환 시 existing engine에서 유지할 contract, application boundary로 추출할 책임, Hosted에서 교체할 Local 구현과 Local-only reference 자산을 구분한다.
+- production behavior, schema version, runtime dependency와 Hosted framework를 변경하지 않고 후속 작업을 세션 단위 크기로 작성한다.
+
+### 조사 결과
+
+- Local UI/API는 deterministic navigation/Page Identity 분석, review report, tab approval/reconciliation/Plan `3.0`, deterministic interaction rendering, Playwright JSON/HTML report와 결과 UI까지 실제 연결한다.
+- Python orchestrator는 root/profile scout를 별도 Node/Chromium process로 실행하고 builder/validator/renderer를 별도 Python process로 실행한다. Controller는 이를 다시 Python child로 감싸고 Playwright Node runner/worker/browser를 실행한다.
+- run별 report/approval/interaction artifact가 존재하지만 scout/menu/plan/navigation spec, profile-tree temp와 root `test-results`는 shared path다. 단일 controller의 process-global Promise queue가 이를 직렬화할 뿐 cross-process isolation은 없다.
+- state 조회 source는 process-local Map이며 `status.json`은 재시작 복구에 사용되지 않는다. 전체 job timeout/cancellation, durable lifecycle, cleanup/retention과 Hosted-grade URL security boundary는 없다.
+- deterministic builders/validators/renderers, candidate/evidence identity, `observedUrl` provenance와 Approval/Reconciliation/Plan contract는 Hosted에서도 유지할 핵심이다.
+
+### 변경 내용
+
+- `HOSTED_MVP_ENGINE_BOUNDARY.md`에 CONNECTED/MANUAL/PARTIAL/PLANNED 흐름, 단계별 계약, process/artifact/state/error/concurrency/security/test 분석과 source evidence index를 추가했다.
+- 같은 문서에 `KEEP`, `EXTRACT`, `REPLACE`, `LOCAL-ONLY` 분류, Hosted-ready logical boundary, 최초 extraction 후보와 unresolved question을 기록했다.
+- `HOSTED_MVP_BACKLOG.md`에 P0 foundation blocker, P1 analysis trial, P2 interaction trial, P3 public operation을 `HMV-001`부터 세분화했다.
+- `PROJECT_OVERVIEW.md`, `CURRENT_STATE.md`, `AGENTS.md`에 Hosted direction, 새 문서 reading route, production implementation 미착수와 다음 frontier를 최소 범위로 반영했다.
+
+### 결정
+
+- 첫 구현 작업은 `HMV-001` framework-free engine invocation adapter extraction을 권장한다.
+- 첫 commit은 current command arguments, artifact paths, Local API/UI와 engine contract를 그대로 유지하고 process runner injection과 structured process result까지만 다룬다.
+- job workspace, manifest, lifecycle persistence, timeout/cancellation, security defense와 Hosted API는 별도 후속 commit이다.
+
+### 검증
+
+- `git diff --check`, Markdown relative link, project JSON 9개 parse, JavaScript 13개와 Python 18개 syntax PASS.
+- `npm.cmd run test:python`: Python 2/2 PASS.
+- `npm.cmd run product:mvp:test`: Node 18/18과 Python 2/2 PASS.
+- source evidence file/symbol, npm script, 추가 line의 외부 target/domain·private IP·개인 절대 경로와 high-risk secret pattern 검사 PASS.
+- environment/Python source를 변경하지 않아 `test:compat`은 실행하지 않았다.
+
+### 제한과 다음 작업
+
+- 이번 작업은 Hosted production code나 existing engine behavior를 구현·변경하지 않았다.
+- target URL security specification, lifecycle/idempotency, public evidence granularity, retention과 approval audit identity는 후속 결정이 필요하다.
+- 다음 작업은 `HMV-001`이며 완료 후 `HMV-002` job-scoped workspace path contract로 진행한다.
+
 ## 2026-08-02 - Standardize Python compatibility and uv bootstrap
 
 ### 작업 목적

@@ -6,6 +6,8 @@
 
 이 프로젝트는 URL-first WEB test generation AX pipeline이다. 대상 URL을 입력하면 실제 브라우저로 웹 UI를 탐색하고, primary navigation과 page identity 근거를 수집한 뒤, structured test plan과 deterministic Playwright spec을 생성하는 것을 목표로 한다.
 
+Commercial delivery의 다음 제품 방향은 공개 URL 하나로 분석, 제한된 안전 interaction 실행, PASS/FAIL/SKIPPED와 evidence 기반 Web Report를 제공하는 Hosted Web SaaS다. Local MVP는 기존 engine contract를 검증하고 Hosted와 같은 application boundary를 사용하는 개발·검증용 reference client로 유지한다. Hosted production implementation은 아직 시작하지 않았다.
+
 ## Core Value
 
 핵심 가치는 문서, QA 인력, 기존 테스트 케이스가 부족한 환경에서도 웹 검증 대상을 분석 가능한 구조로 바꾸는 것이다.
@@ -136,7 +138,9 @@ target URL
 
 ## Immediate Next Milestones
 
-현재 active frontier와 바로 이어질 milestone은 [CURRENT_STATE.md](CURRENT_STATE.md)에 유지한다. 이 문서는 장기적으로 안정적인 지원 범위와 architecture 설명만 유지한다.
+Hosted 전환을 위한 current engine 분석과 `KEEP`/`EXTRACT`/`REPLACE` 경계는 [HOSTED_MVP_ENGINE_BOUNDARY.md](HOSTED_MVP_ENGINE_BOUNDARY.md), 세분화된 구현 순서는 [HOSTED_MVP_BACKLOG.md](HOSTED_MVP_BACKLOG.md)에 유지한다. 현재 active frontier와 latest completed work는 [CURRENT_STATE.md](CURRENT_STATE.md)를 따른다.
+
+첫 권장 milestone은 기존 Local MVP 동작과 engine schema를 유지하면서 controller의 subprocess command construction/result capture를 framework-free engine invocation adapter로 추출하는 것이다. Hosted API, Web UI, persistence, dispatcher와 public execution은 이 milestone에 포함하지 않는다.
 
 ## Validation Strategy
 

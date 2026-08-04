@@ -12,6 +12,8 @@
 
 목표는 LLM이 임의의 테스트 코드를 작성하게 하는 것이 아니라, 문서와 기존 TC가 부족한 환경에서도 coverage, 제외 근거, unresolved 후보, review artifact가 남는 human-in-the-loop 자동화 경로를 제공하는 것이다.
 
+다음 commercial delivery 방향은 공개 URL 입력부터 분석, 제한된 reversible interaction 실행과 sanitized Web Report까지 제공하는 Hosted Web SaaS다. Local MVP는 폐기하지 않고 개발·검증용 reference client로 유지한다. Hosted production code, persistence, dispatcher, isolated worker와 public security control은 아직 구현되지 않았다.
+
 ## Current Pipeline
 
 현재 primary navigation/Page Identity 실행 경로:
@@ -115,7 +117,7 @@ analysis_review_report.json
 
 ## Current Development Frontier
 
-Plan schema `3.0`/deterministic renderer의 previous-selection browser runtime, approval writer/local MVP product integration과 Navigation-only optional interaction execution이 구현됐다. 다음 중심 frontier는 `expandedToggle` runtime validation 또는 local MVP durability/persistence hardening이며, 둘은 별도 task로 선택한다.
+Plan schema `3.0`/deterministic renderer의 previous-selection browser runtime, approval writer/local MVP product integration과 Navigation-only optional interaction execution이 구현됐다. Local controller부터 engine/report까지의 Hosted migration 경계 분석도 완료됐다. 다음 중심 frontier는 [Hosted MVP Migration Backlog](HOSTED_MVP_BACKLOG.md)의 `HMV-001` framework-free engine invocation adapter extraction이다. 이는 Hosted framework 구현이 아니라 existing Local behavior를 보존하는 application seam 작업이다.
 
 완료된 부분:
 
@@ -312,15 +314,18 @@ navigation
 ## Next Implementation Frontier
 
 ```text
-expandedToggle runtime validation
-  or
-local MVP durability/UX hardening
+HMV-001 framework-free engine invocation adapter
+  -> HMV-002 job-scoped workspace path contract
+  -> HMV-003 artifact manifest
 ```
 
-Cross-site interaction regression, general execution result schema와 persistent workspace history는 각각 별도 후속 범위다.
+Task 2/3 분석은 [Hosted MVP Engine Boundary](HOSTED_MVP_ENGINE_BOUNDARY.md)에, 구현 가능한 크기의 P0~P3 후속 작업은 [Hosted MVP Migration Backlog](HOSTED_MVP_BACKLOG.md)에 기록했다. Existing deterministic builders/validators/renderers, observedUrl provenance와 Approval/Reconciliation/Plan contracts는 유지한다. Shared generated output, process-local state/queue, raw report exposure와 parser-only URL gate는 Hosted adapter/control boundary에서 추출 또는 교체해야 한다.
+
+`expandedToggle` runtime과 cross-site interaction regression은 P2 interaction trial에서 계속 필요한 별도 작업이며 삭제되거나 지원 완료로 간주하지 않는다. General execution result와 persistent history도 Hosted backlog에서 단계적으로 다룬다.
 
 ## Recommended Reading by Task
 
+- Hosted MVP 전환: [HOSTED_MVP_ENGINE_BOUNDARY.md](HOSTED_MVP_ENGINE_BOUNDARY.md), [HOSTED_MVP_BACKLOG.md](HOSTED_MVP_BACKLOG.md)
 - pipeline/projection 변경: [DATA_FLOW.md](DATA_FLOW.md), [MODULE_MAP.md](MODULE_MAP.md)
 - 제품/지원 범위 판단: [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md), [PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md), [TEST_LEVELS.md](TEST_LEVELS.md)
 - structured navigation plan: [TEST_PLAN_SCHEMA.md](TEST_PLAN_SCHEMA.md), [TEST_TEMPLATE_CATALOG.md](TEST_TEMPLATE_CATALOG.md), [STRUCTURED_PLAN_MIGRATION.md](STRUCTURED_PLAN_MIGRATION.md)

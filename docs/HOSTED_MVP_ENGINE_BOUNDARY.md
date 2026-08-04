@@ -11,7 +11,7 @@
 - **Proposed**: Hosted 이전을 위한 제안이다.
 - **Unresolved**: 추가 실험 또는 제품·운영 결정이 필요하다.
 
-이 문서는 production implementation 완료 선언이 아니다. 현재 Local MVP와 engine contract를 변경하지 않으며 Hosted framework, database, queue, cloud, container 제품을 선택하지 않는다.
+이 문서의 최초 분석 이후 HMV-001 engine invocation adapter만 구현됐다. 현재 Local MVP와 engine contract를 변경하지 않으며 Hosted framework, database, queue, cloud, container 제품을 선택하지 않는다.
 
 ## 분석 범위와 제외 범위
 
@@ -26,7 +26,7 @@
 제외 범위:
 
 - Hosted API/Web UI/worker production code
-- engine entrypoint extraction implementation
+- HMV-002 workspace/path migration and later Hosted implementation
 - schema/version 변경
 - SSRF 방어 구현
 - deployment/runtime 제품 선정
@@ -51,6 +51,19 @@ Observed at analysis start:
 The bare shell Python is not the repository execution contract. `tools/environment/run-python.js` selects `.venv/Scripts/python.exe` unless `MVP_PYTHON` is set, and invokes it through uv with pinned requirements.
 
 ## 현재 End-to-End 흐름
+
+HMV-001 이후 controller의 direct process boundary는 다음과 같다.
+
+```text
+Local HTTP controller workflow
+  -> createEngineInvocationRequest({ command, args, cwd, env })
+  -> invokeEngineProcess(request, { spawnImpl? })
+  -> existing Python orchestrator / Python stages / Playwright runner
+  -> raw { exitCode, signal, stdout, stderr, spawnError }
+  -> Local compatibility handling and existing status/API projection
+```
+
+`tools/mvp/engine-invocation.js`는 HTTP/server를 import하지 않는다. Controller는 run lifecycle, stage ordering, artifact copy/path selection, approval/execution branching, Local debug log, friendly error와 result projection을 계속 소유한다. Adapter는 request copy/environment merge, `spawn`, stdout/stderr accumulation, exit/signal/spawn-error terminal capture와 one-settlement listener cleanup만 소유한다.
 
 ### 연결 상태 정의
 
@@ -120,7 +133,7 @@ Important distinctions:
 | Analyze request | `server.js: route`; `app.js` analyze submit | browser | JSON `{url}` | HTTP 202 `{runId}` | no | creates run dir/status | controller `runs` Map | malformed/oversize body or URL becomes HTTP 400 | none / none | request accepted, work globally queued | EXTRACT request use case |
 | Target validation | `controller.js: validateTargetUrl` | HTTP route | arbitrary string | normalized `URL.href` | no | none | none | throws for non-absolute, non-HTTP(S), credentials | none / none | pure | KEEP basic parser behind stronger Hosted policy |
 | Run creation | `controller.js: createRun`, `persist` | HTTP route | validated URL | mutable run object/id | no | writes run `status.json`; creates shared spec dir | Map + run JSON snapshot | sync filesystem error bubbles to HTTP 400 | none / none | unique run dir; shared spec root | EXTRACT workspace/run request |
-| Engine orchestration | `controller.js: analyzeRun`; `agent_orchestrator.py: run_plan_generation_pipeline` | queued controller operation | CLI URL, mode, no-cache | common core artifacts/spec | Node -> Python | writes shared generated paths | controller stage only | nonzero child -> rejected command -> run `failed` | no controller deadline/cancel | safe only because global queue serializes controller work | EXTRACT invocation adapter |
+| Engine orchestration | `controller.js: analyzeRun`; `engine-invocation.js`; `agent_orchestrator.py: run_plan_generation_pipeline` | queued controller operation | explicit command/args/cwd/env request with CLI URL, mode, no-cache | raw invocation result plus common core artifacts/spec | Node adapter -> Python | writes shared generated paths | controller stage only | adapter distinguishes spawn/nonzero/signal; compatibility wrapper preserves run `failed` behavior | no controller deadline/cancel | safe only because global queue serializes controller work | HMV-001 EXTRACTED; workspace still pending |
 | Root scout | `agent_orchestrator.py: run_scout`; `scout.js: scoutSite` | orchestrator | CLI URL | JSON on stdout | Python -> Node -> browser | no direct result file | process-local | nonzero returns `None`; invalid JSON returns `None`; caller raises `scout failed` | `page.goto` 30s; no whole-process timeout/cancel | browser isolated, stdout contract; shared only through caller | KEEP discovery behavior; adapt I/O |
 | Page-profile scout | `run_page_profile_scout`; `collectPrimaryMenuPageProfiles` | orchestrator | URL + fixed profile-tree file path | JSON on stdout | Python -> Node -> browser | fixed temp JSON write/delete | process-local | nonzero becomes empty profile list; JSON errors also empty | navigation 30s each; no whole-process timeout/cancel | fixed temp name collides; Local MVP disables cache but not temp sharing | KEEP producer, REPLACE workspace binding |
 | Projection/menu map | `build_and_save_menu_map` and projection helpers | orchestrator | scout object | menu map + enriched scout | no | writes shared `scout_result.json`, `menu_map.json` | Python memory/files | runtime errors reach orchestrator exit 1 | none / none | shared output collision | KEEP rules; EXTRACT paths |
@@ -141,10 +154,18 @@ Important distinctions:
 
 ## Process Boundaries
 
+HMV-001 classification of observed subprocesses:
+
+| Classification | Invocation | Reason |
+| --- | --- | --- |
+| `ENGINE_INVOCATION` | All direct Python and Playwright processes called by `controller.js` | These are the existing deterministic analysis, review/approval/planning/rendering and execution commands a future worker must invoke; all now use the adapter. |
+| `LOCAL_SUPPORT` | `tools/mvp/smoke.js` starting `server.js`; manual `playwright show-report` | These support Local product smoke or developer report viewing and are not worker engine commands. Local report HTTP serving creates no process. |
+| `OUT_OF_SCOPE` | Python orchestrator's nested Node scout and Python builder/validator/renderer processes; `tools/environment/run-python.js` uv wrapper | Nested engine internals retain their existing boundaries; the uv wrapper is a repository command/bootstrap entrypoint, not the Local controller invocation seam. |
+
 | Process | Created by | Receives | Returns / writes | Lifecycle observation |
 | --- | --- | --- | --- | --- |
 | Local HTTP Node process | `npm run product:mvp` -> `server.js` | HTTP, `MVP_PORT`, inherited env | JSON API and static files | one process; binds `127.0.0.1`; owns in-memory registry/queue |
-| Python orchestrator process | `runCommand` in `analyzeRun` | executable path, CLI args, inherited env plus UTF-8 | stdout/stderr/exit; shared files | one per analysis |
+| Python orchestrator process | `invokeEngineProcess` through controller `runCommand` in `analyzeRun` | executable path, CLI args, inherited env plus UTF-8 | stdout/stderr/exit/signal/spawn error; shared files | one per analysis |
 | Root Node scout process | Python `subprocess.run` | URL command argument | one JSON document on stdout, diagnostics stderr | launches one Chromium browser |
 | Profile Node scout process | Python `subprocess.run` | URL and fixed JSON file argument | one JSON document on stdout | launches a second Chromium browser and navigates per target |
 | Python builder/validator/renderer processes | orchestrator `run_subprocess_stage` or controller `runCommand` | CLI file paths | files, stdout/stderr, exit code | separate process for each stage |
@@ -324,7 +345,7 @@ KEEP does not mean raw CLI/file paths are the final Hosted API. It means behavio
 
 | Candidate | Current location/coupling | Proposed boundary (input -> output; side effect) | Priority | Characterization / first commit size |
 | --- | --- | --- | --- | --- |
-| Engine invocation service | `controller.js: analyzeRun/approveRun/executeRun` mixes lifecycle, process and projection | `RunRequest {targetUrl, mode, options, workspace}` -> structured process/stage result; launches existing commands | P0 | fake process runner test; one module plus controller delegation, no behavior change |
+| Engine invocation service | HMV-001 extracted to `tools/mvp/engine-invocation.js`; controller retains lifecycle/projection | `{command,args,cwd,env}` -> `{command,args,cwd,exitCode,signal,stdout,stderr,spawnError}`; launches existing commands | P0 complete | injected fake spawn and controller request characterization; no behavior change |
 | Job workspace allocation | `createRun`, shared constants, `copyFreshArtifacts` | run ID/root -> validated job path map; mkdir only | P0 | traversal/uniqueness/path tests; do not yet move every engine output |
 | Artifact manifest | implicit path fields on mutable run | stage outputs -> typed logical names, size/type/sensitivity/existence | P0 | fixture manifest tests; additive file after current run |
 | Normalized terminal result | `summarizePlaywrightResult` plus catch branches | raw Playwright/process results -> execution outcome + system outcome | P0 | preserve current JSON projection fixtures; no public schema promise |
@@ -406,7 +427,7 @@ Answers to migration questions:
 
 ## 최초 Extraction 후보
 
-Recommended first implementation: **HMV-001 — framework-free engine invocation adapter**.
+Completed first implementation: **HMV-001 — framework-free engine invocation adapter**.
 
 Why first:
 
@@ -415,6 +436,10 @@ Why first:
 - dependency injection makes command/result/error characterization possible without browser/network calls;
 - both later Local controller cleanup and Hosted worker skeleton can reuse it;
 - it exposes, rather than hides, the fixed-path work that HMV-002 must isolate.
+
+Implementation location stayed under `tools/mvp/` because the only current consumer and command compatibility owner is the Local controller. The module itself has no Local HTTP/UI import and can be reused by a future worker. Creating a new engine directory before a second consumer exists would add ownership churn without changing the seam.
+
+HMV-001 deliberately does not expose a `workspace` field. The current fixed shared paths would make that field misleading. HMV-002 should introduce one validated job path map and project it into the adapter's existing `cwd`, arguments and bounded environment input without changing its process terminal contract.
 
 ## Unresolved Questions
 
@@ -438,7 +463,9 @@ Why first:
 - `tools/mvp/controller.js` — `runs`, `operationQueue`, `enqueue`: process-local state and global serialization.
 - `tools/mvp/controller.js` — `validateTargetUrl`: credential-free absolute HTTP(S) validation.
 - `tools/mvp/controller.js` — `createRun`, `persist`, `stage`: run directory and in-memory/file snapshot state.
-- `tools/mvp/controller.js` — `runCommand`: child spawn, inherited environment, stdout/stderr and exit handling.
+- `tools/mvp/controller.js` — `runCommand`: adapter delegation plus legacy nonzero/allowFailure, logging and friendly-error compatibility.
+- `tools/mvp/engine-invocation.js` — `createEngineInvocationRequest`, `invokeEngineProcess`: HMV-001 explicit process request, environment copy and raw terminal result boundary.
+- `tools/mvp/engine-invocation.test.js` — spawn/nonzero/signal/chunk/environment/double-terminal adapter characterization.
 - `tools/mvp/controller.js` — `analyzeRun`, `copyFreshArtifacts`: deterministic orchestrator invocation and shared-to-run artifact copy.
 - `tools/mvp/controller.js` — `normalizeAnalysis`: Local UI projection and tab-only eligibility.
 - `tools/mvp/controller.js` — `approveRun`: current Report snapshot writer/Approval validator invocation.
@@ -469,6 +496,7 @@ Why first:
 - `tools/ai-generator/render_interaction_plan.py` — `render_spec`, `write_source_atomic`: fixed interaction code shape and atomic output.
 - `tools/ai-generator/validate_generated_spec.py` — `validate`: legacy direct-spec static evidence validator, manual in current Local flow.
 - `tools/mvp/controller.test.js` — controller boundary tests.
+- `tools/ai-generator/test_agent_orchestrator_invocation.py` — deterministic builder/validator/renderer command ordering and current validator argument characterization.
 - `tools/mvp/bootstrap.test.js` — Local Playwright execution setting test.
 - `tools/mvp/public/app.test.js` — dependency-free Local UI behavior tests.
 - `tools/ai-generator/test_write_interaction_approvals.py` — approval writer unit tests.

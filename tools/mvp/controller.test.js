@@ -1,13 +1,50 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const {
   normalizeAnalysis,
   selectExecutionTargets,
   summarizePlaywrightResult,
   friendlyError,
+  runCommand,
   validateExecuteRequest,
   validateTargetUrl,
 } = require('./controller');
+
+test('controller delegates exact command, args, cwd, and environment to the invocation adapter', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hmv-001-controller-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const run = { dir, debugLog: [] };
+  let captured;
+  const result = await runCommand(
+    run,
+    'website analysis and navigation plan',
+    'C:\\repo\\.venv\\Scripts\\python.exe',
+    ['tools/ai-generator/agent_orchestrator.py', '--generation-mode', 'plan', '--url', 'https://example.test/', '--no-profile-cache'],
+    { env: { EXPLICIT: 'override' } },
+    {
+      parentEnv: { INHERITED: 'parent', EXPLICIT: 'parent' },
+      invokeEngineProcessImpl: async (invocation) => {
+        captured = invocation;
+        return { exitCode: 0, signal: null, stdout: 'ok', stderr: '', spawnError: null };
+      },
+    },
+  );
+  assert.equal(captured.command, 'C:\\repo\\.venv\\Scripts\\python.exe');
+  assert.deepEqual(captured.args, [
+    'tools/ai-generator/agent_orchestrator.py', '--generation-mode', 'plan', '--url', 'https://example.test/', '--no-profile-cache',
+  ]);
+  assert.equal(captured.cwd, path.resolve(__dirname, '..', '..'));
+  assert.deepEqual(captured.env, {
+    INHERITED: 'parent',
+    EXPLICIT: 'override',
+    PYTHONIOENCODING: 'utf-8',
+    PYTHONUTF8: '1',
+  });
+  assert.deepEqual(result, { code: 0, signal: null, stdout: 'ok', stderr: '' });
+});
 
 test('target URL validation accepts HTTP(S) and rejects credentials', () => {
   assert.equal(validateTargetUrl('https://example.test/docs'), 'https://example.test/docs');

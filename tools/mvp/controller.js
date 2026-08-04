@@ -1,7 +1,10 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
+const {
+  createEngineInvocationRequest,
+  invokeEngineProcess,
+} = require('./engine-invocation');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const GENERATED = path.join(ROOT, 'tools', 'ai-generator', 'generated');
@@ -87,31 +90,29 @@ function appendLog(run, label, output) {
   run.debugLog = run.debugLog.slice(-20);
 }
 
-function runCommand(run, label, executable, args, options = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(executable, args, {
-      cwd: ROOT,
-      windowsHide: true,
-      env: {
-        ...process.env,
-        PYTHONIOENCODING: 'utf-8',
-        PYTHONUTF8: '1',
-        ...(options.env || {}),
-      },
-    });
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
-    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      appendLog(run, label, [stdout, stderr].filter(Boolean).join('\n'));
-      persist(run);
-      const result = { code, stdout, stderr };
-      if (code === 0 || options.allowFailure) resolve(result);
-      else reject(Object.assign(new Error(`${label} failed`), { result }));
-    });
-  });
+async function runCommand(run, label, executable, args, options = {}, dependencies = {}) {
+  const request = createEngineInvocationRequest({
+    command: executable,
+    args,
+    cwd: ROOT,
+    env: {
+      PYTHONIOENCODING: 'utf-8',
+      PYTHONUTF8: '1',
+      ...(options.env || {}),
+    },
+  }, dependencies);
+  const invocation = await (dependencies.invokeEngineProcessImpl || invokeEngineProcess)(request);
+  if (invocation.spawnError) throw invocation.spawnError;
+  appendLog(run, label, [invocation.stdout, invocation.stderr].filter(Boolean).join('\n'));
+  persist(run);
+  const result = {
+    code: invocation.exitCode,
+    signal: invocation.signal,
+    stdout: invocation.stdout,
+    stderr: invocation.stderr,
+  };
+  if (invocation.exitCode === 0 || options.allowFailure) return result;
+  throw Object.assign(new Error(`${label} failed`), { result });
 }
 
 function copyFreshArtifacts(run) {
@@ -473,6 +474,7 @@ module.exports = {
   getRun,
   normalizeAnalysis,
   publicRun,
+  runCommand,
   selectExecutionTargets,
   summarizePlaywrightResult,
   validateExecuteRequest,

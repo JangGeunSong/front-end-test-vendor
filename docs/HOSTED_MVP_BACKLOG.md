@@ -13,11 +13,13 @@ Priority meanings:
 
 ## Recommended First Work
 
-Start with **HMV-001**. It creates the smallest reusable seam around proven Local commands, keeps Local behavior unchanged, adds no Hosted dependency, and makes later workspace isolation and worker invocation testable.
+**HMV-001 is complete.** Continue with **HMV-002** to define the job-scoped workspace path contract on top of the explicit invocation seam, without changing the process terminal contract.
 
 ## P0 — Hosted Foundation Blockers
 
 ### HMV-001 — Extract engine invocation adapter
+
+- **Status:** Completed on 2026-08-05.
 
 - **Objective:** Wrap current command construction/execution behind request/response objects and dependency-injected process runner.
 - **Rationale:** `controller.js` currently mixes HTTP-neutral application logic with subprocess details.
@@ -29,6 +31,22 @@ Start with **HMV-001**. It creates the smallest reusable seam around proven Loca
 - **Required tests:** command construction including the current navigation validator arguments, env allow/override behavior characterization, success/nonzero/spawn failure, existing controller/product tests.
 - **Migration risk:** medium; error wording/status drift.
 - **Recommended commit size:** one adapter module, focused tests, controller delegation only.
+
+Implementation result:
+
+- `tools/mvp/engine-invocation.js` exports `createEngineInvocationRequest` and `invokeEngineProcess` as CommonJS, framework-free functions.
+- The request contract is `{ command, args, cwd, env }`. `env` is copied over the inherited parent environment, with explicit overrides taking precedence; neither input object nor `process.env` is mutated.
+- The raw result contract is `{ command, args, cwd, exitCode, signal, stdout, stderr, spawnError }`. It keeps spawn failure, non-zero exit and signal termination distinct and never returns the environment.
+- Every direct child process previously launched by Local `controller.js:runCommand` now delegates through the adapter. The compatibility wrapper retains existing rejection, `allowFailure`, debug-log and friendly-error behavior.
+- Focused tests cover success, non-zero exit, spawn failure followed by close, signal termination, chunked output, environment copying/override/no-result-exposure and synchronous spawn failure. Controller characterization fixes the deterministic analysis executable, argument ordering, repository cwd and UTF-8 environment overrides.
+- Acceptance criteria passed: Local API/UI behavior and command defaults are unchanged; no HTTP/framework or new dependency was introduced; the runner is injectable; spawn and non-zero outcomes remain distinguishable.
+
+HMV-002 handoff:
+
+- The adapter already accepts an explicit `cwd` and a complete invocation request, so HMV-002 can bind job-scoped paths without changing process execution or controller error compatibility again.
+- A `workspace` field was intentionally not added before a real path map exists. HMV-002 should define the validated workspace/path contract and pass its paths through existing command arguments, cwd and bounded environment overrides.
+- Fixed generated paths, copy-after-shared-output, root `test-results`, process-local state/queue and inherited full environment remain unchanged.
+- The Local deterministic orchestrator still omits optional navigation validator `--menu-map`; this known behavior was characterized but not changed in HMV-001.
 
 ### HMV-002 — Introduce job-scoped workspace path contract
 

@@ -117,7 +117,9 @@ analysis_review_report.json
 
 ## Current Development Frontier
 
-Plan schema `3.0`/deterministic renderer의 previous-selection browser runtime, approval writer/local MVP product integration과 Navigation-only optional interaction execution이 구현됐다. Local controller부터 engine/report까지의 Hosted migration 경계 분석도 완료됐다. 다음 중심 frontier는 [Hosted MVP Migration Backlog](HOSTED_MVP_BACKLOG.md)의 `HMV-001` framework-free engine invocation adapter extraction이다. 이는 Hosted framework 구현이 아니라 existing Local behavior를 보존하는 application seam 작업이다.
+Plan schema `3.0`/deterministic renderer의 previous-selection browser runtime, approval writer/local MVP product integration과 Navigation-only optional interaction execution이 구현됐다. Local controller부터 engine/report까지의 Hosted migration 경계 분석과 `HMV-001` framework-free engine invocation adapter extraction도 완료됐다. 다음 중심 frontier는 [Hosted MVP Migration Backlog](HOSTED_MVP_BACKLOG.md)의 `HMV-002` job-scoped workspace path contract다.
+
+HMV-001은 `tools/mvp/engine-invocation.js`의 explicit `{command,args,cwd,env}` request와 raw process result 경계로 controller의 direct Python/Playwright spawn 책임을 옮겼다. Local compatibility wrapper는 기존 command/argument ordering, inherited environment + UTF-8 override, shared artifact path, queue/Map, status/error/API/result behavior를 유지한다. Adapter는 full environment를 result에 반환하지 않으며 spawn failure, non-zero exit와 signal termination을 구분한다.
 
 완료된 부분:
 
@@ -179,7 +181,17 @@ Version transition은 완료됐다. `interaction_plan_contract.py`는 Reconcilia
 
 ## Latest Completed Work
 
-가장 최근 완료 작업은 Python/uv 개발환경과 호환성 범위를 표준화한 maintenance 작업이다.
+가장 최근 완료 작업은 Hosted 전환 backlog의 `HMV-001` engine invocation adapter extraction이다.
+
+- Local controller의 유일한 direct `child_process.spawn`을 framework-free `tools/mvp/engine-invocation.js`로 이동
+- `createEngineInvocationRequest`와 injectable `invokeEngineProcess` request/result contract 추가
+- stdout/stderr chunk ordering, exit code, signal, spawn error와 double-terminal one-settlement 보존
+- controller compatibility layer를 통해 기존 non-zero rejection, Playwright `allowFailure`, debug log, friendly error와 HTTP/UI behavior 유지
+- nested orchestrator process, smoke server spawn과 uv wrapper는 각각 engine-internal/Local-support 경계로 유지
+- job workspace field는 실제 path map 없이 추가하지 않았고 fixed shared paths는 HMV-002로 이관
+- focused adapter/controller test와 full Local/Python regression으로 behavior 보존 확인
+
+이전 완료 작업은 Python/uv 개발환경과 호환성 범위를 표준화한 maintenance 작업이다.
 
 - Python 3.12.13, 3.13.14, 3.14.6의 독립 uv environment에서 동일 pinned requirements의 Windows wheel-only install, dependency check, import, compile, Python tests와 npm MVP tests PASS
 - 공식 Python 지원 범위는 3.12~3.14, `.python-version` 기본값은 ecosystem 안정성을 고려한 minor pin `3.12`로 결정
@@ -314,8 +326,8 @@ navigation
 ## Next Implementation Frontier
 
 ```text
-HMV-001 framework-free engine invocation adapter
-  -> HMV-002 job-scoped workspace path contract
+HMV-001 framework-free engine invocation adapter (completed)
+  -> HMV-002 job-scoped workspace path contract (active frontier)
   -> HMV-003 artifact manifest
 ```
 

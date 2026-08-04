@@ -1,5 +1,60 @@
 # Task Log
 
+## 2026-08-05 - Extract engine invocation adapter (HMV-001)
+
+### 작업 목적과 범위
+
+- Hosted migration backlog의 첫 production-code task로 Local controller의 direct child-process 책임을 framework-free adapter로 추출한다.
+- Local API/UI, status transition, queue/Map, command arguments, cwd/environment, artifact/schema/report와 user-facing error behavior를 보존한다.
+- Workspace isolation, manifest, normalized Hosted result/error, timeout/cancel, security와 optional navigation validator `--menu-map` 변경은 포함하지 않는다.
+
+### 조사와 분류
+
+- `ENGINE_INVOCATION`: controller가 직접 실행하는 deterministic Python orchestrator, analysis/review/approval/reconciliation/interaction plan/render stages와 Playwright runner. 기존 단일 `runCommand` 경계를 모두 adapter로 위임했다.
+- `LOCAL_SUPPORT`: `tools/mvp/smoke.js`의 Local server spawn과 manual `playwright show-report`. Local HTML report serving 자체는 별도 process가 없다.
+- `OUT_OF_SCOPE`: Python orchestrator 내부의 Node scout/Python stage subprocess와 `tools/environment/run-python.js` uv wrapper. Engine 내부/개발 bootstrap 경계이며 controller adapter에 중복 포장하지 않았다.
+- Orchestrator의 navigation validator는 현재 `--input <plan>`만 전달하고 optional `--menu-map`을 생략한다. Known behavior로 유지했다.
+
+### 구현과 설계 결정
+
+- `tools/mvp/engine-invocation.js`에 CommonJS `createEngineInvocationRequest`와 `invokeEngineProcess`를 추가했다.
+- Input은 `{command,args,cwd,env}`이며 parent environment copy 후 explicit override를 적용한다. 입력이나 `process.env`는 mutate하지 않는다.
+- Output은 `{command,args,cwd,exitCode,signal,stdout,stderr,spawnError}`이며 environment는 secret 노출 방지를 위해 포함하지 않는다.
+- Injectable `spawnImpl`, stdout/stderr chunk accumulation, spawn/nonzero/signal 구분, synchronous spawn throw와 `error` 후 `close` one-settlement/listener cleanup을 구현했다.
+- Controller `runCommand`는 adapter result를 기존 `{code,stdout,stderr}` compatibility behavior로 변환하며 signal만 additive internal field로 보존한다. Spawn failure rejection, non-zero rejection, Playwright `allowFailure`, debug logging/persist와 friendly-error input은 유지했다.
+- Adapter 위치는 current consumer/compatibility owner가 `tools/mvp`인 점을 따랐다. HTTP/server import는 없으므로 future worker 재사용은 막지 않는다.
+- 거짓 abstraction을 피하기 위해 `workspace` field는 추가하지 않았다. HMV-002가 validated path map을 정의한 뒤 existing cwd/args/env seam으로 전달한다.
+
+### 변경 파일
+
+- `tools/mvp/engine-invocation.js`
+- `tools/mvp/engine-invocation.test.js`
+- `tools/mvp/controller.js`
+- `tools/mvp/controller.test.js`
+- `tools/ai-generator/test_agent_orchestrator_invocation.py`
+- `package.json`
+- `docs/HOSTED_MVP_BACKLOG.md`
+- `docs/HOSTED_MVP_ENGINE_BOUNDARY.md`
+- `docs/CURRENT_STATE.md`
+- `docs/TASK_LOG.md`
+
+### 검증과 commit
+
+- Pre-change `product:mvp:test`: Node 18/18와 Python 2/2 PASS. 첫 sandbox run은 user uv cache 접근 거부로 Node만 PASS한 뒤 disposable temp `UV_CACHE_DIR`로 재실행했다.
+- Adapter/controller focused tests: real no-shell child, success, nonzero, spawn failure + close, signal, chunking, environment, synchronous throw와 exact controller request 20/20 PASS.
+- `npm.cmd run test:python`: orchestrator command characterization을 포함해 3/3 PASS.
+- `npm.cmd run product:mvp:test`: Node 27/27와 approval writer Python 2/2 PASS.
+- Changed/project JavaScript syntax, Python compile, project JSON 8개 parse, Markdown relative link 34개, `git diff --check` PASS.
+- Dependency/lock/schema/generated artifact diff 없음과 current diff sanitization scan PASS.
+- Local commit message: `refactor: extract engine invocation adapter`. Remote push는 수행하지 않는다.
+
+### HMV-002 handoff와 non-goals
+
+- Adapter의 explicit cwd/args/env request와 raw terminal result는 workspace/path binding을 바꿔도 process execution/error compatibility를 다시 수정하지 않는 seam이다.
+- Shared generated directory, copyFreshArtifacts, shared specs/root test-results, global queue, Map, environment allowlist, timeout/cancel과 retention은 변경하지 않았다.
+- Artifact/schema filename/version, public API/response, deterministic plan behavior, Hosted framework/dependency와 external target/LLM execution을 변경하지 않았다.
+- 다음 작업은 `HMV-002 — job-scoped workspace path contract`다.
+
 ## 2026-08-04 - Define Hosted MVP engine boundaries and migration backlog
 
 ### 작업 목적

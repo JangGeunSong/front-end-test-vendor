@@ -35,6 +35,7 @@ test('creates the expected deterministic run workspace and directories', (t) => 
 
   assert.deepEqual(first, second);
   assert.equal(first.paths.scoutResult, path.join(first.analysisDir, 'scout_result.json'));
+  assert.equal(first.paths.artifactManifest, path.join(first.root, 'artifact-manifest.json'));
   assert.equal(first.paths.navigationSpec, path.join(first.specDir, 'generated_from_plan.spec.js'));
   assert.equal(first.paths.playwrightHtmlReportIndex, path.join(first.playwrightHtmlReportDir, 'index.html'));
   assert.equal(ensureRunWorkspace(first), first);

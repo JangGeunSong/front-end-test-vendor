@@ -38,7 +38,7 @@
     "report": "playwright show-report",
     "product:mvp": "node tools/mvp/server.js",
     "product:mvp:smoke": "node tools/mvp/smoke.js",
-    "product:mvp:test": "node --test tools/mvp/bootstrap.test.js tools/mvp/controller.test.js tools/mvp/engine-invocation.test.js tools/mvp/run-workspace.test.js tools/mvp/public/app.test.js && node tools/environment/run-python.js tools/ai-generator/test_write_interaction_approvals.py",
+    "product:mvp:test": "node --test tools/mvp/artifact-manifest.test.js tools/mvp/bootstrap.test.js tools/mvp/controller.test.js tools/mvp/engine-invocation.test.js tools/mvp/run-workspace.test.js tools/mvp/public/app.test.js && node tools/environment/run-python.js tools/ai-generator/test_write_interaction_approvals.py",
     "env:bootstrap": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/environment/sync-python.ps1",
     "env:sync": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/environment/sync-python.ps1",
     "env:recreate": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/environment/sync-python.ps1 -Recreate",

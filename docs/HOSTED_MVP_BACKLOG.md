@@ -13,7 +13,7 @@ Priority meanings:
 
 ## Recommended First Work
 
-**HMV-001 and HMV-002 are complete.** Continue with **HMV-003** to project the implemented workspace paths into a relative, sensitivity-aware artifact manifest without changing schemas or public report behavior.
+**HMV-001 through HMV-003 are complete.** Continue with **HMV-004** to define a normalized terminal result over the invocation outcome, run lifecycle and validated artifact manifest while preserving the Local response shape.
 
 ## P0 — Hosted Foundation Blockers
 
@@ -91,6 +91,8 @@ Acceptance and HMV-003 handoff:
 
 ### HMV-003 — Produce artifact manifest
 
+- **Status:** Completed on 2026-08-05. The manifest is an internal workspace contract and is not exposed by the Local API or report endpoint.
+
 - **Objective:** Emit a manifest of expected and produced artifacts by logical role.
 - **Rationale:** paths and sensitivity are implicit mutable run properties today.
 - **Source boundary:** `persist`, HMV-002 workspace paths/ownership, execute-stage produced/missing artifacts.
@@ -101,6 +103,29 @@ Acceptance and HMV-003 handoff:
 - **Required tests:** navigation-only and interaction manifests, missing report, path containment, deterministic projection where applicable.
 - **Migration risk:** low/medium; accidental raw-artifact exposure.
 - **Recommended commit size:** additive manifest writer/projector and fixtures.
+
+Implementation result:
+
+- `tools/mvp/artifact-manifest.js` defines manifest schema `1.0`, stable namespaced artifact IDs, canonical producer/policy metadata, filesystem snapshotting, validation and same-directory temporary-write/rename persistence.
+- `tools/mvp/run-workspace.js` now owns `artifact-manifest.json`; the manifest intentionally omits itself to avoid self-reference. Serialized paths are repository/workspace-relative with `/`, never absolute local paths.
+- Entries record `file`/`directory`, explicit media type (`null` for directories), `required`/`conditional`/`optional`, condition where applicable, `present`/`missing`/`empty`, file size, sensitivity and `never`/`review-required` public eligibility. Missing downstream artifacts are a valid snapshot, not a lifecycle error.
+- Controller refresh points are workspace creation after `status.json`, analysis success/failure, approval success/failure and execution success/failure. A manifest write failure is a secondary diagnostic: it does not replace an existing run result, and a later lifecycle refresh can retry.
+- Raw scout/menu data, approvals, generated specs, Playwright JSON/HTML and attachments are never directly public-eligible. Review JSON/Markdown is `review-required`; no current artifact is automatically `eligible`. This metadata does not perform redaction or public projection.
+
+Registration result:
+
+| Class | Artifact IDs / result |
+| --- | --- |
+| `REGISTER_NOW` | `run.status`, `analysis.scout-result`, `analysis.menu-map`, `analysis.navigation-plan`, `review.analysis-report-json`, `review.analysis-report-markdown`, `execution.navigation-spec`. |
+| `REGISTER_OPTIONAL` | `approval.interaction-approvals`, `approval.reconciliation`, `plan.interaction-plan`, `execution.interaction-spec`, `execution.test-results`, `report.playwright-json`, `report.playwright-html`. Conditional and optional artifacts remain listed when missing or empty. |
+| `DEFER` | Transient `primary_menu_tree_for_profiles.json`, disabled Local `page_profile_cache.json`, per-file trace/screenshot/video enumeration, manual/LLM/default-path artifacts and temporary manifest write files. |
+| `LOCAL_ONLY` | Raw report serving/opening, developer artifact browsing, fixture/debug commands and manual review files. The registered raw HTML directory remains private even though the Local report endpoint consumes it. |
+
+Acceptance and HMV-004 handoff:
+
+- Focused tests cover initial/partial/present snapshots, A/B isolation, absolute-path leakage, traversal, duplicate/order/enum failures, strict file/directory checks, atomic replacement, conservative public policy and no global mutation.
+- Controller tests prove initial, success and failure manifests while preserving `publicRun`; existing adapter/workspace/product regressions remain green.
+- HMV-004 should consume this validated manifest by logical artifact ID. It must not infer terminal semantics from `presence` alone or turn `publicEligibility` into an artifact-serving decision.
 
 ### HMV-004 — Define normalized terminal result boundary
 

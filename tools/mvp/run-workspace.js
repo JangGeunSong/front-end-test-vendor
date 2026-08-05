@@ -12,6 +12,7 @@ const RUN_ID_PATTERN = /^[a-z0-9](?:[a-z0-9._-]{0,126}[a-z0-9])?$/;
 const WINDOWS_RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
 
 const RUN_WORKSPACE_PATH_OWNERSHIP = Object.freeze({
+  artifactManifest: 'internal metadata',
   status: 'public-candidate result',
   scoutResult: 'intermediate',
   menuMap: 'intermediate',
@@ -29,7 +30,7 @@ const RUN_WORKSPACE_PATH_OWNERSHIP = Object.freeze({
   playwrightHtmlReportIndex: 'raw execution output',
 });
 
-function isContained(parent, candidate) {
+function isPathContained(parent, candidate) {
   const relative = path.relative(parent, candidate);
   return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
 }
@@ -54,7 +55,7 @@ function createRunWorkspace({ repositoryRoot, runId, workspaceRoot } = {}) {
   const resolvedWorkspaceRoot = workspaceRoot
     ? path.resolve(resolvedRepositoryRoot, workspaceRoot)
     : path.join(resolvedRepositoryRoot, DEFAULT_WORKSPACE_RELATIVE_ROOT);
-  if (resolvedWorkspaceRoot === resolvedRepositoryRoot || !isContained(resolvedRepositoryRoot, resolvedWorkspaceRoot)) {
+  if (resolvedWorkspaceRoot === resolvedRepositoryRoot || !isPathContained(resolvedRepositoryRoot, resolvedWorkspaceRoot)) {
     throw new Error('workspaceRoot must be a child of repositoryRoot.');
   }
 
@@ -69,6 +70,7 @@ function createRunWorkspace({ repositoryRoot, runId, workspaceRoot } = {}) {
   const reportDir = path.join(root, 'report');
   const playwrightHtmlReportDir = path.join(reportDir, 'playwright-html');
   const paths = Object.freeze({
+    artifactManifest: path.join(root, 'artifact-manifest.json'),
     status: path.join(root, 'status.json'),
     scoutResult: path.join(analysisDir, 'scout_result.json'),
     menuMap: path.join(analysisDir, 'menu_map.json'),
@@ -100,7 +102,7 @@ function createRunWorkspace({ repositoryRoot, runId, workspaceRoot } = {}) {
   const directories = Object.freeze(directoryEntries.map((entry) => entry.path));
 
   for (const candidate of [...directories, ...Object.values(paths)]) {
-    if (!isContained(root, candidate)) throw new Error('Run workspace path escaped its run root.');
+    if (!isPathContained(root, candidate)) throw new Error('Run workspace path escaped its run root.');
   }
 
   return Object.freeze({
@@ -136,12 +138,12 @@ function ensureRunWorkspace(workspace) {
       if (index === 0) {
         repositoryRealPath = fs.realpathSync(workspace.repositoryRoot);
         workspaceRealPath = fs.realpathSync(workspace.workspaceRoot);
-        if (!isContained(repositoryRealPath, workspaceRealPath)) {
+        if (!isPathContained(repositoryRealPath, workspaceRealPath)) {
           throw new Error('workspace root resolves outside repository root');
         }
       }
       const directoryRealPath = fs.realpathSync(directory);
-      if (!isContained(workspaceRealPath, directoryRealPath)) {
+      if (!isPathContained(workspaceRealPath, directoryRealPath)) {
         throw new Error('directory resolves outside workspace root');
       }
     } catch (error) {
@@ -156,5 +158,6 @@ module.exports = {
   RUN_WORKSPACE_PATH_OWNERSHIP,
   createRunWorkspace,
   ensureRunWorkspace,
+  isPathContained,
   validateRunId,
 };

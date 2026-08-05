@@ -11,7 +11,7 @@
 - **Proposed**: Hosted 이전을 위한 제안이다.
 - **Unresolved**: 추가 실험 또는 제품·운영 결정이 필요하다.
 
-이 문서의 최초 분석 이후 HMV-001 engine invocation adapter와 HMV-002 run-scoped workspace path contract가 구현됐다. Local HTTP/API/schema/queue 동작과 engine 판단 contract는 유지하며 Hosted framework, database, queue, cloud, container 제품을 선택하지 않는다.
+이 문서의 최초 분석 이후 HMV-001 engine invocation adapter, HMV-002 run-scoped workspace path contract와 HMV-003 artifact manifest contract가 구현됐다. Local HTTP/API/schema/queue 동작과 engine 판단 contract는 유지하며 Hosted framework, database, queue, cloud, container 제품을 선택하지 않는다.
 
 ## 분석 범위와 제외 범위
 
@@ -195,6 +195,33 @@ Observed validation nuance: `run_plan_generation_pipeline` calls `validate_test_
 
 Observed after HMV-002: the current Local deterministic controller path uses the workspace as canonical storage. The fixed paths below remain only when standalone/manual commands omit the new overrides; there is no controller copy or bidirectional synchronization boundary.
 
+Observed after HMV-003: `tools/mvp/artifact-manifest.js` projects the workspace into a validated schema `1.0` snapshot at `<run-root>/artifact-manifest.json`. The top level is `{ schemaVersion, runId, workspaceRelativeRoot, generatedAt, artifacts }`; each entry is `{ artifactId, relativePath, artifactType, producer, mediaType, requirement, condition, sensitivity, publicEligibility, presence, sizeBytes }`. Logical IDs are fixed, ordered and namespaced; paths use workspace-relative `/` notation and resolve back through the HMV-002 containment boundary. The manifest excludes itself, does not scan for unknown files and does not expose absolute repository/workspace paths.
+
+The controller writes an initial snapshot after `status.json`, then refreshes after analysis, approval and execution on both success and failure. A failed manifest refresh is secondary diagnostic failure and cannot replace the run's existing status/result. File presence is `present` or `missing`; pre-created attachment/report directories additionally use `empty` so directory existence is not mistaken for produced evidence. Required/conditional/optional metadata describes expected ownership but missing downstream output is not by itself a lifecycle validation error.
+
+Artifact policy is conservative. Raw scout/menu/status/approval/spec/Playwright result, HTML and attachment artifacts are `never` public-eligible. Review JSON/Markdown is `review-required`; no artifact is currently marked `eligible`. This is classification metadata only: it neither redacts content nor authorizes Local/Hosted delivery. Raw report serving remains Local-only, and HMV-004/HMV-009 must consume the manifest through separate terminal-result and public-projection contracts.
+
+HMV-003 registry inventory:
+
+| Artifact ID / workspace key / relative path | Producer -> current consumer | Type / media | Requirement / lifecycle | Sensitivity / public policy | Missing meaning | Registration |
+| --- | --- | --- | --- | --- | --- | --- |
+| `run.status` / `status` / `status.json` | run controller -> Local diagnostics; future result projector | file / `application/json` | required / run created | potentially sensitive (URL, logs, local diagnostics) / `never` | controller persistence failure or pre-persist snapshot | `REGISTER_NOW` |
+| `analysis.scout-result` / `scoutResult` / `analysis/scout_result.json` | analysis orchestrator -> review builder | file / `application/json` | conditional / analysis started | potentially sensitive target-derived DOM evidence / `never` | analysis not entered or failed before output | `REGISTER_NOW` |
+| `analysis.menu-map` / `menuMap` / `analysis/menu_map.json` | analysis orchestrator -> plan/review builders | file / `application/json` | conditional / analysis started | potentially sensitive target-derived navigation evidence / `never` | analysis not entered or failed before projection | `REGISTER_NOW` |
+| `analysis.navigation-plan` / `navigationPlan` / `analysis/test_plan.generated.json` | navigation plan builder -> validator/renderer/controller | file / `application/json` | conditional / analysis succeeded | target-derived / `never` | plan pipeline did not succeed | `REGISTER_NOW` |
+| `review.analysis-report-json` / `analysisReviewJson` / `review/analysis_review_report.json` | analysis review builder -> controller/approval writer | file / `application/json` | conditional / analysis succeeded | target-derived / `review-required` | review stage did not complete | `REGISTER_NOW` |
+| `review.analysis-report-markdown` / `analysisReviewMarkdown` / `review/analysis_review_report.md` | review renderer -> Local reviewer | file / `text/markdown` | conditional / analysis succeeded | target-derived / `review-required` | renderer did not complete | `REGISTER_NOW` |
+| `approval.interaction-approvals` / `interactionApprovals` / `approval/interaction_approvals.json` | approval writer -> validator/reconciler | file / `application/json` | conditional / interaction approved | potentially sensitive reviewer and evidence data / `never` | navigation-only or approval not completed | `REGISTER_OPTIONAL` |
+| `approval.reconciliation` / `reconciliation` / `approval/interaction_approval_reconciliation.json` | approval reconciler -> interaction plan builder | file / `application/json` | conditional / interaction approved | target-derived / `never` | navigation-only or reconciliation not completed | `REGISTER_OPTIONAL` |
+| `plan.interaction-plan` / `interactionPlan` / `plan/interaction_plan.generated.json` | interaction plan builder -> validator/renderer/controller | file / `application/json` | conditional / interaction approved | target-derived / `never` | navigation-only or plan not completed | `REGISTER_OPTIONAL` |
+| `execution.navigation-spec` / `navigationSpec` / `execution/specs/generated_from_plan.spec.js` | navigation renderer -> Playwright | file / `text/javascript` | conditional / analysis succeeded | target-derived executable / `never` | analysis/render did not complete | `REGISTER_NOW` |
+| `execution.interaction-spec` / `interactionSpec` / `execution/specs/generated_interaction_plan.spec.js` | interaction renderer -> Playwright | file / `text/javascript` | conditional / interaction approved | target-derived executable / `never` | navigation-only or render not completed | `REGISTER_OPTIONAL` |
+| `execution.test-results` / `testResultsDir` / `execution/test-results` | Playwright -> Local diagnostics | directory / no media type | optional / execution | potentially sensitive trace/screenshot/video / `never` | `empty` means no attachment was produced | `REGISTER_OPTIONAL` |
+| `report.playwright-json` / `playwrightJsonReport` / `report/playwright-results.json` | Playwright -> controller result summary | file / `application/json` | conditional / execution started | potentially sensitive raw result/errors/paths / `never` | execution/reporting did not produce JSON | `REGISTER_OPTIONAL` |
+| `report.playwright-html` / `playwrightHtmlReportDir` / `report/playwright-html` | Playwright -> Local report endpoint | directory / no media type | optional / execution | potentially sensitive raw report/evidence / `never` | `empty` means HTML reporter produced no content | `REGISTER_OPTIONAL`; serving is `LOCAL_ONLY` |
+
+`DEFER` covers the transient profile-tree file (best-effort deleted), disabled Local profile cache, individual dynamic attachments, manual/LLM/default-path artifacts and the temporary manifest write file. The manifest registers only known definitions; it does not recursively discover debug/cache files. Secret-bearing input is not expected in the current credential-free Local request, but raw target-derived artifacts remain classified conservatively because target content and diagnostics can still be sensitive.
+
 | Artifact/path pattern | Writer | Consumer | Overwrite/collision | Cleanup | Ignored | Public suitability / sensitivity | Job-scoped requirement |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | workspace `analysis/scout_result.json` | orchestrator | report builder | run overwrite only; A/B paths disjoint | none | yes | raw DOM-derived URLs/text/selectors; internal only | HMV-002 complete for Local |
@@ -352,7 +379,7 @@ KEEP does not mean raw CLI/file paths are the final Hosted API. It means behavio
 | --- | --- | --- | --- | --- |
 | Engine invocation service | HMV-001 extracted to `tools/mvp/engine-invocation.js`; controller retains lifecycle/projection | `{command,args,cwd,env}` -> `{command,args,cwd,exitCode,signal,stdout,stderr,spawnError}`; launches existing commands | P0 complete | injected fake spawn and controller request characterization; no behavior change |
 | Job workspace allocation | HMV-002 extracted to `tools/mvp/run-workspace.js`; controller binds its map | repository root + safe run ID -> contained logical paths; creates only exact run directories | P0 complete | traversal/reserved/reparse containment, uniqueness, idempotency, physical isolation and controller path-binding tests |
-| Artifact manifest | implicit path fields on mutable run | stage outputs -> typed logical names, size/type/sensitivity/existence | P0 | fixture manifest tests; additive file after current run |
+| Artifact manifest | HMV-003 implemented in `tools/mvp/artifact-manifest.js` | workspace definitions -> typed relative snapshot + validated atomic JSON write | P0 complete | initial/partial/present/A-B/path/policy/controller lifecycle tests |
 | Normalized terminal result | `summarizePlaywrightResult` plus catch branches | raw Playwright/process results -> execution outcome + system outcome | P0 | preserve current JSON projection fixtures; no public schema promise |
 | Target validation use case | server calls basic parser directly | request URL -> canonical request or categorized rejection; no network side effect | P0 | retain current cases, add policy adapter seam; security policy remains separate |
 | Execution options | hardcoded args/env in controller | bounded mode/workers/retries/cache/report options -> command args/env | P0 | default equality tests; no user-controlled arbitrary args |
@@ -362,7 +389,7 @@ KEEP does not mean raw CLI/file paths are the final Hosted API. It means behavio
 | Report/public result projection | `normalizeAnalysis`, `summarizePlaywrightResult`, raw report endpoint | internal manifest/result -> allowlisted public view | P0/P1 | secret/path/raw evidence exclusion tests |
 | Retention/cleanup policy port | no current boundary | manifest + terminal time + policy -> deletion decisions | P1 | dry-run policy tests first |
 
-Observed extraction sequence: HMV-001 introduced the framework-free invocation adapter without path changes; HMV-002 then added the workspace contract and migrated the coherent Local deterministic artifact path slice without combining persistence, manifest or Hosted HTTP work. HMV-003 remains additive over these two seams.
+Observed extraction sequence: HMV-001 introduced the framework-free invocation adapter without path changes; HMV-002 then added the workspace contract and migrated the coherent Local deterministic artifact path slice; HMV-003 adds an internal artifact identity/snapshot contract without combining Hosted HTTP, storage or public projection work. HMV-004 is the next additive result boundary.
 
 ## REPLACE
 
@@ -418,7 +445,7 @@ Local Reference UI
 Answers to migration questions:
 
 - **Most stable reusable engine entrypoint:** Observed, `agent_orchestrator.py --generation-mode plan --generated-dir <analysis> --navigation-spec-output <spec>` is now the smallest path-parameterized analysis entrypoint. It still owns nested subprocess sequencing and is not a complete application-service entrypoint for review/approval/execution.
-- **Smallest first adapter:** Completed, `engine-invocation.js` supplies the explicit process seam and `run-workspace.js` supplies validated paths. The next additive boundary is HMV-003 manifest production over this contract.
+- **Smallest first adapter:** Completed, `engine-invocation.js` supplies the explicit process seam, `run-workspace.js` supplies validated paths and `artifact-manifest.js` supplies typed artifact snapshots. The next additive boundary is HMV-004 normalized terminal result projection.
 - **First business/application logic to separate:** target request validation, run command construction, execution target selection and normalized terminal projection currently inside `controller.js`.
 - **Artifacts requiring isolation:** scout result, profile-tree temp file, menu map, navigation plan, navigation spec, approval, reconciliation, interaction plan/spec, Playwright JSON/HTML, `test-results` attachments/logs; cache needs an explicit separate policy.
 - **Progress:** add typed stage hooks at adapter/application boundaries. Do not parse current stdout for semantic progress; retain it only as private diagnostics.
@@ -428,7 +455,7 @@ Answers to migration questions:
 - **Raw vs sanitized:** artifact manifest labels raw target-derived inputs/evidence, executable internal files and publishable projections separately. Only an explicit sanitizer/projector crosses the public boundary.
 - **Hosted approval reuse:** Report `2.1` candidateKey/evidence, Approval/Reconciliation `3.0`, observedUrl and Plan `3.0` can be kept. Hosted UI submits decisions through an adapter; it must not manufacture execution instructions.
 - **Shared application service:** yes, proposed. Local controller and Hosted API should be adapters; process dispatch/persistence implementations can differ.
-- **Blockers before Hosted skeleton:** artifact manifest, normalized lifecycle/result/error contracts and target URL security specification remain; invocation and Local workspace seams are implemented. Before any public execution, implement target security, isolated worker, timeout/cancellation and retention/abuse controls.
+- **Blockers before Hosted skeleton:** normalized lifecycle/result/error contracts and target URL security specification remain; invocation, Local workspace and artifact manifest seams are implemented. Before any public execution, implement target security, isolated worker, timeout/cancellation and retention/abuse controls.
 
 ## 최초 Extraction 결과와 다음 후보
 
@@ -446,7 +473,9 @@ Implementation location stayed under `tools/mvp/` because the only current consu
 
 Completed second implementation: **HMV-002 — run-scoped workspace path contract**. `createRunWorkspace` is the path source of truth; `ensureRunWorkspace` creates only validated run directories without deleting existing files or mutating global cwd/environment. Controller paths are projected through orchestrator CLI arguments and Playwright environment overrides while process `cwd` remains the repository root for module/config resolution.
 
-The next candidate is **HMV-003 — artifact manifest**. It should consume logical workspace names and ownership, record workspace-relative produced/missing artifacts and sensitivity, and avoid adding storage/public URL technology or treating raw Playwright HTML as publishable.
+Completed third implementation: **HMV-003 — artifact manifest**. It consumes logical workspace paths, records workspace-relative produced/missing/empty state and conservative sensitivity/public eligibility, and leaves storage/public URL technology and raw report projection out of scope.
+
+The next candidate is **HMV-004 — normalized terminal result boundary**. It should consume invocation/lifecycle outcomes and the validated manifest by artifact ID while preserving the current Local response projection and keeping normalized errors as HMV-005.
 
 ## Unresolved Questions
 
@@ -473,6 +502,8 @@ The next candidate is **HMV-003 — artifact manifest**. It should consume logic
 - `tools/mvp/run-workspace.js` — `validateRunId`, `createRunWorkspace`, `ensureRunWorkspace`: HMV-002 run ID validation, logical path calculation, lexical/real-path containment and idempotent directory provisioning.
 - `tools/mvp/run-workspace.js` — `RUN_WORKSPACE_PATH_OWNERSHIP`: HMV-003 input classification for review, executable, raw execution and public-candidate paths.
 - `tools/mvp/run-workspace.test.js` — deterministic path, A/B isolation, invalid ID, containment, idempotency, no-global-mutation and failure-isolation characterization.
+- `tools/mvp/artifact-manifest.js` — `ARTIFACT_IDS`, `createArtifactDefinitions`, `createArtifactManifest`, `validateArtifactManifest`, `writeArtifactManifest`: HMV-003 logical identity, relative snapshot, policy validation and atomic persistence.
+- `tools/mvp/artifact-manifest.test.js` — initial/partial/present snapshot, A/B isolation, path leakage/traversal, enum/type/order, write/read, controller lifecycle and public-policy characterization.
 - `tools/mvp/controller.js` — `runCommand`: adapter delegation plus legacy nonzero/allowFailure, logging and friendly-error compatibility.
 - `tools/mvp/engine-invocation.js` — `createEngineInvocationRequest`, `invokeEngineProcess`: HMV-001 explicit process request, environment copy and raw terminal result boundary.
 - `tools/mvp/engine-invocation.test.js` — spawn/nonzero/signal/chunk/environment/double-terminal adapter characterization.

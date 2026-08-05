@@ -112,6 +112,21 @@ localhost UI URL input
 
 Controller는 schema, selector, classification, plan 또는 Playwright body를 다시 구현하지 않는다. HMV-002 이후 `createRunWorkspace`가 모든 Local controller path를 계산하고 orchestrator CLI args와 Playwright per-process env에 전달한다. Canonical artifact는 `generated/mvp-runs/<runId>` 아래에 직접 기록되며 shared output에서 copy하지 않는다. Artifact-producing 작업은 계속 serialize한다. 이는 queue 제거와 concurrent/multi-process isolation proof가 HMV-008 범위이기 때문이다.
 
+HMV-003 이후 internal artifact lookup은 directory scan이나 filename guess가 아니라 다음 계약을 사용한다.
+
+```text
+run workspace
+  -> createArtifactDefinitions(workspace)
+  -> filesystem artifact snapshot (present / missing / empty)
+  -> validateArtifactManifest(manifest, workspace)
+  -> workspace artifact-manifest.json
+  -> future HMV-004 normalized terminal result
+```
+
+`artifact-manifest.json`은 schema `1.0`, run ID, repository-relative workspace root, 생성 시각과 deterministic artifact entry 목록을 가진다. 각 entry는 stable logical ID, workspace-relative `/` path, file/directory type, producer, explicit media type, required/conditional/optional metadata, size, sensitivity와 public eligibility를 기록한다. Absolute local path와 manifest self-entry는 기록하지 않는다. Controller는 workspace/status 생성 직후와 analysis/approval/execution success 또는 failure 뒤에 snapshot을 refresh하며 manifest write failure는 기존 run terminal behavior를 바꾸지 않는 secondary diagnostic이다.
+
+Public eligibility는 projection이 아니다. Raw scout/menu/status/approval/spec/Playwright report/attachment는 `never`, review JSON/Markdown는 `review-required`이며 현재 자동 `eligible` artifact는 없다. HMV-004는 manifest identity/presence를 terminal result input으로 사용할 수 있지만 missing artifact만으로 terminal state를 추론해서는 안 된다.
+
 Navigation-only 실행의 Overall은 Navigation/Page Identity 결과로 계산한다. Interaction/Restoration `SKIPPED`는 실패가 아니며 Navigation failure는 그대로 Overall `FAIL`이다. Interaction이 선택된 경우 기존 approval/reconciliation/Plan `3.0` contract를 변경하거나 우회하지 않는다.
 
 ## Step Details

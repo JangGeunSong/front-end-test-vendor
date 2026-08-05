@@ -9,6 +9,7 @@ const {
   createRunWorkspace,
   ensureRunWorkspace,
 } = require('./run-workspace');
+const { writeArtifactManifest } = require('./artifact-manifest');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const PYTHON = process.env.MVP_PYTHON || path.join(ROOT, '.venv', 'Scripts', 'python.exe');
@@ -77,6 +78,7 @@ function createRun(url, options = {}) {
   };
   runs.set(id, run);
   persist(run);
+  refreshArtifactManifest(run, options);
   return run;
 }
 
@@ -98,6 +100,16 @@ function appendLog(run, label, output) {
   if (!output) return;
   run.debugLog.push({ label, output: output.slice(-12000) });
   run.debugLog = run.debugLog.slice(-20);
+}
+
+function refreshArtifactManifest(run, dependencies = {}) {
+  try {
+    (dependencies.writeArtifactManifestImpl || writeArtifactManifest)(run.workspace);
+    return true;
+  } catch {
+    appendLog(run, 'artifact manifest', 'Artifact manifest refresh failed.');
+    return false;
+  }
 }
 
 async function runCommand(run, label, executable, args, options = {}, dependencies = {}) {
@@ -223,6 +235,8 @@ async function analyzeRun(run, dependencies = {}) {
     run.status = 'failed';
     run.error = friendlyError(active?.[0], error);
     persist(run);
+  } finally {
+    refreshArtifactManifest(run, dependencies);
   }
 }
 
@@ -257,7 +271,7 @@ function friendlyError(stageName, error) {
   return labels[stageName] || error.message || 'Operation failed.';
 }
 
-async function approveRun(run, candidateKeys, reviewer, note) {
+async function approveRun(run, candidateKeys, reviewer, note, dependencies = {}) {
   if (run.status !== 'ready_for_execution') throw new Error('Run is not ready for interaction approval.');
   const selected = [...new Set(candidateKeys || [])].sort();
   if (selected.length === 0) throw new Error('Select at least one supported interaction to approve.');
@@ -266,22 +280,26 @@ async function approveRun(run, candidateKeys, reviewer, note) {
   );
   const unsupported = selected.filter((key) => !eligibleKeys.has(key));
   if (unsupported.length > 0) throw new Error('Only supported, execution-eligible interactions can be approved.');
-  stage(run, 'Interaction approval validation', 'running');
-  run.approvalPath = run.workspace.paths.interactionApprovals;
-  const args = [
-    'tools/ai-generator/write_interaction_approvals.py', '--report', run.analysisReport,
-    '--output', run.approvalPath, '--reviewer', reviewer || 'local-ui-user',
-  ];
-  for (const key of selected) args.push('--candidate-key', key);
-  if (note) args.push('--note', note);
-  await runCommand(run, 'approval writer', PYTHON, args);
-  await runCommand(run, 'approval validator', PYTHON, [
-    'tools/ai-generator/validate_interaction_approvals.py', '--input', run.approvalPath,
-  ]);
-  stage(run, 'Interaction approval validation', 'success');
-  run.approvedCandidateKeys = selected;
-  run.status = 'approved';
-  persist(run);
+  try {
+    stage(run, 'Interaction approval validation', 'running');
+    run.approvalPath = run.workspace.paths.interactionApprovals;
+    const args = [
+      'tools/ai-generator/write_interaction_approvals.py', '--report', run.analysisReport,
+      '--output', run.approvalPath, '--reviewer', reviewer || 'local-ui-user',
+    ];
+    for (const key of selected) args.push('--candidate-key', key);
+    if (note) args.push('--note', note);
+    await runCommand(run, 'approval writer', PYTHON, args);
+    await runCommand(run, 'approval validator', PYTHON, [
+      'tools/ai-generator/validate_interaction_approvals.py', '--input', run.approvalPath,
+    ]);
+    stage(run, 'Interaction approval validation', 'success');
+    run.approvedCandidateKeys = selected;
+    run.status = 'approved';
+    persist(run);
+  } finally {
+    refreshArtifactManifest(run, dependencies);
+  }
 }
 
 function selectExecutionTargets(navigationCount, approvedCandidateKeys = []) {
@@ -399,6 +417,8 @@ async function executeRun(run, dependencies = {}) {
     run.status = 'failed';
     run.error = friendlyError(active?.[0], error);
     persist(run);
+  } finally {
+    refreshArtifactManifest(run, dependencies);
   }
 }
 

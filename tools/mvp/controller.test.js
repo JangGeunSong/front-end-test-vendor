@@ -17,6 +17,7 @@ const {
   validateTargetUrl,
 } = require('./controller');
 const { createRunWorkspace, ensureRunWorkspace } = require('./run-workspace');
+const { ARTIFACT_IDS } = require('./artifact-manifest');
 
 const REPOSITORY_ROOT = path.resolve(__dirname, '..', '..');
 const CONTROLLER_TEST_WORKSPACE_ROOT = path.join(
@@ -189,6 +190,9 @@ test('navigation execution isolates Playwright testDir, outputDir, JSON, and HTM
   assert.equal(playwrightCall.options.env.PLAYWRIGHT_JSON_OUTPUT_NAME, run.workspace.paths.playwrightJsonReport);
   assert.equal(playwrightCall.options.env.PLAYWRIGHT_HTML_OUTPUT_DIR, run.workspace.playwrightHtmlReportDir);
   assert.equal(run.result.reportUrl, `/api/runs/${run.id}/report`);
+  const manifest = JSON.parse(fs.readFileSync(run.workspace.paths.artifactManifest, 'utf8'));
+  assert.equal(manifest.artifacts.find((entry) => entry.artifactId === ARTIFACT_IDS.PLAYWRIGHT_JSON).presence, 'present');
+  assert.equal(manifest.artifacts.find((entry) => entry.artifactId === ARTIFACT_IDS.PLAYWRIGHT_HTML).presence, 'present');
 });
 
 test('target URL validation accepts HTTP(S) and rejects credentials', () => {

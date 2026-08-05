@@ -140,7 +140,7 @@ target URL
 
 Hosted 전환을 위한 current engine 분석과 `KEEP`/`EXTRACT`/`REPLACE` 경계는 [HOSTED_MVP_ENGINE_BOUNDARY.md](HOSTED_MVP_ENGINE_BOUNDARY.md), 세분화된 구현 순서는 [HOSTED_MVP_BACKLOG.md](HOSTED_MVP_BACKLOG.md)에 유지한다. 현재 active frontier와 latest completed work는 [CURRENT_STATE.md](CURRENT_STATE.md)를 따른다.
 
-첫 권장 milestone은 기존 Local MVP 동작과 engine schema를 유지하면서 controller의 subprocess command construction/result capture를 framework-free engine invocation adapter로 추출하는 것이다. Hosted API, Web UI, persistence, dispatcher와 public execution은 이 milestone에 포함하지 않는다.
+HMV-001 engine invocation adapter, HMV-002 run-scoped workspace와 HMV-003 internal artifact manifest가 완료됐다. 다음 권장 milestone은 기존 Local response shape를 유지하면서 invocation/lifecycle/manifest를 입력으로 normalized terminal result boundary를 추가하는 HMV-004다. Hosted API, Web UI, persistence, dispatcher와 public execution은 아직 포함하지 않는다.
 
 ## Validation Strategy
 

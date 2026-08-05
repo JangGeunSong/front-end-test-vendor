@@ -119,11 +119,13 @@ analysis_review_report.json
 
 ## Current Development Frontier
 
-Plan schema `3.0`/deterministic renderer의 previous-selection browser runtime, approval writer/local MVP product integration과 Navigation-only optional interaction execution이 구현됐다. Local controller부터 engine/report까지의 Hosted migration 경계 분석, `HMV-001` framework-free engine invocation adapter와 `HMV-002` run-scoped workspace path contract도 완료됐다. 다음 중심 frontier는 [Hosted MVP Migration Backlog](HOSTED_MVP_BACKLOG.md)의 `HMV-003` artifact manifest다.
+Plan schema `3.0`/deterministic renderer의 previous-selection browser runtime, approval writer/local MVP product integration과 Navigation-only optional interaction execution이 구현됐다. Local controller부터 engine/report까지의 Hosted migration 경계 분석, `HMV-001` framework-free engine invocation adapter, `HMV-002` run-scoped workspace path contract와 `HMV-003` artifact manifest contract도 완료됐다. 다음 중심 frontier는 [Hosted MVP Migration Backlog](HOSTED_MVP_BACKLOG.md)의 `HMV-004` normalized terminal result boundary다.
 
 HMV-001은 `tools/mvp/engine-invocation.js`의 explicit `{command,args,cwd,env}` request와 raw process result 경계로 controller의 direct Python/Playwright spawn 책임을 옮겼다. 당시 compatibility wrapper는 path를 포함한 기존 동작을 보존했고, HMV-002가 같은 seam의 args/env만 workspace path로 바꿨다. Adapter는 full environment를 result에 반환하지 않으며 spawn failure, non-zero exit와 signal termination을 구분한다.
 
 HMV-002는 `tools/mvp/run-workspace.js`의 `createRunWorkspace`/`ensureRunWorkspace`와 logical path ownership을 추가했다. Local controller는 orchestrator `--generated-dir`/`--navigation-spec-output` 및 Playwright `testDir`/`outputDir` override를 사용하고 repository-root `cwd` semantics는 유지한다. 현재 Local deterministic controller 경로의 writable artifact는 run별로 분리됐지만, queue 제거·동시 실행 활성화·multi-process proof·cache policy·retention은 완료되지 않았으므로 full concurrency 지원을 선언하지 않는다.
+
+HMV-003은 `tools/mvp/artifact-manifest.js`의 manifest schema `1.0`, stable artifact ID, workspace-relative path, producer/media type, requirement/condition, `present`/`missing`/`empty`, size, sensitivity와 public eligibility 계약을 추가했다. Controller는 workspace 생성 후와 analysis/approval/execution terminal 지점에서 manifest를 refresh한다. Manifest는 Local API/UI에 노출되지 않으며 raw artifact 공개, redaction, normalized result/error, retention 또는 durable state를 구현하지 않는다.
 
 완료된 부분:
 
@@ -185,14 +187,14 @@ Version transition은 완료됐다. `interaction_plan_contract.py`는 Reconcilia
 
 ## Latest Completed Work
 
-가장 최근 완료 작업은 Hosted 전환 backlog의 `HMV-002` job-scoped workspace path contract다.
+가장 최근 완료 작업은 Hosted 전환 backlog의 `HMV-003` artifact manifest contract다.
 
-- HMV-001의 `createEngineInvocationRequest`/`invokeEngineProcess` seam과 non-zero/allowFailure/debug/friendly-error compatibility 유지
-- lowercase 안전 run ID, repository/workspace containment와 idempotent directory provisioning을 갖는 immutable-by-convention path map 추가
-- Local deterministic analysis/review/approval/plan/spec/Playwright output을 한 run root로 직접 연결하고 shared copy boundary 제거
-- standalone CLI default path, Local queue/Map/API/schema/engine 판단 semantics는 유지
-- HMV-003가 workspace-relative artifact/sensitivity/status manifest를 추가하도록 logical path ownership handoff 제공
-- focused adapter/controller test와 full Local/Python regression으로 behavior 보존 확인
+- HMV-001 invocation seam과 HMV-002 validated workspace/path map을 그대로 사용
+- 14개 주요 artifact를 stable namespaced ID와 deterministic order로 등록
+- absolute local path 없이 workspace-relative `/` path, producer, media type, requirement/condition, presence/size와 보수적 sensitivity/public eligibility를 기록
+- 초기, analysis/approval/execution success/failure lifecycle snapshot을 same-directory temporary-write/rename 방식으로 저장
+- manifest write failure를 기존 run result를 바꾸지 않는 secondary diagnostic으로 유지하고 Local API/UI response shape 보존
+- focused manifest/controller test와 full Local/Python regression으로 behavior 보존 확인
 
 이전 완료 작업은 Python/uv 개발환경과 호환성 범위를 표준화한 maintenance 작업이다.
 
@@ -331,11 +333,12 @@ navigation
 ```text
 HMV-001 framework-free engine invocation adapter (completed)
   -> HMV-002 job-scoped workspace path contract (completed)
-  -> HMV-003 artifact manifest (active frontier)
+  -> HMV-003 artifact manifest (completed)
+  -> HMV-004 normalized terminal result boundary (active frontier)
   -> HMV-008 concurrent-run isolation characterization
 ```
 
-Task 2/3 분석과 HMV-001/002 구현 후 경계는 [Hosted MVP Engine Boundary](HOSTED_MVP_ENGINE_BOUNDARY.md)에, 구현 가능한 크기의 P0~P3 후속 작업은 [Hosted MVP Migration Backlog](HOSTED_MVP_BACKLOG.md)에 기록했다. Existing deterministic builders/validators/renderers, observedUrl provenance와 Approval/Reconciliation/Plan contracts는 유지한다. Local controller path isolation은 완료됐지만 process-local state/queue, manifest 부재, raw report exposure와 parser-only URL gate는 Hosted adapter/control boundary에서 추출 또는 교체해야 한다.
+Task 2/3 분석과 HMV-001/002/003 구현 후 경계는 [Hosted MVP Engine Boundary](HOSTED_MVP_ENGINE_BOUNDARY.md)에, 구현 가능한 크기의 P0~P3 후속 작업은 [Hosted MVP Migration Backlog](HOSTED_MVP_BACKLOG.md)에 기록했다. Existing deterministic builders/validators/renderers, observedUrl provenance와 Approval/Reconciliation/Plan contracts는 유지한다. Local controller path isolation과 internal manifest는 완료됐지만 process-local state/queue, normalized terminal result/error 부재, raw report exposure와 parser-only URL gate는 Hosted adapter/control boundary에서 추출 또는 교체해야 한다.
 
 `expandedToggle` runtime과 cross-site interaction regression은 P2 interaction trial에서 계속 필요한 별도 작업이며 삭제되거나 지원 완료로 간주하지 않는다. General execution result와 persistent history도 Hosted backlog에서 단계적으로 다룬다.
 

@@ -1,5 +1,41 @@
 # Task Log
 
+## 2026-08-05 - Run artifact manifest contract (HMV-003)
+
+### 목표와 범위
+
+- HMV-002 workspace의 주요 artifact를 directory scan이나 filename 추측 없이 stable logical identity로 찾을 수 있는 internal manifest contract를 추가했다.
+- Local API/UI, run status 의미, queue/Map, engine schema와 generated spec/report behavior는 유지했다. Normalized terminal result/error, public projection/API, retention, hashing, storage, timeout/cancel, concurrency 활성화와 Hosted runtime은 구현하지 않았다.
+
+### 구현
+
+- `tools/mvp/artifact-manifest.js`에 manifest schema `1.0`과 다음 framework-free CommonJS exports를 추가했다.
+  - `ARTIFACT_IDS`, `ARTIFACT_MANIFEST_SCHEMA_VERSION`, `ARTIFACT_PRODUCERS`
+  - `createArtifactDefinitions`, `createArtifactManifest`, `validateArtifactManifest`, `writeArtifactManifest`
+- 14개 logical artifact를 고정 order로 등록했다. File path는 workspace-relative `/`로 직렬화하고 absolute repository/workspace path, traversal, drive path와 backslash를 거부한다. Existing artifact는 real-path containment도 확인한다.
+- Entry는 ID/path/type/producer/media type, `required`/`conditional`/`optional`, named condition, `present`/`missing`/`empty`, file size, sensitivity와 `never`/`review-required`/`eligible` policy enum을 가진다. Directory media type은 임의 MIME 대신 `null`이다.
+- Manifest는 `<run-root>/artifact-manifest.json`에 UTF-8, stable indentation, trailing newline으로 기록한다. 같은 directory의 `.tmp` write 후 rename하며 self-reference entry는 만들지 않는다.
+- `controller.js`는 status 생성 직후, analysis/approval/execution의 success/failure terminal edge에서 refresh한다. Manifest write failure는 generic debug diagnostic만 남기며 기존 run status/result/error를 대체하지 않는다.
+
+### Artifact registration과 policy
+
+- `REGISTER_NOW`: run status, scout result, menu map, navigation plan, analysis review JSON/Markdown, navigation spec.
+- `REGISTER_OPTIONAL`: approvals, reconciliation, interaction plan/spec, Playwright `test-results`, JSON report와 HTML report directory. 조건을 만족하지 않거나 생성되지 않은 경우에도 missing/empty entry가 유지된다.
+- `DEFER`: transient page-profile tree, Local에서 disabled인 profile cache, attachment 개별 파일 enumeration, manual/LLM/default-path artifact와 manifest temp file.
+- `LOCAL_ONLY`: raw HTML report serving/open command, developer artifact browser, fixture/debug command와 manual review state.
+- Raw scout/menu/status/approval/generated spec/Playwright artifact는 `never`, review JSON/Markdown만 `review-required`다. 현재 자동 `eligible` artifact는 없으며 이 metadata는 redaction 또는 serving authorization이 아니다.
+
+### 검증
+
+- Focused test는 initial/present/partial snapshot, deterministic order, A/B isolation, no absolute path leakage, traversal/duplicate/invalid enum, strict file-directory mismatch, atomic replace, controller success/failure lifecycle, secondary write failure, conservative public policy와 no global mutation을 검증한다.
+- HMV-001 adapter, HMV-002 workspace, controller와 Local product regression 및 전체 Python suite를 실행한다. 외부 URL/LLM API는 사용하지 않는다.
+
+### HMV-004 handoff와 non-goals
+
+- HMV-004는 validated manifest를 logical artifact ID로 소비하되 `presence`만으로 terminal outcome을 결정하지 않고 invocation outcome, lifecycle stage와 Playwright assertion outcome을 함께 normalize해야 한다.
+- Process-local queue/Map, public report endpoint, raw artifact redaction, error taxonomy, cleanup/retention과 optional navigation validator `--menu-map` omission은 변경하지 않았다.
+- local commit message: `feat: add run artifact manifest`. Remote push는 수행하지 않는다.
+
 ## 2026-08-05 - Run-scoped workspace path contract (HMV-002)
 
 ### 목적과 기준점

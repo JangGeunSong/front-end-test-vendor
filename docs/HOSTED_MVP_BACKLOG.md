@@ -13,7 +13,7 @@ Priority meanings:
 
 ## Recommended First Work
 
-**HMV-001 through HMV-003 are complete.** Continue with **HMV-004** to define a normalized terminal result over the invocation outcome, run lifecycle and validated artifact manifest while preserving the Local response shape.
+**HMV-001 through HMV-004 are complete.** Continue with **HMV-005** to attach a normalized error classification to the internal terminal result while preserving current Local recovery messages and private diagnostics.
 
 ## P0 — Hosted Foundation Blockers
 
@@ -129,6 +129,8 @@ Acceptance and HMV-004 handoff:
 
 ### HMV-004 — Define normalized terminal result boundary
 
+- **Status:** Completed on 2026-08-05. The result is an internal workspace control artifact and is not exposed by the Local API/UI.
+
 - **Objective:** Separate system terminal outcome from navigation/interaction test outcome.
 - **Rationale:** current `completed/failed`, `overall PASS/FAIL`, report failure and skipped interaction meanings overlap.
 - **Source boundary:** `summarizePlaywrightResult`, analyze/execute catches, stage state.
@@ -139,6 +141,35 @@ Acceptance and HMV-004 handoff:
 - **Required tests:** existing summary fixtures plus invalid reporter JSON, browser crash with/without JSON, report missing, stage failure.
 - **Migration risk:** medium; consumer interpretation.
 - **Recommended commit size:** pure projector/types and compatibility mapping.
+
+Implementation result:
+
+- `tools/mvp/terminal-result.js` defines independent schema `1.0`, lifecycle/process/assertion/result-availability normalization, strict validation and atomic persistence at `<run-root>/terminal-result.json`.
+- Outcomes are `succeeded`, `completed-with-test-failures`, `partially-succeeded` and `failed`. A non-zero Playwright exit with a parseable assertion report is a completed process plus separate failed/mixed assertions, not an infrastructure failure.
+- Lifecycle stages are `created`, `analysis`, `review`, `approval`, `reconciliation`, `plan`, `execution`, `report`. `lastCompletedStage` uses controller stage success; `failedStage` uses the first failed controller stage projected to this stable ordering. Artifact presence is supporting evidence, not the lifecycle source.
+- Process summary contains only attempted/outcome/exit-code/signaled state. Execution summary contains attempted, assertion outcome and stable test counts; command, environment, stdout/stderr, stack and raw failures are excluded.
+- Manifest connection records relative path, schema/status/validity, present/missing/empty counts and `available`/`partial`/`unavailable` internal result availability. Missing or invalid manifest is diagnostic and does not rewrite the run outcome.
+- The terminal result remains outside the artifact manifest to avoid manifest/result finalization cycles. Controller order is terminal status persistence, manifest refresh, terminal result projection/write.
+
+Current terminal-path normalization:
+
+| Current path | Normalized result |
+| --- | --- |
+| Analysis success / `ready_for_execution` | Non-terminal; no result file. This includes no-candidate and approval-not-yet-run states. |
+| Analysis failure before review | `failed`, failed stage `analysis`, execution/assertions `not-run`, result unavailable. |
+| Analysis/review succeeded then reconciliation/plan/render/process/report failure | `partially-succeeded` when structured review/result remains; exact failed stage retained. |
+| Playwright launch/process failure | process `failed`, assertion `unavailable`; run stays current `failed`. |
+| Parseable Playwright report with assertion failures | process `succeeded`, assertion `failed` or `mixed`, outcome `completed-with-test-failures`; Local run remains current `completed`. |
+| Full execution/report success | `succeeded`, assertion `passed`, result `available`. |
+| HTML report missing after JSON result | `partially-succeeded`, failed stage `report`, assertion outcome preserved. |
+| Manifest/result write secondary failure | Existing run status/outcome is not replaced; manifest state is invalid/unavailable when a result can still be built. |
+| Approval writer/validator failure | Current controller does not make this terminal; no terminal result is written. Lifecycle repair remains HMV-101/HMV-005 work. |
+
+Acceptance and HMV-005 handoff:
+
+- Focused tests cover full success, assertion mixed/failure, process and analysis failure, partial review, non-terminal waiting, missing/invalid manifest, empty/skipped report, path/privacy checks, validation inconsistencies, atomic overwrite, A/B isolation and controller finalization/write failure.
+- HMV-001/002/003 and Local response/report behavior remain compatible. `status.json` excludes private normalization context and `publicRun` remains unchanged.
+- HMV-005 should add categorized error information without adding raw stdout/stderr, stack traces or user-message decisions to schema `1.0` retroactively; use a backward-compatible versioned extension or adjacent error control artifact.
 
 ### HMV-005 — Define normalized error classification
 

@@ -120,12 +120,32 @@ run workspace
   -> filesystem artifact snapshot (present / missing / empty)
   -> validateArtifactManifest(manifest, workspace)
   -> workspace artifact-manifest.json
-  -> future HMV-004 normalized terminal result
+  -> HMV-004 normalized terminal result
 ```
 
 `artifact-manifest.json`은 schema `1.0`, run ID, repository-relative workspace root, 생성 시각과 deterministic artifact entry 목록을 가진다. 각 entry는 stable logical ID, workspace-relative `/` path, file/directory type, producer, explicit media type, required/conditional/optional metadata, size, sensitivity와 public eligibility를 기록한다. Absolute local path와 manifest self-entry는 기록하지 않는다. Controller는 workspace/status 생성 직후와 analysis/approval/execution success 또는 failure 뒤에 snapshot을 refresh하며 manifest write failure는 기존 run terminal behavior를 바꾸지 않는 secondary diagnostic이다.
 
-Public eligibility는 projection이 아니다. Raw scout/menu/status/approval/spec/Playwright report/attachment는 `never`, review JSON/Markdown는 `review-required`이며 현재 자동 `eligible` artifact는 없다. HMV-004는 manifest identity/presence를 terminal result input으로 사용할 수 있지만 missing artifact만으로 terminal state를 추론해서는 안 된다.
+Public eligibility는 projection이 아니다. Raw scout/menu/status/approval/spec/Playwright report/attachment는 `never`, review JSON/Markdown는 `review-required`이며 현재 자동 `eligible` artifact는 없다. HMV-004는 manifest identity/presence를 terminal result input으로 사용하지만 missing artifact만으로 terminal state를 추론하지 않는다.
+
+HMV-004 terminal data flow:
+
+```text
+engine invocation outcome
+  + controller terminal status/stages
+  + bounded Playwright assertion summary
+  + validated artifact manifest diagnostic
+  -> createTerminalResult
+  -> validateTerminalResult
+  -> workspace terminal-result.json
+  -> future HMV-005 error attachment
+  -> future Hosted API/report projection
+```
+
+Controller는 `completed` 또는 `failed` transition을 persist한 뒤 manifest를 refresh하고 terminal result를 쓴다. `ready_for_execution`과 `approved`는 analysis-complete/user-decision waiting 상태이므로 terminal result를 만들지 않는다. Approval writer/validator failure도 현재 controller status를 terminal로 바꾸지 않으므로 HMV-004가 임의로 완료/실패 처리하지 않는다.
+
+Playwright process와 product assertion은 별개다. Valid JSON reporter output이 있으면 non-zero exit도 completed process로 normalize하고 assertion `failed`/`mixed`를 기록한다. Spawn/early process failure는 assertion `unavailable`이다. Assertion count는 nested suites/specs의 test를 stable category 하나로 분류해 `total = passed + failed + skipped + flaky`를 유지한다. Empty/all-skipped report는 known count를 가진 `unavailable`이며 성공으로 간주하지 않는다.
+
+`terminal-result.json`은 manifest 외부 control artifact다. Manifest relative path/version/status와 present/missing/empty count만 참조하며 전체 manifest, raw report, stdout/stderr, command/environment, stack 또는 absolute path를 복제하지 않는다. Result/manifest write failure는 기존 Local run status/result/API response를 덮지 않는 secondary diagnostic이다.
 
 Navigation-only 실행의 Overall은 Navigation/Page Identity 결과로 계산한다. Interaction/Restoration `SKIPPED`는 실패가 아니며 Navigation failure는 그대로 Overall `FAIL`이다. Interaction이 선택된 경우 기존 approval/reconciliation/Plan `3.0` contract를 변경하거나 우회하지 않는다.
 

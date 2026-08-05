@@ -10,6 +10,10 @@ const {
   ensureRunWorkspace,
 } = require('./run-workspace');
 const { writeArtifactManifest } = require('./artifact-manifest');
+const {
+  summarizePlaywrightAssertions,
+  writeTerminalResult,
+} = require('./terminal-result');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const PYTHON = process.env.MVP_PYTHON || path.join(ROOT, '.venv', 'Scripts', 'python.exe');
@@ -88,6 +92,7 @@ function persist(run) {
   delete serializable.workspace;
   delete serializable.dir;
   delete serializable.specDir;
+  delete serializable._terminalContext;
   fs.writeFileSync(run.workspace.paths.status, `${JSON.stringify(serializable, null, 2)}\n`, 'utf8');
 }
 
@@ -112,7 +117,40 @@ function refreshArtifactManifest(run, dependencies = {}) {
   }
 }
 
+function recordProcessOutcome(run, outcome) {
+  run._terminalContext ||= {};
+  run._terminalContext.process = {
+    attempted: outcome.attempted === true,
+    outcome: outcome.outcome,
+    exitCode: Number.isInteger(outcome.exitCode) ? outcome.exitCode : null,
+    signaled: typeof outcome.signaled === 'boolean' ? outcome.signaled : null,
+  };
+}
+
+function finalizeTerminalRun(run, dependencies = {}) {
+  refreshArtifactManifest(run, dependencies);
+  try {
+    (dependencies.writeTerminalResultImpl || writeTerminalResult)({
+      run,
+      workspace: run.workspace,
+      process: run._terminalContext?.process,
+      execution: {
+        attempted: run._terminalContext?.executionAttempted === true,
+        assertions: run._terminalContext?.assertions,
+      },
+    }, {
+      clock: dependencies.terminalResultClock,
+      fsImpl: dependencies.terminalResultFs,
+    });
+    return true;
+  } catch {
+    appendLog(run, 'terminal result', 'Normalized terminal result write failed.');
+    return false;
+  }
+}
+
 async function runCommand(run, label, executable, args, options = {}, dependencies = {}) {
+  recordProcessOutcome(run, { attempted: true, outcome: 'failed', exitCode: null, signaled: null });
   const request = createEngineInvocationRequest({
     command: executable,
     args,
@@ -124,7 +162,16 @@ async function runCommand(run, label, executable, args, options = {}, dependenci
     },
   }, dependencies);
   const invocation = await (dependencies.invokeEngineProcessImpl || invokeEngineProcess)(request);
-  if (invocation.spawnError) throw invocation.spawnError;
+  if (invocation.spawnError) {
+    recordProcessOutcome(run, { attempted: true, outcome: 'failed', exitCode: null, signaled: false });
+    throw invocation.spawnError;
+  }
+  recordProcessOutcome(run, {
+    attempted: true,
+    outcome: invocation.exitCode === 0 && !invocation.signal ? 'succeeded' : 'failed',
+    exitCode: invocation.exitCode,
+    signaled: Boolean(invocation.signal),
+  });
   appendLog(run, label, [invocation.stdout, invocation.stderr].filter(Boolean).join('\n'));
   persist(run);
   const result = {
@@ -230,13 +277,22 @@ async function analyzeRun(run, dependencies = {}) {
     run.status = 'ready_for_execution';
     persist(run);
   } catch (error) {
+    if (!run._terminalContext?.process?.attempted) {
+      recordProcessOutcome(run, {
+        attempted: true,
+        outcome: 'failed',
+        exitCode: error?.result?.code,
+        signaled: Boolean(error?.result?.signal),
+      });
+    }
     const active = Object.entries(run.stages).find(([, value]) => value.status === 'running');
     if (active) stage(run, active[0], 'failed', friendlyError(active[0], error));
     run.status = 'failed';
     run.error = friendlyError(active?.[0], error);
     persist(run);
   } finally {
-    refreshArtifactManifest(run, dependencies);
+    if (run.status === 'failed') finalizeTerminalRun(run, dependencies);
+    else refreshArtifactManifest(run, dependencies);
   }
 }
 
@@ -382,6 +438,10 @@ async function executeRun(run, dependencies = {}) {
       stage(run, 'Interaction execution', 'running');
     }
     const started = Date.now();
+    run._terminalContext ||= {};
+    run._terminalContext.executionAttempted = true;
+    run._terminalContext.assertions = null;
+    recordProcessOutcome(run, { attempted: true, outcome: 'failed', exitCode: null, signaled: null });
     const execution = await runCommandImpl(run, 'Playwright execution', PLAYWRIGHT, [
       PLAYWRIGHT_CLI, 'test', ...specArguments,
       '--config', 'tools/mvp/playwright.config.js', '--workers=1', '--retries=0', '--reporter=html,json',
@@ -394,10 +454,23 @@ async function executeRun(run, dependencies = {}) {
         MVP_PLAYWRIGHT_OUTPUT_DIR: run.workspace.testResultsDir,
       },
     });
+    recordProcessOutcome(run, {
+      attempted: true,
+      outcome: execution.code === 0 && !execution.signal ? 'succeeded' : 'failed',
+      exitCode: execution.code,
+      signaled: Boolean(execution.signal),
+    });
     run.durationMs = Date.now() - started;
     stage(run, 'Playwright execution', execution.code === 0 ? 'success' : 'failed', execution.code === 0 ? undefined : 'One or more Playwright assertions failed.');
     stage(run, 'Report preparation', 'running');
     const raw = JSON.parse(fs.readFileSync(resultJson, 'utf8'));
+    run._terminalContext.assertions = summarizePlaywrightAssertions(raw);
+    recordProcessOutcome(run, {
+      attempted: true,
+      outcome: 'succeeded',
+      exitCode: execution.code,
+      signaled: false,
+    });
     run.result = summarizePlaywrightResult(raw, navigationPlan, interaction, run.durationMs, execution.code);
     run.result.reportUrl = `/api/runs/${run.id}/report`;
     if (targets.interaction) {
@@ -412,13 +485,22 @@ async function executeRun(run, dependencies = {}) {
     run.status = 'completed';
     persist(run);
   } catch (error) {
+    if (!run._terminalContext?.process?.attempted) {
+      recordProcessOutcome(run, {
+        attempted: true,
+        outcome: 'failed',
+        exitCode: error?.result?.code,
+        signaled: Boolean(error?.result?.signal),
+      });
+    }
     const active = Object.entries(run.stages).find(([, value]) => value.status === 'running');
     if (active) stage(run, active[0], 'failed', friendlyError(active[0], error));
     run.status = 'failed';
     run.error = friendlyError(active?.[0], error);
     persist(run);
   } finally {
-    refreshArtifactManifest(run, dependencies);
+    if (['completed', 'failed'].includes(run.status)) finalizeTerminalRun(run, dependencies);
+    else refreshArtifactManifest(run, dependencies);
   }
 }
 

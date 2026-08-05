@@ -1,5 +1,35 @@
 # Task Log
 
+## 2026-08-05 - Normalized terminal result boundary (HMV-004)
+
+### 목표와 기준점
+
+- HMV-001 process seam, HMV-002 run workspace와 HMV-003 manifest 위에 terminal run을 하나의 framework-free internal result로 projection했다.
+- 시작 기준은 clean `main`/`5507579`이고 `origin/main`과 동일했다. Local API/UI, status wording, queue/Map, engine/report/schema와 dependency는 변경하지 않았다.
+
+### 구현과 계약
+
+- `tools/mvp/terminal-result.js`는 schema `1.0`, outcome/lifecycle/process/assertion enum, `createTerminalResult`, `summarizePlaywrightAssertions`, `validateTerminalResult`, `writeTerminalResult`를 제공한다.
+- Outcome은 `succeeded`, `completed-with-test-failures`, `partially-succeeded`, `failed`다. Parseable Playwright report가 있는 non-zero exit는 process `succeeded`와 assertion `failed`/`mixed`로 분리한다.
+- Lifecycle은 `created`, `analysis`, `review`, `approval`, `reconciliation`, `plan`, `execution`, `report`다. Controller stage success/failure가 `lastCompletedStage`/`failedStage` source이고 manifest는 availability evidence만 제공한다.
+- Nested Playwright suite/spec/test를 test 단위로 `passed`, `failed`, `skipped`, `flaky` 중 하나로 분류한다. Empty/all-skipped report는 known counts를 가진 assertion `unavailable`이다.
+- Manifest 전체를 복제하지 않고 relative path, schema/status/validity, present/missing/empty count와 internal `available`/`partial`/`unavailable`만 기록한다. Invalid/unavailable manifest는 run outcome을 덮지 않는다.
+- `<run-root>/terminal-result.json`은 HMV-003 manifest 밖의 control artifact다. Terminal persist -> manifest refresh -> terminal result write 순서로 cycle을 피하며 same-directory temp/rename, UTF-8, stable indentation과 trailing newline을 사용한다.
+- Controller의 private `_terminalContext`는 high-level process/assertion 정보만 보유하고 `status.json` serialization에서 제외한다. Command, env, stdout/stderr, stack, selector와 absolute path는 terminal result에 포함하지 않는다.
+
+### Current lifecycle 결정
+
+- `completed`와 `failed`만 terminal이다. Analysis success의 `ready_for_execution`, approval 후 `approved`, no-candidate/approval 대기는 non-terminal이며 result file을 생성하지 않는다.
+- Analysis failure와 execute 내부 reconciliation/plan/render/Playwright/report failure는 terminal result를 만든다. Approval writer/validator failure는 현재 status를 terminal로 바꾸지 않으므로 HMV-004에서 의미를 변경하지 않았다.
+- JSON result가 있고 HTML만 missing이면 current run은 `completed`, normalized outcome은 `partially-succeeded`, failed stage는 `report`다.
+- Result 또는 manifest write 실패는 secondary diagnostic이며 기존 run status/result/error와 public projection을 덮지 않는다.
+
+### 테스트와 non-goals
+
+- Full success, assertion failure/mixed/flaky/skipped, process failure, analysis failure, partial review, non-terminal waiting, manifest unavailable/invalid, deterministic/privacy/path, inconsistent schema, atomic overwrite, A/B isolation, controller success/assertion/analysis failure와 write failure를 검증했다.
+- HMV-005 error category/code/retryability/private diagnostic, public projection/API, timeout/cancel, queue/durable lifecycle, retention, security와 optional navigation validator `--menu-map` 변경은 수행하지 않았다.
+- local commit message: `feat: add normalized terminal result`. Remote push는 수행하지 않는다.
+
 ## 2026-08-05 - Run artifact manifest contract (HMV-003)
 
 ### 목표와 범위

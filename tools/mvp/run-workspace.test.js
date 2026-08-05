@@ -36,6 +36,7 @@ test('creates the expected deterministic run workspace and directories', (t) => 
   assert.deepEqual(first, second);
   assert.equal(first.paths.scoutResult, path.join(first.analysisDir, 'scout_result.json'));
   assert.equal(first.paths.artifactManifest, path.join(first.root, 'artifact-manifest.json'));
+  assert.equal(first.paths.terminalResult, path.join(first.root, 'terminal-result.json'));
   assert.equal(first.paths.navigationSpec, path.join(first.specDir, 'generated_from_plan.spec.js'));
   assert.equal(first.paths.playwrightHtmlReportIndex, path.join(first.playwrightHtmlReportDir, 'index.html'));
   assert.equal(ensureRunWorkspace(first), first);
@@ -109,7 +110,7 @@ test('reports directory creation failure and leaves another run intact', (t) => 
   assert.equal(fs.statSync(healthy.analysisDir).isDirectory(), true);
 });
 
-test('declares ownership for every file path for the HMV-003 handoff', () => {
+test('declares ownership for every artifact and control file path', () => {
   const workspace = createRunWorkspace({ repositoryRoot: REPOSITORY_ROOT, runId: uniqueRunId('ownership') });
   assert.deepEqual(Object.keys(RUN_WORKSPACE_PATH_OWNERSHIP).sort(), Object.keys(workspace.paths).sort());
 });

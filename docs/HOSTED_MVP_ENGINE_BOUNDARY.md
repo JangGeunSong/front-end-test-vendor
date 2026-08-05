@@ -11,7 +11,7 @@
 - **Proposed**: Hosted 이전을 위한 제안이다.
 - **Unresolved**: 추가 실험 또는 제품·운영 결정이 필요하다.
 
-이 문서의 최초 분석 이후 HMV-001 engine invocation adapter, HMV-002 run-scoped workspace path contract와 HMV-003 artifact manifest contract가 구현됐다. Local HTTP/API/schema/queue 동작과 engine 판단 contract는 유지하며 Hosted framework, database, queue, cloud, container 제품을 선택하지 않는다.
+이 문서의 최초 분석 이후 HMV-001 engine invocation adapter, HMV-002 run-scoped workspace, HMV-003 artifact manifest와 HMV-004 normalized terminal result contract가 구현됐다. Local HTTP/API/schema/queue 동작과 engine 판단 contract는 유지하며 Hosted framework, database, queue, cloud, container 제품을 선택하지 않는다.
 
 ## 분석 범위와 제외 범위
 
@@ -199,7 +199,21 @@ Observed after HMV-003: `tools/mvp/artifact-manifest.js` projects the workspace 
 
 The controller writes an initial snapshot after `status.json`, then refreshes after analysis, approval and execution on both success and failure. A failed manifest refresh is secondary diagnostic failure and cannot replace the run's existing status/result. File presence is `present` or `missing`; pre-created attachment/report directories additionally use `empty` so directory existence is not mistaken for produced evidence. Required/conditional/optional metadata describes expected ownership but missing downstream output is not by itself a lifecycle validation error.
 
-Artifact policy is conservative. Raw scout/menu/status/approval/spec/Playwright result, HTML and attachment artifacts are `never` public-eligible. Review JSON/Markdown is `review-required`; no artifact is currently marked `eligible`. This is classification metadata only: it neither redacts content nor authorizes Local/Hosted delivery. Raw report serving remains Local-only, and HMV-004/HMV-009 must consume the manifest through separate terminal-result and public-projection contracts.
+Artifact policy is conservative. Raw scout/menu/status/approval/spec/Playwright result, HTML and attachment artifacts are `never` public-eligible. Review JSON/Markdown is `review-required`; no artifact is currently marked `eligible`. This is classification metadata only: it neither redacts content nor authorizes Local/Hosted delivery. HMV-004 now consumes it through the internal terminal result, while raw report serving stays Local-only and HMV-009 remains the separate public-projection boundary.
+
+Observed after HMV-004: `tools/mvp/terminal-result.js` consumes terminal controller state, the last high-level subprocess outcome, a bounded Playwright assertion summary and the validated HMV-003 manifest. It writes schema `1.0` to `<run-root>/terminal-result.json` after the final manifest refresh. This file is a control artifact outside the manifest, avoiding a manifest → terminal result → manifest cycle.
+
+```text
+Engine Invocation Adapter
+  -> Run Workspace
+  -> validated Artifact Manifest
+  -> normalized Terminal Result
+  -> future normalized error / Hosted projection
+```
+
+The process boundary and test boundary are distinct. A Playwright non-zero exit with valid JSON is normalized as process `succeeded` plus assertion `failed`/`mixed` and outcome `completed-with-test-failures`. Spawn/early process failure has process `failed` and assertion `unavailable`. Missing/malformed JSON or missing HTML can produce `partially-succeeded` while preserving any review/result already available. No command, environment, stdout/stderr, stack trace, selector or absolute path is copied into the result.
+
+Normalized lifecycle stages are `created`, `analysis`, `review`, `approval`, `reconciliation`, `plan`, `execution`, `report`. Controller stage state is authoritative for `lastCompletedStage` and `failedStage`; manifest presence only supports result availability. Current `ready_for_execution` and `approved` are non-terminal, so analysis-only/no-candidate/user-decision waiting does not produce a terminal result. Approval failure also remains non-terminal under the current controller rather than silently changing status semantics in HMV-004.
 
 HMV-003 registry inventory:
 
@@ -231,6 +245,7 @@ HMV-003 registry inventory:
 | workspace `analysis/test_plan.generated.json` | plan builder | validator, renderer, controller | run overwrite only | none | yes | target-derived structured plan; internal/reviewable after sanitization | HMV-002 complete for Local |
 | workspace `execution/specs/generated_from_plan.spec.js` | nav renderer | Playwright | direct run output; output-relative helper imports | none | yes | embeds target URL/selectors; executable internal artifact | HMV-002 complete for Local |
 | `.../mvp-runs/<id>/status.json` | controller | diagnostic snapshot only; current server does not reload it | unique run; overwritten repeatedly | none | yes | URL, analysis, result, debug logs and process path fields can be sensitive | mandatory; define safe persisted shape |
+| workspace `terminal-result.json` | terminal result writer | future error/application/public projectors | run-isolated atomic overwrite; outside manifest to avoid cycle | none | parent ignored | allowlisted internal outcome/stage/count/manifest diagnostics; no raw process data | HMV-004 control artifact; not public API |
 | run `analysis_review_report.json/.md` | report builder/renderer | controller/human/approval | run-isolated overwrite | none | parent ignored | target evidence; not automatically public | mandatory |
 | run `interaction_approvals.json` | writer | validator/reconciler | run-isolated atomic replace | none | parent ignored | reviewer/note/evidence; access-controlled internal | mandatory |
 | manual `review/interaction_approvals.json` | human/CLI | manual validator/reconciler | fixed local state | manual | yes | review metadata/target evidence | local-only; Hosted uses submitted job artifact |
@@ -380,7 +395,7 @@ KEEP does not mean raw CLI/file paths are the final Hosted API. It means behavio
 | Engine invocation service | HMV-001 extracted to `tools/mvp/engine-invocation.js`; controller retains lifecycle/projection | `{command,args,cwd,env}` -> `{command,args,cwd,exitCode,signal,stdout,stderr,spawnError}`; launches existing commands | P0 complete | injected fake spawn and controller request characterization; no behavior change |
 | Job workspace allocation | HMV-002 extracted to `tools/mvp/run-workspace.js`; controller binds its map | repository root + safe run ID -> contained logical paths; creates only exact run directories | P0 complete | traversal/reserved/reparse containment, uniqueness, idempotency, physical isolation and controller path-binding tests |
 | Artifact manifest | HMV-003 implemented in `tools/mvp/artifact-manifest.js` | workspace definitions -> typed relative snapshot + validated atomic JSON write | P0 complete | initial/partial/present/A-B/path/policy/controller lifecycle tests |
-| Normalized terminal result | `summarizePlaywrightResult` plus catch branches | raw Playwright/process results -> execution outcome + system outcome | P0 | preserve current JSON projection fixtures; no public schema promise |
+| Normalized terminal result | HMV-004 implemented in `tools/mvp/terminal-result.js` | terminal run + bounded process/assertion summary + manifest -> validated internal result | P0 complete | success/assertion/process/partial/manifest/path/controller finalization tests |
 | Target validation use case | server calls basic parser directly | request URL -> canonical request or categorized rejection; no network side effect | P0 | retain current cases, add policy adapter seam; security policy remains separate |
 | Execution options | hardcoded args/env in controller | bounded mode/workers/retries/cache/report options -> command args/env | P0 | default equality tests; no user-controlled arbitrary args |
 | Timeout/cancellation interface | absent around `runCommand` | deadline/signal -> process-tree termination result | P0 | fake long child tests; implementation follows contract task |
@@ -389,7 +404,7 @@ KEEP does not mean raw CLI/file paths are the final Hosted API. It means behavio
 | Report/public result projection | `normalizeAnalysis`, `summarizePlaywrightResult`, raw report endpoint | internal manifest/result -> allowlisted public view | P0/P1 | secret/path/raw evidence exclusion tests |
 | Retention/cleanup policy port | no current boundary | manifest + terminal time + policy -> deletion decisions | P1 | dry-run policy tests first |
 
-Observed extraction sequence: HMV-001 introduced the framework-free invocation adapter without path changes; HMV-002 then added the workspace contract and migrated the coherent Local deterministic artifact path slice; HMV-003 adds an internal artifact identity/snapshot contract without combining Hosted HTTP, storage or public projection work. HMV-004 is the next additive result boundary.
+Observed extraction sequence: HMV-001 introduced the process seam; HMV-002 added workspace isolation; HMV-003 added artifact identity/snapshots; HMV-004 now adds terminal normalization without changing the Local response. HMV-005 is the next additive error boundary.
 
 ## REPLACE
 
@@ -445,7 +460,7 @@ Local Reference UI
 Answers to migration questions:
 
 - **Most stable reusable engine entrypoint:** Observed, `agent_orchestrator.py --generation-mode plan --generated-dir <analysis> --navigation-spec-output <spec>` is now the smallest path-parameterized analysis entrypoint. It still owns nested subprocess sequencing and is not a complete application-service entrypoint for review/approval/execution.
-- **Smallest first adapter:** Completed, `engine-invocation.js` supplies the explicit process seam, `run-workspace.js` supplies validated paths and `artifact-manifest.js` supplies typed artifact snapshots. The next additive boundary is HMV-004 normalized terminal result projection.
+- **Smallest first adapter:** Completed through HMV-004: invocation, workspace, artifact manifest and normalized terminal result are framework-free seams. The next additive boundary is HMV-005 normalized error classification.
 - **First business/application logic to separate:** target request validation, run command construction, execution target selection and normalized terminal projection currently inside `controller.js`.
 - **Artifacts requiring isolation:** scout result, profile-tree temp file, menu map, navigation plan, navigation spec, approval, reconciliation, interaction plan/spec, Playwright JSON/HTML, `test-results` attachments/logs; cache needs an explicit separate policy.
 - **Progress:** add typed stage hooks at adapter/application boundaries. Do not parse current stdout for semantic progress; retain it only as private diagnostics.
@@ -455,7 +470,7 @@ Answers to migration questions:
 - **Raw vs sanitized:** artifact manifest labels raw target-derived inputs/evidence, executable internal files and publishable projections separately. Only an explicit sanitizer/projector crosses the public boundary.
 - **Hosted approval reuse:** Report `2.1` candidateKey/evidence, Approval/Reconciliation `3.0`, observedUrl and Plan `3.0` can be kept. Hosted UI submits decisions through an adapter; it must not manufacture execution instructions.
 - **Shared application service:** yes, proposed. Local controller and Hosted API should be adapters; process dispatch/persistence implementations can differ.
-- **Blockers before Hosted skeleton:** normalized lifecycle/result/error contracts and target URL security specification remain; invocation, Local workspace and artifact manifest seams are implemented. Before any public execution, implement target security, isolated worker, timeout/cancellation and retention/abuse controls.
+- **Blockers before Hosted skeleton:** normalized error and durable lifecycle contracts plus target URL security specification remain; invocation, Local workspace, artifact manifest and terminal result seams are implemented. Before any public execution, implement target security, isolated worker, timeout/cancellation and retention/abuse controls.
 
 ## 최초 Extraction 결과와 다음 후보
 
@@ -475,7 +490,9 @@ Completed second implementation: **HMV-002 — run-scoped workspace path contrac
 
 Completed third implementation: **HMV-003 — artifact manifest**. It consumes logical workspace paths, records workspace-relative produced/missing/empty state and conservative sensitivity/public eligibility, and leaves storage/public URL technology and raw report projection out of scope.
 
-The next candidate is **HMV-004 — normalized terminal result boundary**. It should consume invocation/lifecycle outcomes and the validated manifest by artifact ID while preserving the current Local response projection and keeping normalized errors as HMV-005.
+Completed fourth implementation: **HMV-004 — normalized terminal result boundary**. It preserves Local projection while separating service/process completion, Playwright assertion outcome, lifecycle failure and artifact availability.
+
+The next candidate is **HMV-005 — normalized error classification**. It should attach stable category/retryability/user-safe/private-diagnostic boundaries without placing raw process output in the terminal result or changing existing friendly Local messages.
 
 ## Unresolved Questions
 
@@ -504,6 +521,8 @@ The next candidate is **HMV-004 — normalized terminal result boundary**. It sh
 - `tools/mvp/run-workspace.test.js` — deterministic path, A/B isolation, invalid ID, containment, idempotency, no-global-mutation and failure-isolation characterization.
 - `tools/mvp/artifact-manifest.js` — `ARTIFACT_IDS`, `createArtifactDefinitions`, `createArtifactManifest`, `validateArtifactManifest`, `writeArtifactManifest`: HMV-003 logical identity, relative snapshot, policy validation and atomic persistence.
 - `tools/mvp/artifact-manifest.test.js` — initial/partial/present snapshot, A/B isolation, path leakage/traversal, enum/type/order, write/read, controller lifecycle and public-policy characterization.
+- `tools/mvp/terminal-result.js` — terminal schema/enums, lifecycle projection, `summarizePlaywrightAssertions`, manifest diagnostics, strict validator and atomic result writer.
+- `tools/mvp/terminal-result.test.js` — full/assertion/process/analysis/partial outcomes, non-terminal waiting, manifest unavailable/invalid, privacy/path/consistency, atomic isolation and controller finalization.
 - `tools/mvp/controller.js` — `runCommand`: adapter delegation plus legacy nonzero/allowFailure, logging and friendly-error compatibility.
 - `tools/mvp/engine-invocation.js` — `createEngineInvocationRequest`, `invokeEngineProcess`: HMV-001 explicit process request, environment copy and raw terminal result boundary.
 - `tools/mvp/engine-invocation.test.js` — spawn/nonzero/signal/chunk/environment/double-terminal adapter characterization.

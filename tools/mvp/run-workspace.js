@@ -13,6 +13,7 @@ const WINDOWS_RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
 
 const RUN_WORKSPACE_PATH_OWNERSHIP = Object.freeze({
   artifactManifest: 'internal metadata',
+  terminalResult: 'internal metadata',
   status: 'public-candidate result',
   scoutResult: 'intermediate',
   menuMap: 'intermediate',
@@ -71,6 +72,7 @@ function createRunWorkspace({ repositoryRoot, runId, workspaceRoot } = {}) {
   const playwrightHtmlReportDir = path.join(reportDir, 'playwright-html');
   const paths = Object.freeze({
     artifactManifest: path.join(root, 'artifact-manifest.json'),
+    terminalResult: path.join(root, 'terminal-result.json'),
     status: path.join(root, 'status.json'),
     scoutResult: path.join(analysisDir, 'scout_result.json'),
     menuMap: path.join(analysisDir, 'menu_map.json'),

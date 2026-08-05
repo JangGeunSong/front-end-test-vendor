@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -240,7 +241,7 @@ def render_test_case(test_case, title):
     ])
 
 
-def render_spec(plan):
+def render_spec(plan, helper_import_root="../../utils"):
     target_url = plan["targetUrl"]
     tests = plan.get("tests", [])
     unsupported = sorted({test.get("template") for test in tests if test.get("template") not in SUPPORTED_TEMPLATES})
@@ -255,8 +256,8 @@ def render_spec(plan):
     )
 
     return f"""const {{ test, expect }} = require('@playwright/test');
-const {{ openDepth1ByIndex, clickVisibleMenuByText, clickVisibleSubMenuByText }} = require('../../utils/gnb');
-const {{ highlightPageIdentity }} = require('../../utils/highlight');
+const {{ openDepth1ByIndex, clickVisibleMenuByText, clickVisibleSubMenuByText }} = require('{helper_import_root}/gnb');
+const {{ highlightPageIdentity }} = require('{helper_import_root}/highlight');
 
 const BASE_URL = process.env.BASE_URL || {js_string(target_url)};
 
@@ -294,7 +295,10 @@ def render_file(input_path, output_path):
             print(f"[{code}] {message}")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(render_spec(plan), encoding="utf-8")
+    helper_import_root = os.path.relpath(ROOT_DIR / "utils", output_path.parent).replace(os.sep, "/")
+    if not helper_import_root.startswith("."):
+        helper_import_root = f"./{helper_import_root}"
+    output_path.write_text(render_spec(plan, helper_import_root), encoding="utf-8")
     print(f"Rendered Playwright spec: {rel(output_path)}")
 
 

@@ -33,6 +33,8 @@ target URL (--url or TARGET_URL)
   -> Playwright execution and visual review
 ```
 
+위 표기는 standalone npm/CLI의 backward-compatible default path다. Local MVP controller는 HMV-002 이후 `tools/ai-generator/generated/mvp-runs/<runId>/` 아래의 validated workspace를 만들고, `analysis/`, `review/`, `approval/`, `plan/`, `execution/`, `report/` path map을 command arguments와 Playwright environment로 명시한다. Local controller의 core artifact copy-after-shared-output 경계는 제거됐으며 spec, `test-results`, JSON/HTML report도 같은 run root 아래에 있다.
+
 `agent_orchestrator.py`는 `spec`, `plan`, `llm-plan` mode를 유지한다. `spec`은 legacy direct-JS 경로이고, 현재 제품 방향은 structured plan 기반 `plan`/`llm-plan` 경로다. `plan`은 deterministic builder를, `llm-plan`은 LLM의 structured JSON 판단을 사용하며 둘 다 validator와 deterministic renderer 경계를 통과한다.
 
 현재 analysis/review 경로:
@@ -117,9 +119,11 @@ analysis_review_report.json
 
 ## Current Development Frontier
 
-Plan schema `3.0`/deterministic renderer의 previous-selection browser runtime, approval writer/local MVP product integration과 Navigation-only optional interaction execution이 구현됐다. Local controller부터 engine/report까지의 Hosted migration 경계 분석과 `HMV-001` framework-free engine invocation adapter extraction도 완료됐다. 다음 중심 frontier는 [Hosted MVP Migration Backlog](HOSTED_MVP_BACKLOG.md)의 `HMV-002` job-scoped workspace path contract다.
+Plan schema `3.0`/deterministic renderer의 previous-selection browser runtime, approval writer/local MVP product integration과 Navigation-only optional interaction execution이 구현됐다. Local controller부터 engine/report까지의 Hosted migration 경계 분석, `HMV-001` framework-free engine invocation adapter와 `HMV-002` run-scoped workspace path contract도 완료됐다. 다음 중심 frontier는 [Hosted MVP Migration Backlog](HOSTED_MVP_BACKLOG.md)의 `HMV-003` artifact manifest다.
 
-HMV-001은 `tools/mvp/engine-invocation.js`의 explicit `{command,args,cwd,env}` request와 raw process result 경계로 controller의 direct Python/Playwright spawn 책임을 옮겼다. Local compatibility wrapper는 기존 command/argument ordering, inherited environment + UTF-8 override, shared artifact path, queue/Map, status/error/API/result behavior를 유지한다. Adapter는 full environment를 result에 반환하지 않으며 spawn failure, non-zero exit와 signal termination을 구분한다.
+HMV-001은 `tools/mvp/engine-invocation.js`의 explicit `{command,args,cwd,env}` request와 raw process result 경계로 controller의 direct Python/Playwright spawn 책임을 옮겼다. 당시 compatibility wrapper는 path를 포함한 기존 동작을 보존했고, HMV-002가 같은 seam의 args/env만 workspace path로 바꿨다. Adapter는 full environment를 result에 반환하지 않으며 spawn failure, non-zero exit와 signal termination을 구분한다.
+
+HMV-002는 `tools/mvp/run-workspace.js`의 `createRunWorkspace`/`ensureRunWorkspace`와 logical path ownership을 추가했다. Local controller는 orchestrator `--generated-dir`/`--navigation-spec-output` 및 Playwright `testDir`/`outputDir` override를 사용하고 repository-root `cwd` semantics는 유지한다. 현재 Local deterministic controller 경로의 writable artifact는 run별로 분리됐지만, queue 제거·동시 실행 활성화·multi-process proof·cache policy·retention은 완료되지 않았으므로 full concurrency 지원을 선언하지 않는다.
 
 완료된 부분:
 
@@ -181,14 +185,13 @@ Version transition은 완료됐다. `interaction_plan_contract.py`는 Reconcilia
 
 ## Latest Completed Work
 
-가장 최근 완료 작업은 Hosted 전환 backlog의 `HMV-001` engine invocation adapter extraction이다.
+가장 최근 완료 작업은 Hosted 전환 backlog의 `HMV-002` job-scoped workspace path contract다.
 
-- Local controller의 유일한 direct `child_process.spawn`을 framework-free `tools/mvp/engine-invocation.js`로 이동
-- `createEngineInvocationRequest`와 injectable `invokeEngineProcess` request/result contract 추가
-- stdout/stderr chunk ordering, exit code, signal, spawn error와 double-terminal one-settlement 보존
-- controller compatibility layer를 통해 기존 non-zero rejection, Playwright `allowFailure`, debug log, friendly error와 HTTP/UI behavior 유지
-- nested orchestrator process, smoke server spawn과 uv wrapper는 각각 engine-internal/Local-support 경계로 유지
-- job workspace field는 실제 path map 없이 추가하지 않았고 fixed shared paths는 HMV-002로 이관
+- HMV-001의 `createEngineInvocationRequest`/`invokeEngineProcess` seam과 non-zero/allowFailure/debug/friendly-error compatibility 유지
+- lowercase 안전 run ID, repository/workspace containment와 idempotent directory provisioning을 갖는 immutable-by-convention path map 추가
+- Local deterministic analysis/review/approval/plan/spec/Playwright output을 한 run root로 직접 연결하고 shared copy boundary 제거
+- standalone CLI default path, Local queue/Map/API/schema/engine 판단 semantics는 유지
+- HMV-003가 workspace-relative artifact/sensitivity/status manifest를 추가하도록 logical path ownership handoff 제공
 - focused adapter/controller test와 full Local/Python regression으로 behavior 보존 확인
 
 이전 완료 작업은 Python/uv 개발환경과 호환성 범위를 표준화한 maintenance 작업이다.
@@ -327,11 +330,12 @@ navigation
 
 ```text
 HMV-001 framework-free engine invocation adapter (completed)
-  -> HMV-002 job-scoped workspace path contract (active frontier)
-  -> HMV-003 artifact manifest
+  -> HMV-002 job-scoped workspace path contract (completed)
+  -> HMV-003 artifact manifest (active frontier)
+  -> HMV-008 concurrent-run isolation characterization
 ```
 
-Task 2/3 분석은 [Hosted MVP Engine Boundary](HOSTED_MVP_ENGINE_BOUNDARY.md)에, 구현 가능한 크기의 P0~P3 후속 작업은 [Hosted MVP Migration Backlog](HOSTED_MVP_BACKLOG.md)에 기록했다. Existing deterministic builders/validators/renderers, observedUrl provenance와 Approval/Reconciliation/Plan contracts는 유지한다. Shared generated output, process-local state/queue, raw report exposure와 parser-only URL gate는 Hosted adapter/control boundary에서 추출 또는 교체해야 한다.
+Task 2/3 분석과 HMV-001/002 구현 후 경계는 [Hosted MVP Engine Boundary](HOSTED_MVP_ENGINE_BOUNDARY.md)에, 구현 가능한 크기의 P0~P3 후속 작업은 [Hosted MVP Migration Backlog](HOSTED_MVP_BACKLOG.md)에 기록했다. Existing deterministic builders/validators/renderers, observedUrl provenance와 Approval/Reconciliation/Plan contracts는 유지한다. Local controller path isolation은 완료됐지만 process-local state/queue, manifest 부재, raw report exposure와 parser-only URL gate는 Hosted adapter/control boundary에서 추출 또는 교체해야 한다.
 
 `expandedToggle` runtime과 cross-site interaction regression은 P2 interaction trial에서 계속 필요한 별도 작업이며 삭제되거나 지원 완료로 간주하지 않는다. General execution result와 persistent history도 Hosted backlog에서 단계적으로 다룬다.
 

@@ -13,7 +13,7 @@ Priority meanings:
 
 ## Recommended First Work
 
-**HMV-001 is complete.** Continue with **HMV-002** to define the job-scoped workspace path contract on top of the explicit invocation seam, without changing the process terminal contract.
+**HMV-001 and HMV-002 are complete.** Continue with **HMV-003** to project the implemented workspace paths into a relative, sensitivity-aware artifact manifest without changing schemas or public report behavior.
 
 ## P0 — Hosted Foundation Blockers
 
@@ -41,7 +41,7 @@ Implementation result:
 - Focused tests cover success, non-zero exit, spawn failure followed by close, signal termination, chunked output, environment copying/override/no-result-exposure and synchronous spawn failure. Controller characterization fixes the deterministic analysis executable, argument ordering, repository cwd and UTF-8 environment overrides.
 - Acceptance criteria passed: Local API/UI behavior and command defaults are unchanged; no HTTP/framework or new dependency was introduced; the runner is injectable; spawn and non-zero outcomes remain distinguishable.
 
-HMV-002 handoff:
+HMV-001 completion snapshot and HMV-002 handoff (historical):
 
 - The adapter already accepts an explicit `cwd` and a complete invocation request, so HMV-002 can bind job-scoped paths without changing process execution or controller error compatibility again.
 - A `workspace` field was intentionally not added before a real path map exists. HMV-002 should define the validated workspace/path contract and pass its paths through existing command arguments, cwd and bounded environment overrides.
@@ -50,9 +50,11 @@ HMV-002 handoff:
 
 ### HMV-002 — Introduce job-scoped workspace path contract
 
+- **Status:** Completed on 2026-08-05 with the Local deterministic pipeline migrated to run-scoped paths. Full concurrent execution remains an HMV-008 claim, not an HMV-002 claim.
+
 - **Objective:** Define one validated workspace/path map for every run artifact.
 - **Rationale:** current engine writes shared scout/menu/plan/spec/temp/output paths.
-- **Source boundary:** orchestrator path constants, `createRun`, `copyFreshArtifacts`, Playwright config/output.
+- **Pre-implementation source boundary:** orchestrator path constants, `createRun`, former `copyFreshArtifacts`, Playwright config/output.
 - **Scope:** logical path names, containment checks, unique workspace creation, path injection design; migrate one coherent pipeline slice at a time.
 - **Explicit non-scope:** storage vendor, retention, distributed worker.
 - **Dependencies:** HMV-001.
@@ -61,11 +63,37 @@ HMV-002 handoff:
 - **Migration risk:** high; renderer imports and Playwright `testDir` assumptions.
 - **Recommended commit size:** contract/factory first, then separate commits for analysis outputs and Playwright outputs.
 
+Implementation result:
+
+- `tools/mvp/run-workspace.js` exports `validateRunId`, `createRunWorkspace`, `ensureRunWorkspace`, `RUN_WORKSPACE_PATH_OWNERSHIP` and `DEFAULT_WORKSPACE_RELATIVE_ROOT`.
+- The contract maps each run to `analysis/`, `review/`, `approval/`, `plan/`, `execution/specs/`, `execution/test-results/` and `report/playwright-html/` below `tools/ai-generator/generated/mvp-runs/<runId>/`.
+- Run IDs accept 1–128 lowercase ASCII letters/digits plus internal `.`, `_`, `-`; separators, absolute forms, `..`, uppercase/case aliases, edge punctuation and Windows reserved device names are rejected. Lexical containment and real-path containment prevent repository/workspace escape and existing reparse-point redirection.
+- `createRun` creates the workspace before registering the run. Provisioning failure reaches the request error path and does not insert a partial run into the in-memory Map or alter another run.
+- `agent_orchestrator.py` keeps legacy defaults but accepts `--generated-dir` and `--navigation-spec-output`. The Local controller supplies workspace paths, so scout result, menu map, profile-tree temp, disabled Local cache path, navigation plan and navigation spec no longer pass through shared output/copy paths.
+- `render_test_plan.py` computes helper imports relative to the requested output location. Its default `tests/generated/` output remains byte-shape compatible while workspace specs remain executable without absolute imports.
+- Playwright keeps repository-root `cwd` and its repository config, while controller-provided `MVP_PLAYWRIGHT_TEST_DIR` and `MVP_PLAYWRIGHT_OUTPUT_DIR` isolate spec discovery and traces/screenshots/video. Existing JSON/HTML reporter variables now point inside the same workspace; Local report URL behavior is unchanged.
+- Focused tests cover deterministic maps, physical A/B separation, traversal/reserved inputs, repository and real-path containment, idempotent ensure/no deletion, no cwd/environment mutation, provisioning failure isolation, orchestrator default/override compatibility, output-relative renderer imports, controller path binding and Playwright path projection.
+
+Migration classification:
+
+| Class | HMV-002 result |
+| --- | --- |
+| `MOVE_NOW` | Local deterministic scout/menu/profile temp/navigation plan, review JSON/Markdown, approval/reconciliation/interaction plan, navigation/interaction specs, Playwright JSON/HTML and `test-results` attachments are canonical workspace outputs. |
+| `ADAPT_NOW` | Standalone orchestrator/renderer and Playwright commands retain their fixed default paths when no override is supplied; Local controller always supplies the workspace override. Compatibility is one-way through defaults, not file synchronization. |
+| `DEFER` | Legacy direct-LLM `spec` output, manual `llm-plan`/comparison defaults, cache sharing policy, default review/reconciliation files and any non-controller CLI overlap remain follow-up concerns. The known optional navigation validator `--menu-map` omission is unchanged. |
+| `LOCAL_ONLY` | `npm run report`, raw Local report serving, fixture/debug commands and developer artifact browsing remain Local tools. |
+
+Acceptance and HMV-003 handoff:
+
+- Two synthetic maps and physical artifacts have no writable overlap, every contract output remains below its run root, raw files remain ignored/untracked, and default CLI behavior remains compatible.
+- HMV-002 is a **full path migration for the current Local deterministic controller path**, but not proof of multi-process/concurrent-run correctness. The process-global queue remains intentionally unchanged pending lifecycle/dispatcher and HMV-008 barrier-based characterization.
+- HMV-003 should consume `workspace.paths`, directory roles and `RUN_WORKSPACE_PATH_OWNERSHIP`, emit only workspace-relative entries, represent optional interaction/report artifacts explicitly, and add sensitivity/public-eligibility metadata. It must not expose the absolute workspace object or raw HTML as a public result.
+
 ### HMV-003 — Produce artifact manifest
 
 - **Objective:** Emit a manifest of expected and produced artifacts by logical role.
 - **Rationale:** paths and sensitivity are implicit mutable run properties today.
-- **Source boundary:** `persist`, `copyFreshArtifacts`, execute-stage local variables.
+- **Source boundary:** `persist`, HMV-002 workspace paths/ownership, execute-stage produced/missing artifacts.
 - **Scope:** logical name, relative path, media type, producer stage, existence/status, size, sensitivity/public eligibility.
 - **Explicit non-scope:** object storage upload, public URLs, retention implementation.
 - **Dependencies:** HMV-002.
@@ -129,8 +157,8 @@ HMV-002 handoff:
 ### HMV-008 — Characterize and enforce concurrent-run isolation
 
 - **Objective:** Prove two jobs cannot mix writable artifacts or results.
-- **Rationale:** current safety depends on a single process-global queue.
-- **Source boundary:** global generated paths, profile temp, cache, specs, `test-results`, report env.
+- **Rationale:** HMV-002 made current Local writable paths disjoint, but correctness still depends on a single process-global queue and has no barrier-based or multi-process proof.
+- **Source boundary:** run workspace enforcement, standalone fixed defaults, nested process paths, cache policy, lifecycle Map/queue and Playwright report env.
 - **Scope:** concurrency characterization harness with fake/synthetic inputs; workspace enforcement; cache disabled or explicitly scoped.
 - **Explicit non-scope:** performance tuning, distributed load test.
 - **Dependencies:** HMV-002, HMV-003.

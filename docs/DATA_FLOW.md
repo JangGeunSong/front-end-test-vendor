@@ -92,6 +92,9 @@ Local MVP는 이 기존 흐름을 다음처럼 조합한다.
 ```text
 localhost UI URL input
   -> thin Node controller
+  -> validated run workspace contract
+     -> analysis / review / approval / plan
+     -> execution specs + test-results / private report
   -> deterministic navigation plan pipeline
   -> run-scoped Analysis Review Report 2.1
   -> Navigation spec selected whenever navigation tests exist
@@ -107,7 +110,7 @@ localhost UI URL input
   -> normalized UI summary + run-scoped HTML report
 ```
 
-Controller는 schema, selector, classification, plan 또는 Playwright body를 다시 구현하지 않는다. Artifact-producing 작업은 serialize하며 evidence/approval/result/report는 `generated/mvp-runs/<runId>`에 분리해 다른 run의 stale state가 섞이지 않게 한다.
+Controller는 schema, selector, classification, plan 또는 Playwright body를 다시 구현하지 않는다. HMV-002 이후 `createRunWorkspace`가 모든 Local controller path를 계산하고 orchestrator CLI args와 Playwright per-process env에 전달한다. Canonical artifact는 `generated/mvp-runs/<runId>` 아래에 직접 기록되며 shared output에서 copy하지 않는다. Artifact-producing 작업은 계속 serialize한다. 이는 queue 제거와 concurrent/multi-process isolation proof가 HMV-008 범위이기 때문이다.
 
 Navigation-only 실행의 Overall은 Navigation/Page Identity 결과로 계산한다. Interaction/Restoration `SKIPPED`는 실패가 아니며 Navigation failure는 그대로 Overall `FAIL`이다. Interaction이 선택된 경우 기존 approval/reconciliation/Plan `3.0` contract를 변경하거나 우회하지 않는다.
 
@@ -187,7 +190,7 @@ Level 1/2 generated spec은 `primaryMenuTree`만 사용한다. main CTA, footer 
 
 Level 2 `pageProfiles`도 `primaryMenuTree` 기준으로 별도 수집한다. broad discovery에서 발견된 전체 후보를 그대로 클릭하지 않고, generated spec 대상인 parent/child menuPath와 일치하는 profile만 LLM 입력으로 전달한다.
 
-반복 실행 시 `agent_orchestrator.py`는 `tools/ai-generator/generated/page_profile_cache.json`을 사용해 이미 수집된 pageProfile을 재사용할 수 있다. cache key는 target URL, menuPath, href, ngClick, cssPath를 기준으로 하며, cache miss인 메뉴만 scout.js pageProfile 수집 대상으로 전달한다. 최종 `menu_map.pageProfiles`는 cache hit profile과 이번 실행에서 새로 수집한 profile을 primaryMenuTree 순서로 병합한다.
+반복 실행 시 standalone `agent_orchestrator.py`는 default `tools/ai-generator/generated/page_profile_cache.json`을 사용해 이미 수집된 pageProfile을 재사용할 수 있다. Local MVP는 `--no-profile-cache`와 run-specific `--generated-dir`를 사용하므로 cross-run cache를 읽거나 쓰지 않는다. cache key는 target URL, menuPath, href, ngClick, cssPath를 기준으로 하며, cache miss인 메뉴만 scout.js pageProfile 수집 대상으로 전달한다. 최종 `menu_map.pageProfiles`는 cache hit profile과 이번 실행에서 새로 수집한 profile을 primaryMenuTree 순서로 병합한다.
 
 ### 5. agent_orchestrator.py
 
@@ -211,6 +214,8 @@ Level 2 `pageProfiles`도 `primaryMenuTree` 기준으로 별도 수집한다. br
 - deterministic plan: `tools/ai-generator/generated/test_plan.generated.json`
 - LLM plan: `tools/ai-generator/generated/test_plan.llm.json`
 - renderer output: `tests/generated/generated_from_plan.spec.js`
+
+위 경로는 standalone npm/CLI default다. Local MVP controller는 같은 producer/consumer contract에 `--generated-dir`과 `--navigation-spec-output`을 공급해 run workspace `analysis/test_plan.generated.json`과 `execution/specs/generated_from_plan.spec.js`를 사용한다. Playwright config도 Local invocation에서 workspace spec directory와 `execution/test-results`를 사용한다.
 
 legacy `spec` mode의 `tests/generated/generated_menu_access.spec.js`도 유지되지만 기본 architecture 방향은 structured plan과 deterministic renderer다.
 

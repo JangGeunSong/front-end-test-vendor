@@ -1,9 +1,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const {
+  analyzeRun,
+  createRun,
+  executeRun,
+  generateRunId,
+  getRun,
   normalizeAnalysis,
   selectExecutionTargets,
   summarizePlaywrightResult,
@@ -12,11 +16,35 @@ const {
   validateExecuteRequest,
   validateTargetUrl,
 } = require('./controller');
+const { createRunWorkspace, ensureRunWorkspace } = require('./run-workspace');
+
+const REPOSITORY_ROOT = path.resolve(__dirname, '..', '..');
+const CONTROLLER_TEST_WORKSPACE_ROOT = path.join(
+  REPOSITORY_ROOT,
+  'tools',
+  'ai-generator',
+  'generated',
+  'controller-workspace-tests',
+);
+
+function testRunId(label) {
+  return `${Date.now()}-${process.pid}-${label}`;
+}
+
+function createTestWorkspace(t, label) {
+  const workspace = createRunWorkspace({
+    repositoryRoot: REPOSITORY_ROOT,
+    workspaceRoot: CONTROLLER_TEST_WORKSPACE_ROOT,
+    runId: testRunId(label),
+  });
+  ensureRunWorkspace(workspace);
+  t.after(() => fs.rmSync(workspace.root, { recursive: true, force: true }));
+  return workspace;
+}
 
 test('controller delegates exact command, args, cwd, and environment to the invocation adapter', async (t) => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hmv-001-controller-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const run = { dir, debugLog: [] };
+  const workspace = createTestWorkspace(t, 'invocation');
+  const run = { workspace, dir: workspace.root, debugLog: [] };
   let captured;
   const result = await runCommand(
     run,
@@ -44,6 +72,123 @@ test('controller delegates exact command, args, cwd, and environment to the invo
     PYTHONUTF8: '1',
   });
   assert.deepEqual(result, { code: 0, signal: null, stdout: 'ok', stderr: '' });
+});
+
+test('run creation uses a validated workspace contract and preserves the generated run ID shape', (t) => {
+  const runId = testRunId('create');
+  const run = createRun('https://example.test/', {
+    runId,
+    workspaceRoot: CONTROLLER_TEST_WORKSPACE_ROOT,
+  });
+  t.after(() => fs.rmSync(run.workspace.root, { recursive: true, force: true }));
+
+  assert.equal(run.id, runId);
+  assert.equal(run.dir, run.workspace.root);
+  assert.equal(run.specDir, run.workspace.specDir);
+  assert.equal(fs.existsSync(run.workspace.paths.status), true);
+  assert.match(generateRunId(), /^\d{13}-[0-9a-f]{8}$/);
+});
+
+test('workspace provisioning failure is propagated without registering or contaminating another run', (t) => {
+  const healthyId = testRunId('healthy');
+  const failedId = testRunId('failed');
+  const healthy = createRun('https://example.test/', {
+    runId: healthyId,
+    workspaceRoot: CONTROLLER_TEST_WORKSPACE_ROOT,
+  });
+  t.after(() => fs.rmSync(healthy.workspace.root, { recursive: true, force: true }));
+
+  assert.throws(() => createRun('https://example.test/', {
+    runId: failedId,
+    workspaceRoot: CONTROLLER_TEST_WORKSPACE_ROOT,
+    ensureWorkspace: () => { throw new Error('workspace unavailable'); },
+  }), /workspace unavailable/);
+  assert.throws(() => getRun(failedId), /not found/);
+  assert.equal(getRun(healthyId), healthy);
+  assert.equal(healthy.status, 'created');
+});
+
+test('analysis invokes the orchestrator and review tools with workspace-derived paths', async (t) => {
+  const run = createRun('https://example.test/', {
+    runId: testRunId('analysis'),
+    workspaceRoot: CONTROLLER_TEST_WORKSPACE_ROOT,
+  });
+  t.after(() => fs.rmSync(run.workspace.root, { recursive: true, force: true }));
+  const calls = [];
+  await analyzeRun(run, {
+    runCommandImpl: async (_run, label, _executable, args) => {
+      calls.push({ label, args });
+      if (label === 'website analysis and navigation plan') {
+        fs.writeFileSync(run.workspace.paths.scoutResult, '{"pageProfiles":[]}\n', 'utf8');
+        fs.writeFileSync(run.workspace.paths.menuMap, '{"menus":[]}\n', 'utf8');
+        fs.writeFileSync(run.workspace.paths.navigationPlan, JSON.stringify({ schemaVersion: '1.0', targetUrl: run.url, tests: [] }), 'utf8');
+        fs.writeFileSync(run.workspace.paths.navigationSpec, '// generated\n', 'utf8');
+      } else if (label === 'interaction discovery') {
+        fs.writeFileSync(run.workspace.paths.analysisReviewJson, JSON.stringify({
+          version: '2.1',
+          summary: { targetUrl: run.url },
+          generatedNavigationTests: [],
+          pageIdentityAssertions: [],
+          safeInteractionCandidates: [],
+          unsafeActionCandidates: [],
+          unresolvedCandidates: [],
+        }), 'utf8');
+      } else if (label === 'analysis report rendering') {
+        fs.writeFileSync(run.workspace.paths.analysisReviewMarkdown, '# Review\n', 'utf8');
+      }
+      return { code: 0, signal: null, stdout: '', stderr: '' };
+    },
+  });
+
+  assert.equal(run.status, 'ready_for_execution');
+  assert.deepEqual(calls[0].args.slice(-4), [
+    '--generated-dir', run.workspace.analysisDir,
+    '--navigation-spec-output', run.workspace.paths.navigationSpec,
+  ]);
+  assert.equal(calls[1].args.includes(run.workspace.paths.scoutResult), true);
+  assert.equal(calls[1].args.includes(run.workspace.paths.menuMap), true);
+  assert.equal(calls[1].args.includes(run.workspace.paths.navigationPlan), true);
+  assert.equal(calls[2].args.includes(run.workspace.paths.analysisReviewMarkdown), true);
+});
+
+test('navigation execution isolates Playwright testDir, outputDir, JSON, and HTML paths', async (t) => {
+  const run = createRun('https://example.test/', {
+    runId: testRunId('execute'),
+    workspaceRoot: CONTROLLER_TEST_WORKSPACE_ROOT,
+  });
+  t.after(() => fs.rmSync(run.workspace.root, { recursive: true, force: true }));
+  run.status = 'ready_for_execution';
+  run.analysis = { summary: { navigationCount: 1 } };
+  run.navigationSpec = run.workspace.paths.navigationSpec;
+  fs.writeFileSync(run.workspace.paths.navigationPlan, JSON.stringify({
+    targetUrl: run.url,
+    tests: [{ menuPath: ['Sample Page'], template: 'navigation.urlOnly' }],
+  }), 'utf8');
+  fs.writeFileSync(run.navigationSpec, '// generated\n', 'utf8');
+  let playwrightCall;
+  await executeRun(run, {
+    runCommandImpl: async (_run, label, executable, args, options) => {
+      assert.equal(label, 'Playwright execution');
+      playwrightCall = { executable, args, options };
+      fs.writeFileSync(run.workspace.paths.playwrightJsonReport, JSON.stringify({
+        suites: [{ specs: [{
+          title: 'Navigation: Sample Page',
+          file: 'generated_from_plan.spec.js',
+          tests: [{ status: 'expected', results: [{ status: 'passed' }] }],
+        }] }],
+      }), 'utf8');
+      fs.writeFileSync(run.workspace.paths.playwrightHtmlReportIndex, '<html></html>', 'utf8');
+      return { code: 0, signal: null, stdout: '', stderr: '' };
+    },
+  });
+
+  assert.equal(run.status, 'completed');
+  assert.equal(playwrightCall.args.includes('generated_from_plan.spec.js'), true);
+  assert.equal(playwrightCall.options.env.MVP_PLAYWRIGHT_TEST_DIR, run.workspace.specDir);
+  assert.equal(playwrightCall.options.env.MVP_PLAYWRIGHT_OUTPUT_DIR, run.workspace.testResultsDir);
+  assert.equal(playwrightCall.options.env.PLAYWRIGHT_JSON_OUTPUT_NAME, run.workspace.paths.playwrightJsonReport);
+  assert.equal(playwrightCall.options.env.PLAYWRIGHT_HTML_OUTPUT_DIR, run.workspace.playwrightHtmlReportDir);
+  assert.equal(run.result.reportUrl, `/api/runs/${run.id}/report`);
 });
 
 test('target URL validation accepts HTTP(S) and rejects credentials', () => {

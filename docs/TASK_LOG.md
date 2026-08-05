@@ -1,5 +1,52 @@
 # Task Log
 
+## 2026-08-05 - Run-scoped workspace path contract (HMV-002)
+
+### 목적과 기준점
+
+- HMV-001 `Engine Invocation Adapter` 위에서 Local run의 입력·중간 산출물·spec·Playwright result/report 경로를 하나의 validated workspace contract로 묶었다.
+- 시작 기준은 `main`/`a1e57ad`였고 `origin/main`과 동일하며 worktree가 clean인 것을 확인했다.
+- public HTTP/API, run ID 표시 형식, Map/queue/status/schema, engine discovery/assertion semantics와 dependency는 변경하지 않았다.
+
+### 구현
+
+- `tools/mvp/run-workspace.js`에 다음 framework-free CommonJS contract를 추가했다.
+  - `validateRunId`: lowercase ASCII/digit와 내부 `._-`만 허용하고 empty, edge punctuation, `..`, separator/absolute form, uppercase case alias, Windows reserved name을 거부한다.
+  - `createRunWorkspace`: repository-contained default root와 run별 `analysis`, `review`, `approval`, `plan`, `execution/specs`, `execution/test-results`, `report/playwright-html` 및 logical file map을 deterministic하게 계산한다.
+  - `ensureRunWorkspace`: directory를 idempotent하게 만들고 기존 파일을 삭제하지 않으며 lexical/real-path containment를 확인한다.
+  - `RUN_WORKSPACE_PATH_OWNERSHIP`: HMV-003 manifest가 input/intermediate/review/executable/raw/public-candidate 분류를 재사용할 수 있게 한다.
+- `controller.js:createRun`이 workspace provisioning 성공 후에만 run을 Map에 등록하고 `persist`가 contract의 status path를 사용하도록 했다. Workspace object와 absolute internal aliases는 status serialization에서 제외한다.
+- `analyzeRun`은 `agent_orchestrator.py --generated-dir <workspace analysis> --navigation-spec-output <workspace spec>`을 사용한다. 기존 `copyFreshArtifacts`와 shared spec copy는 제거했다.
+- review, approval, reconciliation, interaction plan/spec producer와 consumer를 workspace logical paths로 연결했다.
+- Playwright는 repository-root `cwd`와 config 위치를 유지하면서 `MVP_PLAYWRIGHT_TEST_DIR`, `MVP_PLAYWRIGHT_OUTPUT_DIR`, 기존 JSON/HTML reporter env를 run workspace로 설정한다. Local `/api/runs/<id>/report` contract는 유지한다.
+- `agent_orchestrator.py:configure_artifact_paths`가 새 CLI override와 기존 default를 함께 지원한다. Local controller가 사용하는 deterministic `plan` path는 workspace로 이동하지만 direct CLI default는 계속 `tools/ai-generator/generated`와 `tests/generated`다.
+- `render_test_plan.py:render_file`은 requested output 위치에서 repository `utils`까지의 relative CommonJS import를 계산한다. 기본 output에서는 기존 `../../utils` source shape가 유지된다.
+
+### Artifact migration 분류
+
+- `MOVE_NOW`: Local deterministic scout/menu/profile temp/navigation plan, analysis review JSON/Markdown, approval/reconciliation/interaction plan, 두 spec, Playwright JSON/HTML, trace/screenshot/video `outputDir`.
+- `ADAPT_NOW`: standalone orchestrator/renderer/Playwright default path는 CLI compatibility로 유지하고 Local controller만 explicit override를 필수 사용한다. legacy copy나 양방향 sync는 없다.
+- `DEFER`: direct-LLM `spec` output, manual `llm-plan`/comparison defaults, cross-job cache policy, default review state, manifest/retention/concurrency enforcement, optional validator `--menu-map` omission.
+- `LOCAL_ONLY`: raw Local HTML report serving, `npm run report`, fixture/debug/browser smoke workflow.
+
+### 테스트와 검증
+
+- workspace focused tests: deterministic path, expected directories, A/B logical/physical isolation, invalid/traversal/reserved ID, repository/run containment, idempotent ensure/preservation, no cwd/env mutation, provisioning failure isolation, ownership coverage.
+- controller integration: run provisioning, generated ID compatibility, failed provisioning no-Map-contamination, analysis CLI path binding, review paths, navigation-only Playwright testDir/outputDir/JSON/HTML projection과 report URL 보존.
+- Python characterization: orchestrator default/override path equality, deterministic pipeline argument preservation, workspace-depth renderer helper import와 no absolute source path.
+- 검증 command/result는 최종 commit 전에 `git diff --check`, JS/Python syntax, JSON parse, Markdown link/path/script scan, `npm.cmd run test:python`, `npm.cmd run product:mvp:test` 순으로 확인했다.
+
+### 완료 수준과 non-goals
+
+- 현재 Local deterministic controller path는 canonical artifact가 모두 run workspace 안에 있는 **full path migration** 상태다. 이는 manifest나 full concurrent execution이 완료됐다는 뜻이 아니다.
+- process-global queue는 변경하지 않았다. HMV-008 이전에는 barrier-based concurrent execution, multi-server lifecycle, process/resource isolation이 증명되지 않았고 timeout/cancellation/dispatcher도 없으므로 Local serialization을 유지한다.
+- cleanup/retention, Artifact Manifest, normalized result/error, SSRF, Hosted API/worker/frontend, dependency/schema/version 및 engine behavior 개선은 수행하지 않았다.
+- local commit message: `refactor: add run-scoped workspace contract`. Remote push는 수행하지 않는다.
+
+### 다음 작업
+
+- `HMV-003 — Produce artifact manifest`: workspace logical names를 relative path, producer, existence/status, media type, sensitivity/public eligibility로 projection한다. Optional interaction/report artifact를 명시적으로 표현하고 raw HTML/absolute path를 public result로 노출하지 않는다.
+
 ## 2026-08-05 - Extract engine invocation adapter (HMV-001)
 
 ### 작업 목적과 범위

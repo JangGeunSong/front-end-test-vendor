@@ -5,10 +5,12 @@ const {
   createEngineInvocationRequest,
   invokeEngineProcess,
 } = require('./engine-invocation');
+const {
+  createRunWorkspace,
+  ensureRunWorkspace,
+} = require('./run-workspace');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const GENERATED = path.join(ROOT, 'tools', 'ai-generator', 'generated');
-const RUNS_DIR = path.join(GENERATED, 'mvp-runs');
 const PYTHON = process.env.MVP_PYTHON || path.join(ROOT, '.venv', 'Scripts', 'python.exe');
 const PLAYWRIGHT = process.execPath;
 const PLAYWRIGHT_CLI = require.resolve('@playwright/test/cli');
@@ -49,17 +51,24 @@ function validateTargetUrl(value) {
   return parsed.href;
 }
 
-function createRun(url) {
-  const id = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
-  const dir = path.join(RUNS_DIR, id);
-  const specDir = path.join(ROOT, 'tests', 'generated');
-  fs.mkdirSync(dir, { recursive: true });
-  fs.mkdirSync(specDir, { recursive: true });
+function generateRunId() {
+  return `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+}
+
+function createRun(url, options = {}) {
+  const id = options.runId || generateRunId();
+  const workspace = createRunWorkspace({
+    repositoryRoot: ROOT,
+    runId: id,
+    workspaceRoot: options.workspaceRoot,
+  });
+  (options.ensureWorkspace || ensureRunWorkspace)(workspace);
   const run = {
     id,
     url,
-    dir,
-    specDir,
+    workspace,
+    dir: workspace.root,
+    specDir: workspace.specDir,
     status: 'created',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -74,9 +83,10 @@ function createRun(url) {
 function persist(run) {
   run.updatedAt = new Date().toISOString();
   const serializable = { ...run };
+  delete serializable.workspace;
   delete serializable.dir;
   delete serializable.specDir;
-  fs.writeFileSync(path.join(run.dir, 'status.json'), `${JSON.stringify(serializable, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(run.workspace.paths.status, `${JSON.stringify(serializable, null, 2)}\n`, 'utf8');
 }
 
 function stage(run, name, status, detail) {
@@ -113,13 +123,6 @@ async function runCommand(run, label, executable, args, options = {}, dependenci
   };
   if (invocation.exitCode === 0 || options.allowFailure) return result;
   throw Object.assign(new Error(`${label} failed`), { result });
-}
-
-function copyFreshArtifacts(run) {
-  const names = ['scout_result.json', 'menu_map.json', 'test_plan.generated.json'];
-  for (const name of names) fs.copyFileSync(path.join(GENERATED, name), path.join(run.dir, name));
-  run.navigationSpec = path.join(run.specDir, `mvp-${run.id}-generated_from_plan.spec.js`);
-  fs.copyFileSync(path.join(ROOT, 'tests', 'generated', 'generated_from_plan.spec.js'), run.navigationSpec);
 }
 
 function normalizeAnalysis(report, plan) {
@@ -180,32 +183,36 @@ function normalizeAnalysis(report, plan) {
   };
 }
 
-async function analyzeRun(run) {
+async function analyzeRun(run, dependencies = {}) {
+  const runCommandImpl = dependencies.runCommandImpl || runCommand;
+  const { paths } = run.workspace;
   run.status = 'analyzing';
   stage(run, 'Target validation', 'success');
   stage(run, 'Website analysis', 'running');
   try {
-    await runCommand(run, 'website analysis and navigation plan', PYTHON, [
+    await runCommandImpl(run, 'website analysis and navigation plan', PYTHON, [
       'tools/ai-generator/agent_orchestrator.py', '--generation-mode', 'plan', '--url', run.url, '--no-profile-cache',
+      '--generated-dir', run.workspace.analysisDir,
+      '--navigation-spec-output', paths.navigationSpec,
     ]);
-    copyFreshArtifacts(run);
+    run.navigationSpec = paths.navigationSpec;
     stage(run, 'Website analysis', 'success');
     stage(run, 'Page test plan generation', 'success');
     stage(run, 'Interaction discovery', 'running');
-    run.analysisReport = path.join(run.dir, 'analysis_review_report.json');
-    await runCommand(run, 'interaction discovery', PYTHON, [
+    run.analysisReport = paths.analysisReviewJson;
+    await runCommandImpl(run, 'interaction discovery', PYTHON, [
       'tools/ai-generator/build_analysis_review_report.py',
-      '--scout-result', path.join(run.dir, 'scout_result.json'),
-      '--menu-map', path.join(run.dir, 'menu_map.json'),
-      '--test-plan', path.join(run.dir, 'test_plan.generated.json'),
+      '--scout-result', paths.scoutResult,
+      '--menu-map', paths.menuMap,
+      '--test-plan', paths.navigationPlan,
       '--output', run.analysisReport,
     ]);
-    await runCommand(run, 'analysis report rendering', PYTHON, [
+    await runCommandImpl(run, 'analysis report rendering', PYTHON, [
       'tools/ai-generator/render_analysis_review_report.py', '--input', run.analysisReport,
-      '--output', path.join(run.dir, 'analysis_review_report.md'),
+      '--output', paths.analysisReviewMarkdown,
     ]);
     const report = JSON.parse(fs.readFileSync(run.analysisReport, 'utf8'));
-    const plan = JSON.parse(fs.readFileSync(path.join(run.dir, 'test_plan.generated.json'), 'utf8'));
+    const plan = JSON.parse(fs.readFileSync(paths.navigationPlan, 'utf8'));
     run.analysis = normalizeAnalysis(report, plan);
     stage(run, 'Interaction discovery', 'success');
     run.status = 'ready_for_execution';
@@ -260,7 +267,7 @@ async function approveRun(run, candidateKeys, reviewer, note) {
   const unsupported = selected.filter((key) => !eligibleKeys.has(key));
   if (unsupported.length > 0) throw new Error('Only supported, execution-eligible interactions can be approved.');
   stage(run, 'Interaction approval validation', 'running');
-  run.approvalPath = path.join(run.dir, 'interaction_approvals.json');
+  run.approvalPath = run.workspace.paths.interactionApprovals;
   const args = [
     'tools/ai-generator/write_interaction_approvals.py', '--report', run.analysisReport,
     '--output', run.approvalPath, '--reviewer', reviewer || 'local-ui-user',
@@ -306,37 +313,39 @@ function markInteractionSkipped(run, reason = NO_APPROVED_INTERACTIONS) {
   }
 }
 
-async function executeRun(run) {
+async function executeRun(run, dependencies = {}) {
+  const runCommandImpl = dependencies.runCommandImpl || runCommand;
+  const { paths } = run.workspace;
   if (!['ready_for_execution', 'approved'].includes(run.status)) {
     throw new Error('Run is not ready for execution.');
   }
-  const navigationPlan = JSON.parse(fs.readFileSync(path.join(run.dir, 'test_plan.generated.json'), 'utf8'));
+  const navigationPlan = JSON.parse(fs.readFileSync(paths.navigationPlan, 'utf8'));
   const targets = selectExecutionTargets((navigationPlan.tests || []).length, run.approvedCandidateKeys || []);
   run.status = 'executing';
-  const reconciliation = path.join(run.dir, 'interaction_approval_reconciliation.json');
-  const interactionPlan = path.join(run.dir, 'interaction_plan.generated.json');
+  const reconciliation = paths.reconciliation;
+  const interactionPlan = paths.interactionPlan;
   let interaction = null;
   try {
     if (targets.interaction) {
       stage(run, 'Interaction reconciliation', 'running');
-      await runCommand(run, 'approval reconciliation', PYTHON, [
+      await runCommandImpl(run, 'approval reconciliation', PYTHON, [
         'tools/ai-generator/reconcile_interaction_approvals.py', '--report', run.analysisReport,
         '--approvals', run.approvalPath, '--output', reconciliation,
       ]);
       stage(run, 'Interaction reconciliation', 'success');
       stage(run, 'Interaction plan generation', 'running');
-      await runCommand(run, 'interaction plan build', PYTHON, [
+      await runCommandImpl(run, 'interaction plan build', PYTHON, [
         'tools/ai-generator/build_interaction_plan.py', '--reconciliation', reconciliation,
         '--report', run.analysisReport, '--output', interactionPlan,
       ]);
-      await runCommand(run, 'interaction plan validation', PYTHON, [
+      await runCommandImpl(run, 'interaction plan validation', PYTHON, [
         'tools/ai-generator/validate_interaction_plan.py', '--input', interactionPlan,
         '--reconciliation', reconciliation, '--report', run.analysisReport,
       ]);
       stage(run, 'Interaction plan generation', 'success');
       stage(run, 'Interaction spec rendering', 'running');
-      run.interactionSpec = path.join(run.specDir, `mvp-${run.id}-generated_interaction_plan.spec.js`);
-      await runCommand(run, 'interaction spec render', PYTHON, [
+      run.interactionSpec = paths.interactionSpec;
+      await runCommandImpl(run, 'interaction spec render', PYTHON, [
         'tools/ai-generator/render_interaction_plan.py', '--input', interactionPlan, '--output', run.interactionSpec,
       ]);
       stage(run, 'Interaction spec rendering', 'success');
@@ -345,9 +354,9 @@ async function executeRun(run) {
       markInteractionSkipped(run, targets.interactionSkipReason);
     }
     stage(run, 'Playwright execution', 'running');
-    const resultJson = path.join(run.dir, 'playwright-results.json');
-    run.reportDir = path.join(run.dir, 'playwright-report');
-    const testDir = path.join(ROOT, 'tests');
+    const resultJson = paths.playwrightJsonReport;
+    run.reportDir = run.workspace.playwrightHtmlReportDir;
+    const testDir = run.workspace.specDir;
     const navigationSpecArgument = path.relative(testDir, run.navigationSpec).split(path.sep).join('/');
     const specArguments = [navigationSpecArgument];
     if (targets.interaction) {
@@ -355,7 +364,7 @@ async function executeRun(run) {
       stage(run, 'Interaction execution', 'running');
     }
     const started = Date.now();
-    const execution = await runCommand(run, 'Playwright execution', PLAYWRIGHT, [
+    const execution = await runCommandImpl(run, 'Playwright execution', PLAYWRIGHT, [
       PLAYWRIGHT_CLI, 'test', ...specArguments,
       '--config', 'tools/mvp/playwright.config.js', '--workers=1', '--retries=0', '--reporter=html,json',
     ], {
@@ -363,6 +372,8 @@ async function executeRun(run) {
       env: {
         PLAYWRIGHT_HTML_OUTPUT_DIR: run.reportDir,
         PLAYWRIGHT_JSON_OUTPUT_NAME: resultJson,
+        MVP_PLAYWRIGHT_TEST_DIR: testDir,
+        MVP_PLAYWRIGHT_OUTPUT_DIR: run.workspace.testResultsDir,
       },
     });
     run.durationMs = Date.now() - started;
@@ -379,7 +390,7 @@ async function executeRun(run) {
         run.result.softInteractions.status === 'passed' ? undefined : 'One or more interaction assertions failed.',
       );
     }
-    stage(run, 'Report preparation', fs.existsSync(path.join(run.reportDir, 'index.html')) ? 'success' : 'failed');
+    stage(run, 'Report preparation', fs.existsSync(paths.playwrightHtmlReportIndex) ? 'success' : 'failed');
     run.status = 'completed';
     persist(run);
   } catch (error) {
@@ -480,4 +491,5 @@ module.exports = {
   validateExecuteRequest,
   validateTargetUrl,
   friendlyError,
+  generateRunId,
 };

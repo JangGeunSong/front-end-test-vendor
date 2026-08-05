@@ -1,11 +1,17 @@
 import sys
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import agent_orchestrator
+import render_test_plan
 
 
 class DeterministicPlanInvocationTest(unittest.TestCase):
+    def tearDown(self):
+        agent_orchestrator.configure_artifact_paths()
+
     def test_preserves_builder_validator_and_renderer_arguments(self):
         commands = []
 
@@ -63,6 +69,44 @@ class DeterministicPlanInvocationTest(unittest.TestCase):
                 ),
             ],
         )
+
+    def test_artifact_path_override_is_explicit_and_default_remains_compatible(self):
+        agent_orchestrator.configure_artifact_paths()
+        self.assertEqual(
+            agent_orchestrator.GENERATED_DIR,
+            (agent_orchestrator.BASE_DIR / "generated").resolve(),
+        )
+        self.assertEqual(
+            agent_orchestrator.PLAN_RENDER_OUTPUT_PATH,
+            (agent_orchestrator.TESTS_GENERATED_DIR / "generated_from_plan.spec.js").resolve(),
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            workspace = Path(temporary_directory)
+            generated_dir = workspace / "analysis"
+            navigation_spec = workspace / "execution" / "specs" / "generated_from_plan.spec.js"
+            agent_orchestrator.configure_artifact_paths(generated_dir, navigation_spec)
+
+            self.assertEqual(agent_orchestrator.GENERATED_DIR, generated_dir.resolve())
+            self.assertEqual(agent_orchestrator.MENU_MAP_PATH, generated_dir.resolve() / "menu_map.json")
+            self.assertEqual(agent_orchestrator.TEST_PLAN_GENERATED_PATH, generated_dir.resolve() / "test_plan.generated.json")
+            self.assertEqual(agent_orchestrator.PAGE_PROFILE_CACHE_PATH, generated_dir.resolve() / "page_profile_cache.json")
+            self.assertEqual(agent_orchestrator.PLAN_RENDER_OUTPUT_PATH, navigation_spec.resolve())
+
+    def test_navigation_renderer_uses_output_relative_helper_imports(self):
+        fixture_path = agent_orchestrator.GENERATED_DIR / "test_plan.example.json"
+        agent_orchestrator.GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=agent_orchestrator.GENERATED_DIR) as temporary_directory:
+            output_path = Path(temporary_directory) / "workspace" / "execution" / "specs" / "generated_from_plan.spec.js"
+            render_test_plan.render_file(fixture_path, output_path)
+            source = output_path.read_text(encoding="utf-8")
+            expected_root = Path(
+                __import__("os").path.relpath(render_test_plan.ROOT_DIR / "utils", output_path.parent)
+            ).as_posix()
+            if not expected_root.startswith("."):
+                expected_root = f"./{expected_root}"
+            self.assertIn(f"require('{expected_root}/gnb')", source)
+            self.assertNotIn(str(render_test_plan.ROOT_DIR), source)
 
 
 if __name__ == "__main__":

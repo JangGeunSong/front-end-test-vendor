@@ -12,19 +12,44 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parents[1]
 SCOUT_PATH = BASE_DIR / "scout.js"
-GENERATED_DIR = BASE_DIR / "generated"
 # node 에서 바로 실행할 수 있도록 적용
 TESTS_GENERATED_DIR = ROOT_DIR / "tests" / "generated"
 BUILD_TEST_PLAN_PATH = BASE_DIR / "build_test_plan.py"
 VALIDATE_TEST_PLAN_PATH = BASE_DIR / "validate_test_plan.py"
 RENDER_TEST_PLAN_PATH = BASE_DIR / "render_test_plan.py"
-MENU_MAP_PATH = GENERATED_DIR / "menu_map.json"
-TEST_PLAN_GENERATED_PATH = GENERATED_DIR / "test_plan.generated.json"
-TEST_PLAN_LLM_RAW_PATH = GENERATED_DIR / "test_plan.llm.raw.txt"
-TEST_PLAN_LLM_ORIGINAL_PATH = GENERATED_DIR / "test_plan.llm.original.json"
-TEST_PLAN_LLM_PATH = GENERATED_DIR / "test_plan.llm.json"
-PLAN_RENDER_OUTPUT_PATH = TESTS_GENERATED_DIR / "generated_from_plan.spec.js"
-PAGE_PROFILE_CACHE_PATH = GENERATED_DIR / "page_profile_cache.json"
+
+
+def resolve_repository_path(value, default_path):
+    resolved = Path(value) if value else default_path
+    if not resolved.is_absolute():
+        resolved = ROOT_DIR / resolved
+    return resolved.resolve()
+
+
+def configure_artifact_paths(generated_dir=None, navigation_spec_output=None):
+    global GENERATED_DIR
+    global MENU_MAP_PATH
+    global TEST_PLAN_GENERATED_PATH
+    global TEST_PLAN_LLM_RAW_PATH
+    global TEST_PLAN_LLM_ORIGINAL_PATH
+    global TEST_PLAN_LLM_PATH
+    global PLAN_RENDER_OUTPUT_PATH
+    global PAGE_PROFILE_CACHE_PATH
+
+    GENERATED_DIR = resolve_repository_path(generated_dir, BASE_DIR / "generated")
+    MENU_MAP_PATH = GENERATED_DIR / "menu_map.json"
+    TEST_PLAN_GENERATED_PATH = GENERATED_DIR / "test_plan.generated.json"
+    TEST_PLAN_LLM_RAW_PATH = GENERATED_DIR / "test_plan.llm.raw.txt"
+    TEST_PLAN_LLM_ORIGINAL_PATH = GENERATED_DIR / "test_plan.llm.original.json"
+    TEST_PLAN_LLM_PATH = GENERATED_DIR / "test_plan.llm.json"
+    PLAN_RENDER_OUTPUT_PATH = resolve_repository_path(
+        navigation_spec_output,
+        TESTS_GENERATED_DIR / "generated_from_plan.spec.js",
+    )
+    PAGE_PROFILE_CACHE_PATH = GENERATED_DIR / "page_profile_cache.json"
+
+
+configure_artifact_paths()
 VALID_NAVIGATION_CHANGES = {"expected", "none", "unknown"}
 
 PRIMARY_MENU_REGIONS = {"header", "nav"}
@@ -169,6 +194,14 @@ def parse_args():
         "--clear-profile-cache",
         action="store_true",
         help="Delete pageProfile cache before collection."
+    )
+    parser.add_argument(
+        "--generated-dir",
+        help="Optional generated artifact directory. Defaults to tools/ai-generator/generated."
+    )
+    parser.add_argument(
+        "--navigation-spec-output",
+        help="Optional deterministic navigation spec output path. Defaults to tests/generated/generated_from_plan.spec.js."
     )
 
     return parser.parse_args()
@@ -2071,6 +2104,7 @@ def run_llm_plan_generation_pipeline(target_url, use_profile_cache=True, clear_p
 
 if __name__ == "__main__":
     args = parse_args()
+    configure_artifact_paths(args.generated_dir, args.navigation_spec_output)
     target_url = resolve_target_url(args)
     use_profile_cache = not args.no_profile_cache
     print(f"generation mode: {args.generation_mode}")

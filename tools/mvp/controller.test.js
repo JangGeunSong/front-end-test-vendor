@@ -3,8 +3,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const {
+  DEFAULT_ENGINE_TIMEOUT_MS,
+  DEFAULT_EXECUTION_TIMEOUT_MS,
   analyzeRun,
   createRun,
+  enqueue,
   executeRun,
   generateRunId,
   getRun,
@@ -13,11 +16,13 @@ const {
   summarizePlaywrightResult,
   friendlyError,
   runCommand,
+  resolveTimeoutPolicy,
   validateExecuteRequest,
   validateTargetUrl,
 } = require('./controller');
 const { createRunWorkspace, ensureRunWorkspace } = require('./run-workspace');
 const { ARTIFACT_IDS } = require('./artifact-manifest');
+const { ERROR_CODES } = require('./normalized-error');
 
 const REPOSITORY_ROOT = path.resolve(__dirname, '..', '..');
 const CONTROLLER_TEST_WORKSPACE_ROOT = path.join(
@@ -66,6 +71,8 @@ test('controller delegates exact command, args, cwd, and environment to the invo
     'tools/ai-generator/agent_orchestrator.py', '--generation-mode', 'plan', '--url', 'https://example.test/', '--no-profile-cache',
   ]);
   assert.equal(captured.cwd, path.resolve(__dirname, '..', '..'));
+  assert.equal(captured.timeoutMs, DEFAULT_ENGINE_TIMEOUT_MS);
+  assert.equal(captured.terminationGraceMs, 1000);
   assert.deepEqual(captured.env, {
     INHERITED: 'parent',
     EXPLICIT: 'override',
@@ -73,6 +80,29 @@ test('controller delegates exact command, args, cwd, and environment to the invo
     PYTHONUTF8: '1',
   });
   assert.deepEqual(result, { code: 0, signal: null, stdout: 'ok', stderr: '' });
+});
+
+test('timeout policy validates environment overrides without mutating the environment', () => {
+  const environment = {
+    MVP_ENGINE_TIMEOUT_MS: '1200',
+    MVP_EXECUTION_TIMEOUT_MS: '2400',
+    MVP_TERMINATION_GRACE_MS: '50',
+  };
+  const before = { ...environment };
+  assert.deepEqual(resolveTimeoutPolicy(environment), {
+    engineTimeoutMs: 1200,
+    executionTimeoutMs: 2400,
+    terminationGraceMs: 50,
+  });
+  assert.deepEqual(environment, before);
+  assert.deepEqual(resolveTimeoutPolicy({}), {
+    engineTimeoutMs: DEFAULT_ENGINE_TIMEOUT_MS,
+    executionTimeoutMs: DEFAULT_EXECUTION_TIMEOUT_MS,
+    terminationGraceMs: 1000,
+  });
+  for (const value of ['0', '-1', '1.5', 'invalid']) {
+    assert.throws(() => resolveTimeoutPolicy({ MVP_ENGINE_TIMEOUT_MS: value }), /MVP_ENGINE_TIMEOUT_MS/);
+  }
 });
 
 test('run creation uses a validated workspace contract and preserves the generated run ID shape', (t) => {
@@ -193,6 +223,103 @@ test('navigation execution isolates Playwright testDir, outputDir, JSON, and HTM
   const manifest = JSON.parse(fs.readFileSync(run.workspace.paths.artifactManifest, 'utf8'));
   assert.equal(manifest.artifacts.find((entry) => entry.artifactId === ARTIFACT_IDS.PLAYWRIGHT_JSON).presence, 'present');
   assert.equal(manifest.artifacts.find((entry) => entry.artifactId === ARTIFACT_IDS.PLAYWRIGHT_HTML).presence, 'present');
+});
+
+test('analysis deadline produces timeout controls, preserves partial artifacts, and releases the queue', async (t) => {
+  const run = createRun('https://example.test/', {
+    runId: testRunId('analysis-timeout'),
+    workspaceRoot: CONTROLLER_TEST_WORKSPACE_ROOT,
+  });
+  const next = createRun('https://example.test/', {
+    runId: testRunId('after-timeout'),
+    workspaceRoot: CONTROLLER_TEST_WORKSPACE_ROOT,
+  });
+  t.after(() => fs.rmSync(run.workspace.root, { recursive: true, force: true }));
+  t.after(() => fs.rmSync(next.workspace.root, { recursive: true, force: true }));
+  const order = [];
+  const timedOut = enqueue(async () => {
+    order.push('timeout-start');
+    await analyzeRun(run, {
+      timeoutPolicy: { engineTimeoutMs: 25, executionTimeoutMs: 50, terminationGraceMs: 5 },
+      invokeEngineProcessImpl: async (request) => {
+        fs.writeFileSync(run.workspace.paths.scoutResult, '{"partial":true}\n', 'utf8');
+        return {
+          exitCode: null,
+          signal: null,
+          stdout: '',
+          stderr: 'private timeout diagnostic',
+          spawnError: null,
+          timedOut: true,
+          timeoutMs: request.timeoutMs,
+          termination: { requested: true, forced: true, method: 'windows-taskkill' },
+        };
+      },
+    });
+    order.push('timeout-finished');
+  });
+  const following = enqueue(async () => {
+    order.push('next-run');
+    next.status = 'queued-after-timeout';
+  });
+  await Promise.all([timedOut, following]);
+
+  assert.deepEqual(order, ['timeout-start', 'timeout-finished', 'next-run']);
+  assert.equal(run.status, 'failed');
+  const normalizedError = JSON.parse(fs.readFileSync(run.workspace.paths.normalizedError, 'utf8'));
+  const terminalResult = JSON.parse(fs.readFileSync(run.workspace.paths.terminalResult, 'utf8'));
+  const manifest = JSON.parse(fs.readFileSync(run.workspace.paths.artifactManifest, 'utf8'));
+  assert.equal(normalizedError.code, ERROR_CODES.ENGINE_DEADLINE_EXCEEDED);
+  assert.equal(normalizedError.diagnostic.timeoutMs, 25);
+  assert.equal(normalizedError.diagnostic.forcedTermination, true);
+  assert.equal(terminalResult.process.timedOut, true);
+  assert.equal(terminalResult.lifecycle.failedStage, 'analysis');
+  assert.equal(terminalResult.errorReference.code, ERROR_CODES.ENGINE_DEADLINE_EXCEEDED);
+  assert.equal(manifest.artifacts.find((entry) => entry.artifactId === ARTIFACT_IDS.SCOUT_RESULT).presence, 'present');
+  assert.equal(manifest.artifacts.find((entry) => entry.artifactId === ARTIFACT_IDS.ANALYSIS_REVIEW_JSON).presence, 'missing');
+  assert.equal(Object.hasOwn(JSON.parse(fs.readFileSync(run.workspace.paths.status, 'utf8')), '_terminalContext'), false);
+});
+
+test('Playwright deadline is infrastructure failure while assertion-only failure stays distinct', async (t) => {
+  const run = createRun('https://example.test/', {
+    runId: testRunId('execution-timeout'),
+    workspaceRoot: CONTROLLER_TEST_WORKSPACE_ROOT,
+  });
+  t.after(() => fs.rmSync(run.workspace.root, { recursive: true, force: true }));
+  run.status = 'ready_for_execution';
+  run.analysis = { summary: { navigationCount: 1 } };
+  run.navigationSpec = run.workspace.paths.navigationSpec;
+  fs.writeFileSync(run.workspace.paths.navigationPlan, JSON.stringify({
+    targetUrl: run.url,
+    tests: [{ menuPath: ['Sample Page'], template: 'navigation.urlOnly' }],
+  }));
+  fs.writeFileSync(run.workspace.paths.analysisReviewJson, '{}\n');
+  fs.writeFileSync(run.navigationSpec, '// generated\n');
+  let capturedTimeout;
+  await executeRun(run, {
+    timeoutPolicy: { engineTimeoutMs: 25, executionTimeoutMs: 75, terminationGraceMs: 5 },
+    invokeEngineProcessImpl: async (request) => {
+      capturedTimeout = request.timeoutMs;
+      return {
+        exitCode: null,
+        signal: null,
+        stdout: '',
+        stderr: '',
+        spawnError: null,
+        timedOut: true,
+        timeoutMs: request.timeoutMs,
+        termination: { requested: true, forced: false, method: 'windows-child-kill' },
+      };
+    },
+  });
+
+  const normalizedError = JSON.parse(fs.readFileSync(run.workspace.paths.normalizedError, 'utf8'));
+  const terminalResult = JSON.parse(fs.readFileSync(run.workspace.paths.terminalResult, 'utf8'));
+  assert.equal(capturedTimeout, 75);
+  assert.equal(run.status, 'failed');
+  assert.equal(normalizedError.code, ERROR_CODES.ENGINE_DEADLINE_EXCEEDED);
+  assert.equal(terminalResult.process.timedOut, true);
+  assert.equal(terminalResult.execution.assertionOutcome, 'unavailable');
+  assert.equal(terminalResult.lifecycle.failedStage, 'execution');
 });
 
 test('target URL validation accepts HTTP(S) and rejects credentials', () => {

@@ -20,6 +20,7 @@ const {
   ensureRunWorkspace,
 } = require('./run-workspace');
 const { writeArtifactManifest } = require('./artifact-manifest');
+const { ERROR_CODES, createNormalizedError } = require('./normalized-error');
 
 const REPOSITORY_ROOT = path.resolve(__dirname, '..', '..');
 const TEST_WORKSPACE_ROOT = path.join(
@@ -137,7 +138,7 @@ test('normalizes a full successful run with a valid manifest and available resul
   assert.equal(result.schemaVersion, TERMINAL_RESULT_SCHEMA_VERSION);
   assert.equal(result.outcome, 'succeeded');
   assert.deepEqual(result.lifecycle, { lastCompletedStage: 'report', failedStage: null });
-  assert.deepEqual(result.process, { attempted: true, outcome: 'succeeded', exitCode: 0, signaled: false });
+  assert.deepEqual(result.process, { attempted: true, outcome: 'succeeded', exitCode: 0, signaled: false, timedOut: false });
   assert.deepEqual(result.execution, {
     attempted: true,
     assertionOutcome: 'passed',
@@ -216,6 +217,47 @@ test('normalizes an execution process failure with unavailable assertions', (t) 
   assert.equal(result.execution.assertionOutcome, 'unavailable');
   assert.equal(result.execution.counts, null);
   assert.equal(result.artifacts.resultAvailability, 'partial');
+});
+
+test('represents deadline expiry as process failure rather than assertion failure', (t) => {
+  const workspace = workspaceFor(t, 'timeout');
+  const run = mark(runFor(workspace, { status: 'failed', error: 'Playwright execution failed.', analysis: {} }), {
+    'Target validation': 'success',
+    'Website analysis': 'success',
+    'Page test plan generation': 'success',
+    'Interaction discovery': 'success',
+    'Playwright execution': 'failed',
+  });
+  fs.writeFileSync(workspace.paths.status, '{}\n');
+  fs.writeFileSync(workspace.paths.analysisReviewJson, '{}\n');
+  writeArtifactManifest(workspace, { clock: () => FIXED_TIME });
+  const normalizedError = createNormalizedError({
+    runId: run.id,
+    stage: 'execution',
+    source: 'playwright',
+    operation: 'execute-tests',
+    invocationResult: {
+      timedOut: true,
+      timeoutMs: 25,
+      termination: { forced: true, method: 'windows-taskkill' },
+    },
+  }, { clock: () => FIXED_TIME });
+  const result = createTerminalResult({
+    run,
+    workspace,
+    process: { attempted: true, outcome: 'failed', exitCode: null, signaled: false, timedOut: true },
+    execution: { attempted: true, assertions: null },
+    normalizedError,
+    normalizedErrorPersisted: true,
+  }, { clock: () => FIXED_TIME });
+
+  assert.equal(result.process.timedOut, true);
+  assert.equal(result.execution.assertionOutcome, 'unavailable');
+  assert.equal(result.errorReference.code, ERROR_CODES.ENGINE_DEADLINE_EXCEEDED);
+  assert.equal(result.outcome, 'partially-succeeded');
+  const assertionOnly = mutable(result);
+  assertionOnly.process.timedOut = false;
+  assert.ok(validateTerminalResult(assertionOnly).some((error) => error.includes('deadline-exceeded')));
 });
 
 test('normalizes analysis failure without useful result artifacts as failed', (t) => {

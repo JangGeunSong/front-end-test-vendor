@@ -2,6 +2,9 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const {
+  DEFAULT_TERMINATION_GRACE_MS,
+  MAX_INVOCATION_TIMEOUT_MS,
+  MAX_TERMINATION_GRACE_MS,
   createEngineInvocationRequest,
   invokeEngineProcess,
 } = require('./engine-invocation');
@@ -40,6 +43,8 @@ const STAGES = [
   'Report preparation',
 ];
 const NO_APPROVED_INTERACTIONS = 'no-approved-supported-interactions';
+const DEFAULT_ENGINE_TIMEOUT_MS = 30 * 60 * 1000;
+const DEFAULT_EXECUTION_TIMEOUT_MS = 30 * 60 * 1000;
 
 const runs = new Map();
 let operationQueue = Promise.resolve();
@@ -114,6 +119,41 @@ function appendLog(run, label, output) {
   run.debugLog = run.debugLog.slice(-20);
 }
 
+function parseTimeoutSetting(value, fallback, label, maximum) {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'string' && !/^\d+$/.test(value)) {
+    throw new TypeError(`${label} must be a positive integer.`);
+  }
+  const parsed = typeof value === 'string' ? Number(value) : value;
+  if (!Number.isSafeInteger(parsed) || parsed <= 0 || parsed > maximum) {
+    throw new TypeError(`${label} must be a positive safe integer no greater than ${maximum}.`);
+  }
+  return parsed;
+}
+
+function resolveTimeoutPolicy(environment = process.env) {
+  return Object.freeze({
+    engineTimeoutMs: parseTimeoutSetting(
+      environment.MVP_ENGINE_TIMEOUT_MS,
+      DEFAULT_ENGINE_TIMEOUT_MS,
+      'MVP_ENGINE_TIMEOUT_MS',
+      MAX_INVOCATION_TIMEOUT_MS,
+    ),
+    executionTimeoutMs: parseTimeoutSetting(
+      environment.MVP_EXECUTION_TIMEOUT_MS,
+      DEFAULT_EXECUTION_TIMEOUT_MS,
+      'MVP_EXECUTION_TIMEOUT_MS',
+      MAX_INVOCATION_TIMEOUT_MS,
+    ),
+    terminationGraceMs: parseTimeoutSetting(
+      environment.MVP_TERMINATION_GRACE_MS,
+      DEFAULT_TERMINATION_GRACE_MS,
+      'MVP_TERMINATION_GRACE_MS',
+      MAX_TERMINATION_GRACE_MS,
+    ),
+  });
+}
+
 function refreshArtifactManifest(run, dependencies = {}) {
   try {
     (dependencies.writeArtifactManifestImpl || writeArtifactManifest)(run.workspace);
@@ -131,6 +171,12 @@ function recordProcessOutcome(run, outcome) {
     outcome: outcome.outcome,
     exitCode: Number.isInteger(outcome.exitCode) ? outcome.exitCode : null,
     signaled: typeof outcome.signaled === 'boolean' ? outcome.signaled : null,
+    timedOut: outcome.timedOut === true,
+    timeoutMs: Number.isSafeInteger(outcome.timeoutMs) && outcome.timeoutMs > 0 ? outcome.timeoutMs : null,
+    termination: {
+      forced: outcome.termination?.forced === true,
+      method: typeof outcome.termination?.method === 'string' ? outcome.termination.method : null,
+    },
   };
 }
 
@@ -169,6 +215,9 @@ function recordPrimaryError(run, stageName, error, options = {}) {
     context.invocationResult = {
       code: run._terminalContext.process.exitCode,
       signal: run._terminalContext.process.signaled ? 'terminated' : null,
+      timedOut: run._terminalContext.process.timedOut,
+      timeoutMs: run._terminalContext.process.timeoutMs,
+      termination: run._terminalContext.process.termination,
     };
     context.signaled = run._terminalContext.process.signaled === true;
   }
@@ -223,7 +272,14 @@ function finalizeTerminalRun(run, dependencies = {}) {
 }
 
 async function runCommand(run, label, executable, args, options = {}, dependencies = {}) {
-  recordProcessOutcome(run, { attempted: true, outcome: 'failed', exitCode: null, signaled: null });
+  const timeoutPolicy = dependencies.timeoutPolicy || resolveTimeoutPolicy(dependencies.timeoutEnvironment);
+  const timeoutMs = options.timeoutMs !== undefined ? options.timeoutMs : (label === 'Playwright execution'
+    ? timeoutPolicy.executionTimeoutMs
+    : timeoutPolicy.engineTimeoutMs);
+  const terminationGraceMs = options.terminationGraceMs !== undefined
+    ? options.terminationGraceMs
+    : timeoutPolicy.terminationGraceMs;
+  recordProcessOutcome(run, { attempted: true, outcome: 'failed', exitCode: null, signaled: null, timedOut: false });
   const request = createEngineInvocationRequest({
     command: executable,
     args,
@@ -233,10 +289,15 @@ async function runCommand(run, label, executable, args, options = {}, dependenci
       PYTHONUTF8: '1',
       ...(options.env || {}),
     },
+    timeoutMs,
+    terminationGraceMs,
   }, dependencies);
-  const invocation = await (dependencies.invokeEngineProcessImpl || invokeEngineProcess)(request);
+  const invocation = await (dependencies.invokeEngineProcessImpl || invokeEngineProcess)(
+    request,
+    dependencies.invocationDependencies,
+  );
   if (invocation.spawnError) {
-    recordProcessOutcome(run, { attempted: true, outcome: 'failed', exitCode: null, signaled: false });
+    recordProcessOutcome(run, { attempted: true, outcome: 'failed', exitCode: null, signaled: false, timedOut: false });
     throw invocation.spawnError;
   }
   recordProcessOutcome(run, {
@@ -244,6 +305,9 @@ async function runCommand(run, label, executable, args, options = {}, dependenci
     outcome: invocation.exitCode === 0 && !invocation.signal ? 'succeeded' : 'failed',
     exitCode: invocation.exitCode,
     signaled: Boolean(invocation.signal),
+    timedOut: invocation.timedOut === true,
+    timeoutMs: invocation.timeoutMs,
+    termination: invocation.termination,
   });
   appendLog(run, label, [invocation.stdout, invocation.stderr].filter(Boolean).join('\n'));
   persist(run);
@@ -252,7 +316,13 @@ async function runCommand(run, label, executable, args, options = {}, dependenci
     signal: invocation.signal,
     stdout: invocation.stdout,
     stderr: invocation.stderr,
+    ...(invocation.timedOut === true ? {
+      timedOut: true,
+      timeoutMs: invocation.timeoutMs,
+      termination: invocation.termination,
+    } : {}),
   };
+  if (invocation.timedOut) throw Object.assign(new Error(`${label} timed out`), { result });
   if (invocation.exitCode === 0 || options.allowFailure) return result;
   throw Object.assign(new Error(`${label} failed`), { result });
 }
@@ -316,7 +386,10 @@ function normalizeAnalysis(report, plan) {
 }
 
 async function analyzeRun(run, dependencies = {}) {
-  const runCommandImpl = dependencies.runCommandImpl || runCommand;
+  const runCommandImpl = dependencies.runCommandImpl
+    || ((currentRun, label, executable, args, options = {}) => runCommand(
+      currentRun, label, executable, args, options, dependencies,
+    ));
   const { paths } = run.workspace;
   run.status = 'analyzing';
   stage(run, 'Target validation', 'success');
@@ -356,6 +429,9 @@ async function analyzeRun(run, dependencies = {}) {
         outcome: 'failed',
         exitCode: error?.result?.code,
         signaled: Boolean(error?.result?.signal),
+        timedOut: error?.result?.timedOut === true,
+        timeoutMs: error?.result?.timeoutMs,
+        termination: error?.result?.termination,
       });
     }
     const active = Object.entries(run.stages).find(([, value]) => value.status === 'running');
@@ -401,6 +477,10 @@ function friendlyError(stageName, error) {
 }
 
 async function approveRun(run, candidateKeys, reviewer, note, dependencies = {}) {
+  const runCommandImpl = dependencies.runCommandImpl
+    || ((currentRun, label, executable, args, options = {}) => runCommand(
+      currentRun, label, executable, args, options, dependencies,
+    ));
   if (run.status !== 'ready_for_execution') throw new Error('Run is not ready for interaction approval.');
   const selected = [...new Set(candidateKeys || [])].sort();
   if (selected.length === 0) throw new Error('Select at least one supported interaction to approve.');
@@ -418,8 +498,8 @@ async function approveRun(run, candidateKeys, reviewer, note, dependencies = {})
     ];
     for (const key of selected) args.push('--candidate-key', key);
     if (note) args.push('--note', note);
-    await runCommand(run, 'approval writer', PYTHON, args);
-    await runCommand(run, 'approval validator', PYTHON, [
+    await runCommandImpl(run, 'approval writer', PYTHON, args);
+    await runCommandImpl(run, 'approval validator', PYTHON, [
       'tools/ai-generator/validate_interaction_approvals.py', '--input', run.approvalPath,
     ]);
     stage(run, 'Interaction approval validation', 'success');
@@ -461,7 +541,10 @@ function markInteractionSkipped(run, reason = NO_APPROVED_INTERACTIONS) {
 }
 
 async function executeRun(run, dependencies = {}) {
-  const runCommandImpl = dependencies.runCommandImpl || runCommand;
+  const runCommandImpl = dependencies.runCommandImpl
+    || ((currentRun, label, executable, args, options = {}) => runCommand(
+      currentRun, label, executable, args, options, dependencies,
+    ));
   const { paths } = run.workspace;
   if (!['ready_for_execution', 'approved'].includes(run.status)) {
     throw new Error('Run is not ready for execution.');
@@ -514,7 +597,7 @@ async function executeRun(run, dependencies = {}) {
     run._terminalContext ||= {};
     run._terminalContext.executionAttempted = true;
     run._terminalContext.assertions = null;
-    recordProcessOutcome(run, { attempted: true, outcome: 'failed', exitCode: null, signaled: null });
+    recordProcessOutcome(run, { attempted: true, outcome: 'failed', exitCode: null, signaled: null, timedOut: false });
     const execution = await runCommandImpl(run, 'Playwright execution', PLAYWRIGHT, [
       PLAYWRIGHT_CLI, 'test', ...specArguments,
       '--config', 'tools/mvp/playwright.config.js', '--workers=1', '--retries=0', '--reporter=html,json',
@@ -532,6 +615,7 @@ async function executeRun(run, dependencies = {}) {
       outcome: execution.code === 0 && !execution.signal ? 'succeeded' : 'failed',
       exitCode: execution.code,
       signaled: Boolean(execution.signal),
+      timedOut: false,
     });
     run.durationMs = Date.now() - started;
     stage(run, 'Playwright execution', execution.code === 0 ? 'success' : 'failed', execution.code === 0 ? undefined : 'One or more Playwright assertions failed.');
@@ -543,6 +627,7 @@ async function executeRun(run, dependencies = {}) {
       outcome: 'succeeded',
       exitCode: execution.code,
       signaled: false,
+      timedOut: false,
     });
     run.result = summarizePlaywrightResult(raw, navigationPlan, interaction, run.durationMs, execution.code);
     run.result.reportUrl = `/api/runs/${run.id}/report`;
@@ -564,6 +649,9 @@ async function executeRun(run, dependencies = {}) {
         outcome: 'failed',
         exitCode: error?.result?.code,
         signaled: Boolean(error?.result?.signal),
+        timedOut: error?.result?.timedOut === true,
+        timeoutMs: error?.result?.timeoutMs,
+        termination: error?.result?.termination,
       });
     }
     const active = Object.entries(run.stages).find(([, value]) => value.status === 'running');
@@ -656,6 +744,8 @@ function getRun(id) {
 }
 
 module.exports = {
+  DEFAULT_ENGINE_TIMEOUT_MS,
+  DEFAULT_EXECUTION_TIMEOUT_MS,
   STAGES,
   analyzeRun,
   approveRun,
@@ -664,8 +754,10 @@ module.exports = {
   executeRun,
   getRun,
   normalizeAnalysis,
+  parseTimeoutSetting,
   publicRun,
   runCommand,
+  resolveTimeoutPolicy,
   selectExecutionTargets,
   summarizePlaywrightResult,
   validateExecuteRequest,

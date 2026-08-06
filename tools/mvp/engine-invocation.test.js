@@ -1,16 +1,48 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
+const { spawnSync } = require('node:child_process');
 const {
+  MAX_INVOCATION_TIMEOUT_MS,
   createEngineInvocationRequest,
   invokeEngineProcess,
+  terminateInvocationProcess,
 } = require('./engine-invocation');
 
-function createChild() {
+function createChild(pid = 4321) {
   const child = new EventEmitter();
   child.stdout = new EventEmitter();
   child.stderr = new EventEmitter();
+  child.pid = pid;
+  child.kill = () => true;
   return child;
+}
+
+function createManualTimers() {
+  let nextId = 1;
+  const scheduled = new Map();
+  const cleared = [];
+  return {
+    setTimeoutImpl(callback, delay) {
+      const timer = { id: nextId, delay, callback, unrefCalled: false, unref() { this.unrefCalled = true; } };
+      nextId += 1;
+      scheduled.set(timer.id, timer);
+      return timer;
+    },
+    clearTimeoutImpl(timer) {
+      cleared.push(timer.id);
+      scheduled.delete(timer.id);
+    },
+    fireNext() {
+      const timer = [...scheduled.values()][0];
+      assert.ok(timer, 'expected a pending timer');
+      scheduled.delete(timer.id);
+      timer.callback();
+      return timer;
+    },
+    get pending() { return [...scheduled.values()]; },
+    get cleared() { return cleared; },
+  };
 }
 
 function request(overrides = {}) {
@@ -37,6 +69,9 @@ test('collects successful stdout and stderr with a zero exit', async () => {
   assert.equal(result.stdout, 'analysis complete');
   assert.equal(result.stderr, 'diagnostic');
   assert.equal(result.spawnError, null);
+  assert.equal(result.timedOut, false);
+  assert.equal(result.timeoutMs, null);
+  assert.deepEqual(result.termination, { requested: false, forced: false, method: null });
 });
 
 test('preserves non-zero exit output without converting it to a spawn failure', async () => {
@@ -141,3 +176,221 @@ test('invokes a real child directly without a shell', async () => {
   assert.equal(result.stderr, 'real-err');
   assert.equal(result.spawnError, null);
 });
+
+test('validates deadline input without changing the no-timeout request shape', () => {
+  const unchanged = createEngineInvocationRequest(request(), { parentEnv: {} });
+  assert.equal(Object.hasOwn(unchanged, 'timeoutMs'), false);
+  const deadline = createEngineInvocationRequest(request({ timeoutMs: 25, terminationGraceMs: 5 }), { parentEnv: {} });
+  assert.equal(deadline.timeoutMs, 25);
+  assert.equal(deadline.terminationGraceMs, 5);
+  for (const value of [0, -1, NaN, Infinity, '10', MAX_INVOCATION_TIMEOUT_MS + 1]) {
+    assert.throws(() => createEngineInvocationRequest(request({ timeoutMs: value })), /timeoutMs/);
+  }
+  assert.throws(() => createEngineInvocationRequest(request({ terminationGraceMs: 5 })), /requires timeoutMs/);
+  assert.throws(() => createEngineInvocationRequest(request({ timeoutMs: 5, terminationGraceMs: 0 })), /terminationGraceMs/);
+});
+
+test('normal close wins before deadline and clears the timer', async () => {
+  const child = createChild();
+  const timers = createManualTimers();
+  const resultPromise = invokeEngineProcess(request({ timeoutMs: 20, terminationGraceMs: 5 }), {
+    spawnImpl: () => child,
+    ...timers,
+  });
+  assert.equal(timers.pending.length, 1);
+  assert.equal(timers.pending[0].unrefCalled, true);
+  child.emit('close', 0, null);
+  const result = await resultPromise;
+  assert.equal(result.timedOut, false);
+  assert.equal(timers.pending.length, 0);
+  assert.equal(child.listenerCount('close'), 0);
+});
+
+test('deadline requests graceful termination and settles on close without forcing', async () => {
+  const child = createChild();
+  const timers = createManualTimers();
+  const calls = [];
+  const resultPromise = invokeEngineProcess(request({ timeoutMs: 20, terminationGraceMs: 5 }), {
+    spawnImpl: () => child,
+    terminateProcessImpl: (_child, options) => {
+      calls.push(options.force);
+      return { requested: true, method: 'windows-child-kill' };
+    },
+    platform: 'win32',
+    ...timers,
+  });
+  timers.fireNext();
+  assert.deepEqual(calls, [false]);
+  child.emit('close', null, 'SIGTERM');
+  const result = await resultPromise;
+  assert.equal(result.timedOut, true);
+  assert.equal(result.timeoutMs, 20);
+  assert.deepEqual(result.termination, { requested: true, forced: false, method: 'windows-child-kill' });
+  assert.equal(timers.pending.length, 0);
+});
+
+test('unresponsive child receives forced termination after grace and settles once', async () => {
+  const child = createChild();
+  const timers = createManualTimers();
+  const calls = [];
+  const resultPromise = invokeEngineProcess(request({ timeoutMs: 20, terminationGraceMs: 5 }), {
+    spawnImpl: () => child,
+    terminateProcessImpl: (_child, options) => {
+      calls.push(options.force);
+      return { requested: true, method: options.force ? 'windows-taskkill' : 'windows-child-kill' };
+    },
+    platform: 'win32',
+    ...timers,
+  });
+  timers.fireNext();
+  child.stdout.emit('data', 'before-force');
+  timers.fireNext();
+  const result = await resultPromise;
+  assert.deepEqual(calls, [false, true]);
+  assert.equal(result.timedOut, true);
+  assert.equal(result.stdout, 'before-force');
+  assert.deepEqual(result.termination, { requested: true, forced: true, method: 'windows-taskkill' });
+  child.stdout.emit('data', '-late');
+  child.emit('close', 0, null);
+  assert.equal(result.stdout, 'before-force');
+  assert.equal(child.listenerCount('close'), 0);
+});
+
+test('spawn error and non-timeout signal clear deadline state', async () => {
+  const spawnChild = createChild();
+  const spawnTimers = createManualTimers();
+  const spawnPromise = invokeEngineProcess(request({ timeoutMs: 20 }), {
+    spawnImpl: () => spawnChild,
+    ...spawnTimers,
+  });
+  spawnChild.emit('error', new Error('spawn failed'));
+  const spawnResult = await spawnPromise;
+  assert.equal(spawnResult.timedOut, false);
+  assert.equal(spawnTimers.pending.length, 0);
+
+  const signalChild = createChild();
+  const signalTimers = createManualTimers();
+  const signalPromise = invokeEngineProcess(request({ timeoutMs: 20 }), {
+    spawnImpl: () => signalChild,
+    ...signalTimers,
+  });
+  signalChild.emit('close', null, 'SIGTERM');
+  const signalResult = await signalPromise;
+  assert.equal(signalResult.timedOut, false);
+  assert.equal(signalResult.signal, 'SIGTERM');
+  assert.equal(signalTimers.pending.length, 0);
+});
+
+test('termination helper failure preserves timeout as the primary outcome', async () => {
+  const child = createChild();
+  const timers = createManualTimers();
+  const resultPromise = invokeEngineProcess(request({ timeoutMs: 20, terminationGraceMs: 5 }), {
+    spawnImpl: () => child,
+    terminateProcessImpl: () => { throw new Error('termination unavailable'); },
+    platform: 'linux',
+    ...timers,
+  });
+  timers.fireNext();
+  timers.fireNext();
+  const result = await resultPromise;
+  assert.equal(result.timedOut, true);
+  assert.equal(result.termination.forced, true);
+  assert.equal(result.termination.method, 'posix-process-group');
+});
+
+test('Windows graceful and forced tree termination use safe taskkill arguments without a shell', () => {
+  const child = createChild(9876);
+  const captured = [];
+  const spawnTerminationImpl = (command, args, options) => {
+    const killer = new EventEmitter();
+    killer.unref = () => { killer.unrefCalled = true; };
+    captured.push({ command, args, options, killer });
+    return killer;
+  };
+  const graceful = terminateInvocationProcess(child, {
+    platform: 'win32',
+    force: false,
+    spawnTerminationImpl,
+  });
+  const forced = terminateInvocationProcess(child, {
+    platform: 'win32',
+    force: true,
+    spawnTerminationImpl,
+  });
+  assert.deepEqual(captured[0].args, ['/PID', '9876', '/T']);
+  assert.deepEqual(captured[1].args, ['/PID', '9876', '/T', '/F']);
+  assert.equal(captured[0].command, 'taskkill');
+  assert.equal(captured[0].options.shell, false);
+  assert.equal(captured[0].options.stdio, 'ignore');
+  assert.equal(captured[0].killer.unrefCalled, true);
+  assert.equal(graceful.method, 'windows-taskkill');
+  assert.equal(forced.method, 'windows-taskkill');
+});
+
+test('POSIX termination targets the isolated process group then falls back to the child', () => {
+  const child = createChild(2468);
+  const signals = [];
+  const group = terminateInvocationProcess(child, {
+    platform: 'linux',
+    force: false,
+    killImpl: (pid, signal) => signals.push([pid, signal]),
+  });
+  assert.deepEqual(signals, [[-2468, 'SIGTERM']]);
+  assert.equal(group.method, 'posix-process-group');
+
+  let fallbackSignal;
+  child.kill = (signal) => { fallbackSignal = signal; };
+  const fallback = terminateInvocationProcess(child, {
+    platform: 'darwin',
+    force: true,
+    killImpl: () => { throw new Error('group unavailable'); },
+  });
+  assert.equal(fallbackSignal, 'SIGKILL');
+  assert.equal(fallback.method, 'posix-child-kill');
+});
+
+test('deadline process-tree characterization does not leave a neutral descendant', { timeout: 5000 }, async () => {
+  const childProgram = 'setInterval(() => {}, 1000)';
+  const parentProgram = [
+    "const { spawn } = require('node:child_process');",
+    `const child = spawn(process.execPath, ['-e', ${JSON.stringify(childProgram)}], { stdio: 'ignore' });`,
+    "process.stdout.write(String(child.pid) + '\\n');",
+    'setInterval(() => {}, 1000);',
+  ].join(' ');
+  let descendantPid = null;
+  try {
+    const result = await invokeEngineProcess(createEngineInvocationRequest({
+      command: process.execPath,
+      args: ['-e', parentProgram],
+      cwd: process.cwd(),
+      env: {},
+      timeoutMs: 150,
+      terminationGraceMs: 100,
+    }));
+    descendantPid = Number.parseInt(result.stdout.trim(), 10);
+    assert.equal(result.timedOut, true);
+    assert.equal(Number.isSafeInteger(descendantPid), true);
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline && processExists(descendantPid)) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.equal(processExists(descendantPid), false);
+  } finally {
+    if (Number.isSafeInteger(descendantPid) && processExists(descendantPid)) {
+      if (process.platform === 'win32') {
+        spawnSync('taskkill', ['/PID', String(descendantPid), '/T', '/F'], { windowsHide: true, shell: false, stdio: 'ignore' });
+      } else {
+        try { process.kill(descendantPid, 'SIGKILL'); } catch { /* already exited */ }
+      }
+    }
+  }
+});
+
+function processExists(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code !== 'ESRCH';
+  }
+}

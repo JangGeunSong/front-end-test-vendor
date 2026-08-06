@@ -11,7 +11,7 @@
 - **Proposed**: Hosted 이전을 위한 제안이다.
 - **Unresolved**: 추가 실험 또는 제품·운영 결정이 필요하다.
 
-이 문서의 최초 분석 이후 HMV-001 engine invocation adapter, HMV-002 run-scoped workspace, HMV-003 artifact manifest, HMV-004 normalized terminal result와 HMV-005 normalized error contract가 구현됐다. Local HTTP/API/schema/queue 동작과 engine 판단 contract는 유지하며 Hosted framework, database, queue, cloud, container 제품을 선택하지 않는다.
+이 문서의 최초 분석 이후 HMV-001 engine invocation adapter, HMV-002 run-scoped workspace, HMV-003 artifact manifest, HMV-004 normalized terminal result, HMV-005 normalized error contract와 HMV-006 engine invocation deadline이 구현됐다. Local HTTP/API/queue 동작과 engine 판단 contract는 유지하며 Hosted framework, database, queue, cloud, container 제품을 선택하지 않는다.
 
 ## 분석 범위와 제외 범위
 
@@ -138,27 +138,27 @@ Important distinctions:
 | Analyze request | `server.js: route`; `app.js` analyze submit | browser | JSON `{url}` | HTTP 202 `{runId}` | no | creates run dir/status | controller `runs` Map | malformed/oversize body or URL becomes HTTP 400 | none / none | request accepted, work globally queued | EXTRACT request use case |
 | Target validation | `controller.js: validateTargetUrl` | HTTP route | arbitrary string | normalized `URL.href` | no | none | none | throws for non-absolute, non-HTTP(S), credentials | none / none | pure | KEEP basic parser behind stronger Hosted policy |
 | Run creation | `controller.js: generateRunId`, `createRun`, `persist`; `run-workspace.js` | HTTP route | validated URL | mutable run object/id + immutable path contract | no | creates only run workspace directories; writes contract `status` path | Map + run JSON snapshot | provisioning error bubbles to HTTP 400 before Map registration | none / none | disjoint validated run roots | HMV-002 EXTRACTED path contract; lifecycle still controller-owned |
-| Engine orchestration | `controller.js: analyzeRun`; invocation/workspace modules; `agent_orchestrator.py: run_plan_generation_pipeline` | queued controller operation | explicit command/args/cwd/env plus workspace CLI paths | raw invocation result plus run core artifacts/spec | Node adapter -> Python | writes workspace analysis/spec paths | controller stage only | adapter distinguishes spawn/nonzero/signal; compatibility wrapper preserves run `failed` behavior | no controller deadline/cancel | Local writable paths disjoint; concurrency not yet characterized | HMV-001/002 extracted seams |
-| Root scout | `agent_orchestrator.py: run_scout`; `scout.js: scoutSite` | orchestrator | CLI URL | JSON on stdout | Python -> Node -> browser | no direct result file | process-local | nonzero returns `None`; invalid JSON returns `None`; caller raises `scout failed` | `page.goto` 30s; no whole-process timeout/cancel | browser isolated, stdout contract; shared only through caller | KEEP discovery behavior; adapt I/O |
-| Page-profile scout | `run_page_profile_scout`; `collectPrimaryMenuPageProfiles` | orchestrator | URL + generated-dir profile-tree path | JSON on stdout | Python -> Node -> browser | workspace temp JSON write/best-effort delete | process-local | nonzero becomes empty profile list; JSON errors also empty | navigation 30s each; no whole-process timeout/cancel | Local path isolated; cache disabled | KEEP producer and workspace binding |
+| Engine orchestration | `controller.js: analyzeRun`; invocation/workspace modules; `agent_orchestrator.py: run_plan_generation_pipeline` | queued controller operation | explicit command/args/cwd/env/deadline plus workspace CLI paths | raw invocation result plus run core artifacts/spec | Node adapter -> Python | writes workspace analysis/spec paths | controller stage only | adapter distinguishes spawn/nonzero/signal/timeout; compatibility wrapper preserves run `failed` behavior | whole invocation deadline / no cancellation | Local writable paths disjoint; concurrency not yet characterized | HMV-001/002/006 extracted seams |
+| Root scout | `agent_orchestrator.py: run_scout`; `scout.js: scoutSite` | orchestrator | CLI URL | JSON on stdout | Python -> Node -> browser | no direct result file | process-local | nonzero returns `None`; invalid JSON returns `None`; caller raises `scout failed` | `page.goto` 30s plus parent invocation deadline / no cancellation | browser isolated, stdout contract; shared only through caller | KEEP discovery behavior; adapt I/O |
+| Page-profile scout | `run_page_profile_scout`; `collectPrimaryMenuPageProfiles` | orchestrator | URL + generated-dir profile-tree path | JSON on stdout | Python -> Node -> browser | workspace temp JSON write/best-effort delete | process-local | nonzero becomes empty profile list; JSON errors also empty | navigation 30s each plus parent invocation deadline / no cancellation | Local path isolated; cache disabled | KEEP producer and workspace binding |
 | Projection/menu map | `build_and_save_menu_map` and projection helpers | orchestrator | scout object | menu map + enriched scout | no | writes workspace `scout_result.json`, `menu_map.json` for Local override | Python memory/files | runtime errors reach orchestrator exit 1 | none / none | Local path disjoint; manual defaults remain shared | KEEP rules/path override adapter |
-| Navigation plan build | `build_test_plan.py: build_test_plan`, `main` | orchestrator | supplied workspace menu map | plan JSON | Python -> Python | workspace output overwrite | file | caught load/build errors -> exit 1 | none / none | supplied Local paths isolated | KEEP |
-| Navigation plan validate | `validate_test_plan.py: validate`, `main` | orchestrator | plan; optional menu map | stdout report + exit code | Python -> Python | reads plan | none | structured errors/warnings; exit 1 on errors | none / none | read-only for supplied paths | KEEP; Local call currently omits optional coverage input |
-| Navigation render | `render_test_plan.py: render_file`, `render_spec` | orchestrator | validated plan + workspace output | CommonJS spec with output-relative helper imports | Python -> Python | workspace spec overwrite, non-atomic | file | validation/render failure exits 1 | none / none | Local path isolated; manual default shared | KEEP renderer/path adapter |
-| Analysis/classification | `build_analysis_review_report.py: build_report`; `classify_interaction_candidates` | controller Python child | run scout/menu/plan | Report `2.1` JSON | Node -> Python; classifier in-process | run JSON output | file | typed load/contract errors -> exit 1 | none / none | supplied run paths are isolated | KEEP |
-| Review rendering | `render_analysis_review_report.py: render_report` | controller Python child | run report JSON | run Markdown | Node -> Python | run Markdown overwrite | file | load/render errors -> exit 1 | none / none | run isolated | KEEP as internal/local view |
+| Navigation plan build | `build_test_plan.py: build_test_plan`, `main` | orchestrator | supplied workspace menu map | plan JSON | Python -> Python | workspace output overwrite | file | caught load/build errors -> exit 1 | parent invocation deadline / no cancellation | supplied Local paths isolated | KEEP |
+| Navigation plan validate | `validate_test_plan.py: validate`, `main` | orchestrator | plan; optional menu map | stdout report + exit code | Python -> Python | reads plan | none | structured errors/warnings; exit 1 on errors | parent invocation deadline / no cancellation | read-only for supplied paths | KEEP; Local call currently omits optional coverage input |
+| Navigation render | `render_test_plan.py: render_file`, `render_spec` | orchestrator | validated plan + workspace output | CommonJS spec with output-relative helper imports | Python -> Python | workspace spec overwrite, non-atomic | file | validation/render failure exits 1 | parent invocation deadline / no cancellation | Local path isolated; manual default shared | KEEP renderer/path adapter |
+| Analysis/classification | `build_analysis_review_report.py: build_report`; `classify_interaction_candidates` | controller Python child | run scout/menu/plan | Report `2.1` JSON | Node -> Python; classifier in-process | run JSON output | file | typed load/contract errors -> exit 1 | whole invocation deadline / no cancellation | supplied run paths are isolated | KEEP |
+| Review rendering | `render_analysis_review_report.py: render_report` | controller Python child | run report JSON | run Markdown | Node -> Python | run Markdown overwrite | file | load/render errors -> exit 1 | whole invocation deadline / no cancellation | run isolated | KEEP as internal/local view |
 | UI projection | `controller.js: normalizeAnalysis` | controller | report + nav plan | browser-facing analysis object | no | reads run files; embedded into status snapshot | Map/status JSON | JSON parse errors fail analysis | none / none | per-run object | EXTRACT and sanitize |
-| Approval | `approveRun`; `write_interaction_approvals.py: build_artifact`; validator `main` | API route through global queue | keys, reviewer, optional note, current report | Approval `3.0` | Node -> two Python processes | atomic run approval write; read report | Map/status file | request gate throws; child failure returns HTTP 400 but no enclosing run-state normalization | none / none | run path isolated, globally serialized | KEEP contract; EXTRACT submission service |
-| Reconciliation | `executeRun`; `reconcile_approvals` | queued execution | run report + approvals | Reconciliation `3.0` | Node -> Python | run JSON overwrite | stage/status | invalid inputs or stale mismatch -> exit 1 -> run failed | none / none | run path isolated | KEEP |
-| Interaction plan | `build_interaction_plan.py: build_interaction_plan`; `validate_interaction_plan.py: validate_plan` | queued execution | reconciliation + report | Plan `3.0` and validation result | Node -> two Python processes | run plan (contract writer is atomic) | stage/status | fail-fast/no partial plan | none / none | run path isolated | KEEP |
-| Interaction render | `render_interaction_plan.py: render_plan_to_path` | queued execution | validated plan | workspace CommonJS spec | Node -> Python | atomic workspace write | run object | validates renderer input; preserves old output on failure | none / none | Local destination isolated | KEEP renderer/path contract |
-| Playwright execution | `executeRun`; Playwright CLI; `tools/mvp/playwright.config.js` | queued controller | workspace spec paths, config, env output paths | exit code, stdout/stderr, artifacts | Node -> Node runner -> worker/browser | workspace JSON/HTML and `execution/test-results` | run stage/object | assertion failure allowed and normalized; missing/invalid JSON throws | 60s/test; no job deadline/cancel | writable Local paths disjoint; queue remains | KEEP specs; further isolate worker/runtime later |
+| Approval | `approveRun`; `write_interaction_approvals.py: build_artifact`; validator `main` | API route through global queue | keys, reviewer, optional note, current report | Approval `3.0` | Node -> two Python processes | atomic run approval write; read report | Map/status file | request gate throws; child failure returns HTTP 400 but no enclosing run-state normalization | whole invocation deadline / no cancellation | run path isolated, globally serialized | KEEP contract; EXTRACT submission service |
+| Reconciliation | `executeRun`; `reconcile_approvals` | queued execution | run report + approvals | Reconciliation `3.0` | Node -> Python | run JSON overwrite | stage/status | invalid inputs or stale mismatch -> exit 1 -> run failed | whole invocation deadline / no cancellation | run path isolated | KEEP |
+| Interaction plan | `build_interaction_plan.py: build_interaction_plan`; `validate_interaction_plan.py: validate_plan` | queued execution | reconciliation + report | Plan `3.0` and validation result | Node -> two Python processes | run plan (contract writer is atomic) | stage/status | fail-fast/no partial plan | whole invocation deadline / no cancellation | run path isolated | KEEP |
+| Interaction render | `render_interaction_plan.py: render_plan_to_path` | queued execution | validated plan | workspace CommonJS spec | Node -> Python | atomic workspace write | run object | validates renderer input; preserves old output on failure | whole invocation deadline / no cancellation | Local destination isolated | KEEP renderer/path contract |
+| Playwright execution | `executeRun`; Playwright CLI; `tools/mvp/playwright.config.js` | queued controller | workspace spec paths, config, env output paths and deadline | exit code, stdout/stderr, timeout metadata, artifacts | Node -> Node runner -> worker/browser | workspace JSON/HTML and `execution/test-results` | run stage/object | assertion failure allowed and normalized; timeout is infrastructure failure; missing/invalid JSON throws | 60s/test plus whole invocation deadline / no cancellation | writable Local paths disjoint; queue remains | KEEP specs; further isolate worker/runtime later |
 | Result projection | `summarizePlaywrightResult` | controller | Playwright JSON + plans + exit code | Local result object | no | read result; persisted in status | Map/status JSON | assumes reporter shape; parse errors fail run | none / none | per-run inputs | EXTRACT normalized terminal result |
 | Report delivery | `server.js: route`, `serveFile` | browser | run id/report relative path | redirect/static report asset | no extra report process | reads run report dir | run Map needed to resolve directory | unavailable -> HTTP 400; missing file 404 | none / none | per-run report dir | LOCAL-ONLY raw report viewer; REPLACE public projection |
 
 ## Process Boundaries
 
-HMV-001 classification of observed subprocesses:
+HMV-001 classification of observed subprocesses, with HMV-006 deadline ownership:
 
 | Classification | Invocation | Reason |
 | --- | --- | --- |
@@ -169,11 +169,11 @@ HMV-001 classification of observed subprocesses:
 | Process | Created by | Receives | Returns / writes | Lifecycle observation |
 | --- | --- | --- | --- | --- |
 | Local HTTP Node process | `npm run product:mvp` -> `server.js` | HTTP, `MVP_PORT`, inherited env | JSON API and static files | one process; binds `127.0.0.1`; owns in-memory registry/queue |
-| Python orchestrator process | `invokeEngineProcess` through controller `runCommand` in `analyzeRun` | executable path, URL/mode plus generated-dir/spec-output CLI paths, inherited env plus UTF-8 | stdout/stderr/exit/signal/spawn error; workspace files | one per analysis |
+| Python orchestrator process | `invokeEngineProcess` through controller `runCommand` in `analyzeRun` | executable path, URL/mode plus generated-dir/spec-output CLI paths, inherited env plus UTF-8 and explicit deadline | stdout/stderr/exit/signal/spawn/timeout outcome; workspace files | one per analysis; adapter owns deadline and process-tree termination |
 | Root Node scout process | Python `subprocess.run` | URL command argument | one JSON document on stdout, diagnostics stderr | launches one Chromium browser |
 | Profile Node scout process | Python `subprocess.run` | URL and workspace JSON file argument | one JSON document on stdout | launches a second Chromium browser and navigates per target |
 | Python builder/validator/renderer processes | orchestrator `run_subprocess_stage` or controller `runCommand` | CLI file paths | files, stdout/stderr, exit code | separate process for each stage |
-| Playwright runner Node process | controller uses `process.execPath` + resolved CLI | spec args, config, reporter args and env output paths | exit, reporter files, stdout/stderr | assertion failures are allowed for result projection |
+| Playwright runner Node process | controller uses `process.execPath` + resolved CLI | spec args, config, reporter args, env output paths and explicit deadline | exit, reporter files, stdout/stderr and timeout metadata | assertion failures are allowed for result projection; timeout terminates runner tree best effort |
 | Playwright worker/browser | runner | rendered specs/config | trace/screenshot/video/test attachments | `workers=1`; bundled Chromium; browser details managed by Playwright |
 | Static/report serving | same Local HTTP process | relative path | file stream | no separate HTML report process |
 | `playwright show-report` | manual npm script only | default report directory | separate local report server | not connected to Local MVP |
@@ -201,10 +201,11 @@ The controller writes an initial snapshot after `status.json`, then refreshes af
 
 Artifact policy is conservative. Raw scout/menu/status/approval/spec/Playwright result, HTML and attachment artifacts are `never` public-eligible. Review JSON/Markdown is `review-required`; no artifact is currently marked `eligible`. This is classification metadata only: it neither redacts content nor authorizes Local/Hosted delivery. HMV-004 now consumes it through the internal terminal result, while raw report serving stays Local-only and HMV-009 remains the separate public-projection boundary.
 
-Observed after HMV-004/005: `tools/mvp/terminal-result.js` consumes terminal controller state, the last high-level subprocess outcome, a bounded Playwright assertion summary and the validated HMV-003 manifest. HMV-005 explicitly advances its schema from `1.0` to `1.1` to add a bounded normalized-error reference. It writes `<run-root>/terminal-result.json` after the final manifest refresh and primary-error persistence. This file remains a control artifact outside the manifest, avoiding a manifest/error/result cycle.
+Observed after HMV-004/005/006: `tools/mvp/terminal-result.js` consumes terminal controller state, the last high-level subprocess outcome, a bounded Playwright assertion summary and the validated HMV-003 manifest. HMV-005 advanced its schema from `1.0` to `1.1` for a bounded normalized-error reference; HMV-006 advances it to `1.2` for strict `process.timedOut` state. It writes `<run-root>/terminal-result.json` after the final manifest refresh and primary-error persistence. This file remains a control artifact outside the manifest, avoiding a manifest/error/result cycle.
 
 ```text
 Engine Invocation Adapter
+  -> whole-invocation deadline and best-effort process-tree termination
   -> Run Workspace
   -> validated Artifact Manifest
   -> normalized Error (primary failures only)
@@ -212,9 +213,29 @@ Engine Invocation Adapter
   -> future Hosted projection
 ```
 
-The process boundary and test boundary are distinct. A Playwright non-zero exit with valid JSON is normalized as process `succeeded` plus assertion `failed`/`mixed` and outcome `completed-with-test-failures`; it has no primary normalized error. Spawn/early process failure has process `failed`, assertion `unavailable` and an infrastructure classification. Missing/malformed JSON becomes `REPORT_MISSING`/`REPORT_INVALID`; missing HTML after valid JSON remains a secondary partial-result condition. No command, environment, stdout/stderr, stack trace, selector, raw URL or absolute path is copied into either control artifact.
+The process boundary and test boundary are distinct. A Playwright non-zero exit with valid JSON is normalized as process `succeeded` plus assertion `failed`/`mixed` and outcome `completed-with-test-failures`; it has no primary normalized error. Spawn/early process failure has process `failed`, assertion `unavailable` and an infrastructure classification. Deadline expiry has process `failed`, `timedOut=true`, assertion `unavailable` and `ENGINE_DEADLINE_EXCEEDED`. Missing/malformed JSON becomes `REPORT_MISSING`/`REPORT_INVALID`; missing HTML after valid JSON remains a secondary partial-result condition. No command, environment, stdout/stderr, stack trace, selector, raw URL or absolute path is copied into either control artifact.
 
-Observed after HMV-005: `tools/mvp/normalized-error.js` writes schema `1.0` to `<run-root>/normalized-error.json`. The top level is `{ schemaVersion, runId, category, code, stage, retryability, userMessage, diagnostic, occurredAt }`. Categories are `user`, `target`, `engine-contract`, `infrastructure`, `internal`; retryability is conservative metadata (`never`, `conditional`, `unknown`) and does not execute a retry. The diagnostic allowlist is `{ source, operation, processExitCode, signaled, artifactId, manifestStatus, reportStatus }`. The artifact is internal, manifest-external and not a public response.
+Observed after HMV-006: `tools/mvp/normalized-error.js` writes schema `1.1` to `<run-root>/normalized-error.json`. The top level is `{ schemaVersion, runId, category, code, stage, retryability, userMessage, diagnostic, occurredAt }`. Categories are `user`, `target`, `engine-contract`, `infrastructure`, `internal`; retryability is conservative metadata (`never`, `conditional`, `unknown`) and does not execute a retry. HMV-006 extends the diagnostic allowlist with positive `timeoutMs`, `forcedTermination` and a known `terminationMethod`; PID, raw termination command, command/args/stdout/stderr/environment/URL/path remain excluded. The artifact is internal, manifest-external and not a public response.
+
+Observed HMV-006 timeout boundary:
+
+```text
+Controller policy (30 minute engine / 30 minute Playwright defaults)
+  -> explicit timeoutMs + terminationGraceMs request
+  -> deadline-aware Engine Invocation Adapter
+  -> graceful process-tree request
+  -> grace period
+  -> forced process-tree request when still running
+  -> timeout-specific raw outcome
+  -> final manifest snapshot
+  -> normalized timeout error
+  -> terminal result
+  -> queue release
+```
+
+`MVP_ENGINE_TIMEOUT_MS`, `MVP_EXECUTION_TIMEOUT_MS` and `MVP_TERMINATION_GRACE_MS` are validated Local policy overrides. The adapter, not the controller, owns timers, single settlement and termination cleanup. On Windows, `taskkill` receives only a validated numeric PID through argument arrays with `/T` and optional forced `/F`; `shell` remains false. On POSIX, deadline-enabled children are isolated into a process group and receive `SIGTERM` followed by `SIGKILL`, with direct-child signaling only as fallback. These are best-effort platform operations: HMV-006 does not prove hostile-child containment or isolated worker runtime.
+
+The whole-invocation deadline is an outer resource/liveness guard. It does not replace Playwright test, assertion, navigation or action timeouts, and it does not add Python per-stage timeouts. Timeout is automatic deadline expiry; HMV-007 owner-requested cancellation remains a separate cause that may reuse `terminateInvocationProcess`. The process-global queue remains because concurrent execution and multi-process isolation are HMV-008 work.
 
 Primary terminal failure and secondary diagnostic are separate. Analysis, downstream execution/process, reporter and unexpected terminal failures receive one canonical primary error. Manifest refresh, normalized-error write and terminal-result write failures do not overwrite the Local status/result; HTML-only absence after valid JSON is also secondary. Error write failure yields terminal `errorReference.status=unavailable` with the stable in-memory code/category/stage. Terminal-result write cannot self-report. Approval writer/validator failure remains non-terminal in the current lifecycle and therefore produces no primary control artifact.
 
@@ -504,10 +525,13 @@ Completed fourth implementation: **HMV-004 — normalized terminal result bounda
 
 Completed fifth implementation: **HMV-005 — normalized error classification**. It attaches stable category/code/retryability/user-safe/private-diagnostic boundaries through an adjacent control artifact and terminal schema `1.1`, without placing raw process output in the result or changing existing friendly Local messages.
 
-The next candidate is **HMV-006 — timeout ownership and engine deadline adapter**. It must define actual deadline/descendant termination semantics before adding timeout codes; HMV-005 retryability remains metadata only.
+Completed sixth implementation: **HMV-006 — timeout ownership and engine deadline adapter**. It adds whole-invocation deadlines, best-effort descendant termination, a timeout-specific normalized error and terminal process state while preserving assertion-failure semantics and Local projection.
+
+The next candidate is **HMV-007 — cancellation contract**. It should reuse the HMV-006 termination seam but keep owner cancellation distinct from automatic deadline expiry.
 
 ## Unresolved Questions
 
+- Which Hosted job classes and operational evidence determine production deadline/grace values? Current 30-minute Local values are reference-client safeguards, not a Hosted SLA or quota decision.
 - What is the exact run lifecycle transition/idempotency contract across approval and execution retries?
 - Which interaction kinds from the agreed initial product scope reach P2 first after tab, and what restoration evidence is mandatory for each?
 - What bounded user-facing evidence is sufficient without exposing raw selectors, page content or traces?
@@ -531,15 +555,15 @@ The next candidate is **HMV-006 — timeout ownership and engine deadline adapte
 - `tools/mvp/run-workspace.js` — `validateRunId`, `createRunWorkspace`, `ensureRunWorkspace`: HMV-002 run ID validation, logical path calculation, lexical/real-path containment and idempotent directory provisioning.
 - `tools/mvp/run-workspace.js` — `RUN_WORKSPACE_PATH_OWNERSHIP`: HMV-003 input classification for review, executable, raw execution and public-candidate paths.
 - `tools/mvp/lifecycle-stage.js` — `LIFECYCLE_STAGES`, `STAGE_PROJECTION`, `projectLifecycleStage`: shared controller-to-normalized lifecycle registry used by terminal result and normalized error.
-- `tools/mvp/normalized-error.js` — error registries, `classifyError`, `createNormalizedError`, `validateNormalizedError`, `writeNormalizedError`: HMV-005 safe primary failure classification and atomic persistence.
+- `tools/mvp/normalized-error.js` — error registries, `classifyError`, `createNormalizedError`, `validateNormalizedError`, `writeNormalizedError`: HMV-005 safe primary failure classification plus HMV-006 deadline error/diagnostic and atomic persistence.
 - `tools/mvp/run-workspace.test.js` — deterministic path, A/B isolation, invalid ID, containment, idempotency, no-global-mutation and failure-isolation characterization.
 - `tools/mvp/artifact-manifest.js` — `ARTIFACT_IDS`, `createArtifactDefinitions`, `createArtifactManifest`, `validateArtifactManifest`, `writeArtifactManifest`: HMV-003 logical identity, relative snapshot, policy validation and atomic persistence.
 - `tools/mvp/artifact-manifest.test.js` — initial/partial/present snapshot, A/B isolation, path leakage/traversal, enum/type/order, write/read, controller lifecycle and public-policy characterization.
-- `tools/mvp/terminal-result.js` — terminal schema/enums, lifecycle projection, `summarizePlaywrightAssertions`, manifest diagnostics, strict validator and atomic result writer.
+- `tools/mvp/terminal-result.js` — terminal schema/enums, lifecycle projection, `process.timedOut`, `summarizePlaywrightAssertions`, manifest diagnostics, strict validator and atomic result writer.
 - `tools/mvp/terminal-result.test.js` — full/assertion/process/analysis/partial outcomes, non-terminal waiting, manifest unavailable/invalid, privacy/path/consistency, atomic isolation and controller finalization.
-- `tools/mvp/controller.js` — `runCommand`: adapter delegation plus legacy nonzero/allowFailure, logging and friendly-error compatibility.
-- `tools/mvp/engine-invocation.js` — `createEngineInvocationRequest`, `invokeEngineProcess`: HMV-001 explicit process request, environment copy and raw terminal result boundary.
-- `tools/mvp/engine-invocation.test.js` — spawn/nonzero/signal/chunk/environment/double-terminal adapter characterization.
+- `tools/mvp/controller.js` — `resolveTimeoutPolicy`, `runCommand`: validated controller deadline policy, adapter delegation plus legacy nonzero/allowFailure, logging and friendly-error compatibility.
+- `tools/mvp/engine-invocation.js` — `createEngineInvocationRequest`, `invokeEngineProcess`, `terminateInvocationProcess`: HMV-001 explicit process request/result and HMV-006 deadline/timer/platform termination boundary.
+- `tools/mvp/engine-invocation.test.js` — spawn/nonzero/signal/chunk/environment/deadline race/timer cleanup/platform policy and real descendant process-tree characterization.
 - `tools/mvp/controller.js` — `analyzeRun`: binds orchestrator and review commands directly to workspace paths; shared-to-run copying no longer exists.
 - `tools/mvp/controller.js` — `normalizeAnalysis`: Local UI projection and tab-only eligibility.
 - `tools/mvp/controller.js` — `approveRun`: current Report snapshot writer/Approval validator invocation.

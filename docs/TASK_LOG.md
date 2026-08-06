@@ -1,5 +1,39 @@
 # Task Log
 
+## 2026-08-06 - Engine invocation deadline (HMV-006)
+
+### 목표와 기준점
+
+- Clean `main`/`3d17acf`에서 HMV-001 invocation, HMV-002 workspace, HMV-003 manifest, HMV-004 terminal result와 HMV-005 normalized error 위에 whole-invocation deadline을 추가했다. 시작 HEAD와 `origin/main`은 동일했고 사전 Local MVP 회귀는 87 Node + 2 Python PASS였다.
+- Local HTTP/API/UI fields, status wording, process-local Map/queue, approval/plan/engine schema, Playwright assertion 의미, dependency/lockfile와 raw report endpoint는 변경하지 않았다.
+
+### Deadline ownership과 termination 계약
+
+- Controller는 timeout policy 값을 제공하고 `tools/mvp/engine-invocation.js` adapter가 deadline/grace timer, process-tree termination, race cleanup과 exactly-once settlement를 소유한다. Request는 optional positive `timeoutMs`/`terminationGraceMs`를 받으며 미지정 standalone 호출은 HMV-001 behavior를 유지한다.
+- Local 기본 정책은 non-Playwright direct engine invocation 30분, Playwright CLI invocation 30분, termination grace 1초다. `MVP_ENGINE_TIMEOUT_MS`, `MVP_EXECUTION_TIMEOUT_MS`, `MVP_TERMINATION_GRACE_MS`는 양의 정수 override이고 각각 24시간/24시간/60초 상한을 검증한다. Process-global environment를 변경하지 않는다.
+- Deadline expiry는 graceful tree request 후 grace를 기다리고 still-running child에 forced request를 보낸 뒤 timeout으로 settle한다. Windows는 numeric PID만 `taskkill` argument array에 넣고 `/T`, forced `/F`, `shell: false`를 사용한다. POSIX deadline child는 detached process group이고 `SIGTERM`/`SIGKILL`을 group에 보낸다; group signaling 실패 시 direct child fallback을 사용한다.
+- Timer/error/close/data listener를 모든 settlement에서 정리하고 deadline/close, spawn error, graceful close, forced request, termination helper failure와 late event race를 single guard로 닫았다. `terminateInvocationProcess`는 HMV-007 재사용 seam이지만 cancellation state/token/API는 추가하지 않았다.
+- Termination은 OS별 best effort다. Timeout primary cause는 termination 또는 manifest/error/result persistence secondary failure로 대체되지 않으며 HMV-006만으로 hostile descendant containment나 worker isolation을 보장하지 않는다.
+
+### Error/result/controller 연결
+
+- Raw invocation result는 `timedOut`, `timeoutMs`, bounded `{ requested, forced, method }` termination summary를 추가한다. Spawn, non-zero, non-timeout signal과 timeout은 별개이며 raw stdout/stderr는 기존 internal result에만 남고 control artifact로 복사되지 않는다.
+- Normalized error schema는 `1.0`에서 `1.1`로, terminal result schema는 `1.1`에서 `1.2`로 명시적으로 변경했다. `ENGINE_DEADLINE_EXCEEDED`는 `infrastructure`/`conditional`이며 deterministic safe message와 `timeoutMs`, `forcedTermination`, known `terminationMethod`만 추가한다. PID, command/args/environment, stdout/stderr, URL과 absolute path는 기록하지 않는다.
+- Terminal process에 strict boolean `timedOut`를 추가했다. Timeout은 attempted/failed process, non-null failed stage와 deadline error reference를 요구한다. Assertion-only `completed-with-test-failures`는 `timedOut=false`, primary error 없음으로 유지된다.
+- Controller의 analysis/review/approval/reconciliation/plan/render/Playwright direct invocation은 동일 policy/adapter seam을 사용한다. Timeout 뒤 Local terminal status를 persist하고 partial artifact manifest를 refresh한 뒤 normalized error와 terminal result를 쓰며 queue를 해제한다. Partial artifact는 삭제하지 않는다.
+
+### 테스트와 non-goals
+
+- Fake timer/child tests는 no-timeout compatibility, validation, normal-before-deadline, graceful/forced termination, deadline/close race, spawn/signal, late events, helper failure, timer/listener cleanup과 Windows/POSIX safe argument/signal policy를 검증한다. 실제 중립 Node parent/descendant characterization은 current platform에서 orphan 0건을 확인한다.
+- Controller tests는 default/override validation, analysis timeout partial manifest, execution timeout, normalized error/result persistence, queue release와 private status/API projection 유지를 검증한다. Existing assertion/process/report/error tests는 assertion failure가 timeout이 아님을 계속 보호한다.
+- Final validation은 changed JavaScript 8개 syntax, tracked JSON 25개 parse, repository-owned Markdown relative link 60개, Python file 19개 compile, `git diff --check`, focused deadline/termination tests, `npm.cmd run test:python` 5개와 `npm.cmd run product:mvp:test` 101 Node + 2 Python test를 모두 통과했다. Actual descendant characterization 뒤 Node open handle/process는 0건이었다.
+- User cancellation, retry, queue 제거, concurrent execution, durable state, dispatcher/worker, resource quota, per-stage Python/Playwright timeout 재설계, retention, public projection, SSRF/egress와 dependency upgrade는 수행하지 않았다.
+- local commit message: `feat: add engine invocation deadline`. Remote push는 수행하지 않는다.
+
+### HMV-007 handoff
+
+- 다음 작업은 `HMV-007 — Define cancellation contract`다. Owner cancellation은 HMV-006의 `terminateInvocationProcess`와 grace/forced mechanics를 재사용하되 timeout과 다른 request/state/cause로 유지하고, queued/running/terminal idempotency와 timeout/cancel race를 정의해야 한다.
+
 ## 2026-08-06 - Normalized error classification (HMV-005)
 
 ### 목표와 기준점

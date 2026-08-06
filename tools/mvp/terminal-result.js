@@ -21,7 +21,7 @@ const {
   NORMALIZED_ERROR_SCHEMA_VERSION,
 } = require('./normalized-error');
 
-const TERMINAL_RESULT_SCHEMA_VERSION = '1.1';
+const TERMINAL_RESULT_SCHEMA_VERSION = '1.2';
 const TERMINAL_OUTCOMES = Object.freeze([
   'succeeded',
   'completed-with-test-failures',
@@ -39,7 +39,7 @@ const TOP_LEVEL_KEYS = Object.freeze([
   'artifacts', 'errorReference', 'hasError', 'completedAt',
 ]);
 const LIFECYCLE_KEYS = Object.freeze(['lastCompletedStage', 'failedStage']);
-const PROCESS_KEYS = Object.freeze(['attempted', 'outcome', 'exitCode', 'signaled']);
+const PROCESS_KEYS = Object.freeze(['attempted', 'outcome', 'exitCode', 'signaled', 'timedOut']);
 const EXECUTION_KEYS = Object.freeze(['attempted', 'assertionOutcome', 'counts']);
 const COUNT_KEYS = Object.freeze(['total', 'passed', 'failed', 'skipped', 'flaky']);
 const ARTIFACT_KEYS = Object.freeze([
@@ -170,12 +170,13 @@ function determineResultAvailability(run, manifestState) {
 }
 
 function normalizeProcess(processInput) {
-  if (!processInput) return Object.freeze({ attempted: false, outcome: 'not-run', exitCode: null, signaled: null });
+  if (!processInput) return Object.freeze({ attempted: false, outcome: 'not-run', exitCode: null, signaled: null, timedOut: false });
   return Object.freeze({
     attempted: processInput.attempted === true,
     outcome: processInput.outcome,
     exitCode: Number.isInteger(processInput.exitCode) ? processInput.exitCode : null,
     signaled: typeof processInput.signaled === 'boolean' ? processInput.signaled : null,
+    timedOut: processInput.timedOut === true,
   });
 }
 
@@ -329,6 +330,7 @@ function validateProcess(process, errors) {
   if (!PROCESS_OUTCOMES.includes(process.outcome)) errors.push('process.outcome is invalid.');
   if (process.exitCode !== null && (!Number.isInteger(process.exitCode) || process.exitCode < 0)) errors.push('process.exitCode is invalid.');
   if (process.signaled !== null && typeof process.signaled !== 'boolean') errors.push('process.signaled is invalid.');
+  if (typeof process.timedOut !== 'boolean') errors.push('process.timedOut must be boolean.');
 }
 
 function validateExecution(execution, errors) {
@@ -375,9 +377,11 @@ function validateErrorReference(errorReference, errors) {
 function validateConsistency(result, errors) {
   const { process, execution, artifacts, lifecycle } = result;
   const errorReference = result.errorReference;
-  if (process?.attempted === false && (process.outcome !== 'not-run' || process.exitCode !== null || process.signaled !== null)) errors.push('A non-attempted process must be not-run with null details.');
+  if (process?.attempted === false && (process.outcome !== 'not-run' || process.exitCode !== null || process.signaled !== null || process.timedOut !== false)) errors.push('A non-attempted process must be not-run with null details and no timeout.');
   if (process?.attempted === true && process.outcome === 'not-run') errors.push('An attempted process cannot be not-run.');
   if (process?.outcome === 'succeeded' && process.signaled !== false) errors.push('A succeeded process must not be signaled.');
+  if (process?.outcome === 'succeeded' && process.timedOut) errors.push('A succeeded process cannot time out.');
+  if (process?.timedOut && (process.attempted !== true || process.outcome !== 'failed' || lifecycle?.failedStage === null)) errors.push('A timed-out process must be attempted, failed, and have a failed stage.');
   if (execution?.attempted === false && (execution.assertionOutcome !== 'not-run' || execution.counts !== null)) errors.push('Non-attempted execution must have not-run assertions and null counts.');
   if (execution?.attempted === true && ['not-run'].includes(execution.assertionOutcome)) errors.push('Attempted execution cannot have not-run assertions.');
   if (execution?.attempted === true && process?.attempted !== true) errors.push('Attempted execution requires an attempted process.');
@@ -400,6 +404,8 @@ function validateConsistency(result, errors) {
   if (errorReference?.status === 'present' && [errorReference.schemaVersion, errorReference.code, errorReference.category, errorReference.stage].some((value) => value === null)) errors.push('A present error reference requires classification metadata.');
   if (errorReference?.status !== 'none' && errorReference?.stage !== null && errorReference.stage !== lifecycle?.failedStage) errors.push('Error reference stage must match failedStage.');
   if (['succeeded', 'completed-with-test-failures'].includes(result.outcome) && errorReference?.status !== 'none') errors.push('Successful or assertion-only outcomes cannot have a primary normalized error.');
+  if (process?.timedOut && errorReference?.code !== ERROR_CODES.ENGINE_DEADLINE_EXCEEDED) errors.push('A timed-out process requires the deadline-exceeded error code.');
+  if (errorReference?.code === ERROR_CODES.ENGINE_DEADLINE_EXCEEDED && process?.timedOut !== true) errors.push('The deadline-exceeded error code requires process.timedOut.');
   if (artifacts?.manifestStatus === 'valid') {
     if (artifacts.manifestValid !== true || artifacts.manifestSchemaVersion !== ARTIFACT_MANIFEST_SCHEMA_VERSION
         || [artifacts.availableArtifactCount, artifacts.missingArtifactCount, artifacts.emptyArtifactCount].some((value) => !Number.isSafeInteger(value))) errors.push('Valid manifest metadata is inconsistent.');

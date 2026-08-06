@@ -13,7 +13,7 @@ Priority meanings:
 
 ## Recommended First Work
 
-**HMV-001 through HMV-005 are complete.** Continue with **HMV-006** to define deadline ownership and implement an engine timeout adapter without changing the Local default behavior.
+**HMV-001 through HMV-006 are complete.** Continue with **HMV-007** to add owner-requested cancellation through the termination seam introduced by HMV-006.
 
 ## P0 — Hosted Foundation Blockers
 
@@ -199,6 +199,8 @@ Completion snapshot and HMV-006 handoff:
 
 ### HMV-006 — Specify timeout ownership and implement engine deadline adapter
 
+- **Status:** Completed on 2026-08-06. Local controller policy supplies explicit per-invocation deadlines; the engine invocation adapter owns timers, termination and timeout settlement.
+
 - **Objective:** Bound total analysis/execution duration and propagate timeout to descendants.
 - **Rationale:** only navigation/test-level timeouts exist.
 - **Source boundary:** `runCommand`, Python `subprocess.run`, Playwright child tree.
@@ -209,6 +211,17 @@ Completion snapshot and HMV-006 handoff:
 - **Required tests:** cooperative fake child, descendant process test, timeout before/after artifact write, Local default behavior compatibility.
 - **Migration risk:** high on Windows process-tree handling.
 - **Recommended commit size:** contract and fake-runner tests, then platform adapter implementation separately.
+
+Completion snapshot and HMV-007 handoff:
+
+- `tools/mvp/engine-invocation.js` extends an invocation request with optional positive `timeoutMs` and `terminationGraceMs`. Omitting both preserves the HMV-001 standalone request behavior. The adapter result now adds `timedOut`, `timeoutMs` and bounded `{ requested, forced, method }` termination metadata while retaining spawn/non-zero/signal distinctions.
+- Local controller policy applies a 30-minute default to non-Playwright engine commands and a separate 30-minute default to Playwright CLI execution. `MVP_ENGINE_TIMEOUT_MS`, `MVP_EXECUTION_TIMEOUT_MS` and `MVP_TERMINATION_GRACE_MS` provide validated positive integer overrides; maximum invocation deadline is 24 hours and maximum grace is 60 seconds. These are whole-invocation outer guards, not Playwright test/navigation/action timeout changes.
+- Deadline enforcement is adapter-owned. Expiry requests process-tree termination, waits the configured grace period, then requests a forced fallback before settling. Windows uses `taskkill /PID <numeric-pid> /T` and adds `/F` only for the forced fallback, always with argument arrays and `shell: false`. POSIX deadline invocations are spawned in a new process group and receive `SIGTERM` then `SIGKILL`; direct-child kill is a fallback if group signaling is unavailable.
+- Termination is best effort rather than worker isolation. Timeout remains primary when a termination request or persistence step fails. Timer/listener cleanup and a single-settlement guard cover close/error/deadline races; a neutral real descendant characterization verifies no child remains on the current platform.
+- Normalized error schema advances from `1.0` to `1.1` for `ENGINE_DEADLINE_EXCEEDED` and allowlisted timeout diagnostics. It remains `infrastructure`/`conditional`, with no retry execution and no command/args/stdout/stderr/PID/URL/path exposure. Terminal result schema advances from `1.1` to `1.2` for strict `process.timedOut` consistency.
+- Controller applies the deadline seam to every direct Python/Playwright engine invocation, including the Python orchestrator that owns nested scout/builder processes and the Playwright runner that owns worker/Chromium descendants. Existing process-global queue, Map, status wording, API/UI projection and assertion semantics remain unchanged.
+- Timeout finalization preserves partial workspace artifacts, refreshes the manifest, writes the normalized timeout error and terminal result, then releases the queue. A valid Playwright assertion failure remains `completed-with-test-failures`, never timeout or infrastructure failure.
+- HMV-007 should add cancellation request/state/token ownership and reuse `terminateInvocationProcess`; it must keep timeout and owner cancellation as different terminal causes and cover their race idempotently.
 
 ### HMV-007 — Define cancellation contract
 

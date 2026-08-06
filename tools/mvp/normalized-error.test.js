@@ -177,6 +177,39 @@ test('distinguishes spawn, signaled, and stage-specific non-zero process failure
   assert.equal(nonzero.diagnostic.processExitCode, 2);
 });
 
+test('classifies deadline expiry with bounded termination diagnostics', (t) => {
+  const workspace = workspaceFor(t, 'timeout');
+  const value = createNormalizedError(normalizedInput(workspace, {
+    stage: 'execution',
+    source: 'playwright',
+    operation: 'execute-tests',
+    invocationResult: {
+      timedOut: true,
+      timeoutMs: 1200,
+      signal: 'SIGTERM',
+      stdout: 'private target output',
+      stderr: 'private engine output',
+      termination: { requested: true, forced: true, method: 'windows-taskkill' },
+    },
+  }), { clock: () => FIXED_TIME });
+
+  assert.equal(value.code, ERROR_CODES.ENGINE_DEADLINE_EXCEEDED);
+  assert.equal(value.category, 'infrastructure');
+  assert.equal(value.retryability, 'conditional');
+  assert.equal(value.userMessage, 'The engine invocation exceeded its allowed execution time.');
+  assert.equal(value.diagnostic.timeoutMs, 1200);
+  assert.equal(value.diagnostic.forcedTermination, true);
+  assert.equal(value.diagnostic.terminationMethod, 'windows-taskkill');
+  assert.equal(JSON.stringify(value).includes('private'), false);
+
+  const invalid = mutable(value);
+  invalid.diagnostic.timeoutMs = 0;
+  assert.ok(validateNormalizedError(invalid).length > 0);
+  const wrongMethod = mutable(value);
+  wrongMethod.diagnostic.terminationMethod = 'shell-command';
+  assert.ok(validateNormalizedError(wrongMethod).length > 0);
+});
+
 test('classifies report missing and malformed without retaining paths or JSON', (t) => {
   const workspace = workspaceFor(t, 'reports');
   const missing = createNormalizedError(normalizedInput(workspace, {
@@ -277,6 +310,7 @@ test('normalized errors contain only allowlisted diagnostics and no private proc
 
   assert.deepEqual(Object.keys(value.diagnostic), [
     'source', 'operation', 'processExitCode', 'signaled', 'artifactId', 'manifestStatus', 'reportStatus',
+    'timeoutMs', 'forcedTermination', 'terminationMethod',
   ]);
   for (const forbidden of ['stdout', 'stderr', 'command', 'args', 'API_KEY', REPOSITORY_ROOT, 'secret']) {
     assert.equal(serialized.includes(forbidden), false);

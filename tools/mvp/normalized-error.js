@@ -1,9 +1,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { MAX_INVOCATION_TIMEOUT_MS, TERMINATION_METHODS } = require('./engine-invocation');
 const { LIFECYCLE_STAGES } = require('./lifecycle-stage');
 const { isPathContained, validateRunId } = require('./run-workspace');
 
-const NORMALIZED_ERROR_SCHEMA_VERSION = '1.0';
+const NORMALIZED_ERROR_SCHEMA_VERSION = '1.1';
 const ERROR_CATEGORIES = Object.freeze([
   'user',
   'target',
@@ -21,6 +22,7 @@ const ERROR_CODES = Object.freeze({
   DEPENDENCY_BROWSER_UNAVAILABLE: 'DEPENDENCY_BROWSER_UNAVAILABLE',
   TARGET_UNAVAILABLE: 'TARGET_UNAVAILABLE',
   PROCESS_SPAWN_FAILED: 'PROCESS_SPAWN_FAILED',
+  ENGINE_DEADLINE_EXCEEDED: 'ENGINE_DEADLINE_EXCEEDED',
   PROCESS_TERMINATED: 'PROCESS_TERMINATED',
   PROCESS_EXIT_NONZERO: 'PROCESS_EXIT_NONZERO',
   ANALYSIS_FAILED: 'ANALYSIS_FAILED',
@@ -49,6 +51,7 @@ const ERROR_CODE_REGISTRY = Object.freeze({
   [ERROR_CODES.DEPENDENCY_BROWSER_UNAVAILABLE]: definition('infrastructure', 'conditional', 'The browser runtime required for this run is unavailable.'),
   [ERROR_CODES.TARGET_UNAVAILABLE]: definition('target', 'conditional', 'The target website is unavailable from the execution environment.'),
   [ERROR_CODES.PROCESS_SPAWN_FAILED]: definition('infrastructure', 'conditional', 'A required run process could not be started.'),
+  [ERROR_CODES.ENGINE_DEADLINE_EXCEEDED]: definition('infrastructure', 'conditional', 'The engine invocation exceeded its allowed execution time.'),
   [ERROR_CODES.PROCESS_TERMINATED]: definition('infrastructure', 'conditional', 'A required run process ended unexpectedly.'),
   [ERROR_CODES.PROCESS_EXIT_NONZERO]: definition('infrastructure', 'unknown', 'A required run process did not complete successfully.'),
   [ERROR_CODES.ANALYSIS_FAILED]: definition('engine-contract', 'unknown', 'The website analysis could not be completed.'),
@@ -108,7 +111,8 @@ const TOP_LEVEL_KEYS = Object.freeze([
 ]);
 const DIAGNOSTIC_KEYS = Object.freeze([
   'source', 'operation', 'processExitCode', 'signaled', 'artifactId',
-  'manifestStatus', 'reportStatus',
+  'manifestStatus', 'reportStatus', 'timeoutMs', 'forcedTermination',
+  'terminationMethod',
 ]);
 const FORBIDDEN_FIELDS = new Set([
   'stack', 'stdout', 'stderr', 'command', 'args', 'cwd', 'environment',
@@ -131,6 +135,7 @@ function classifyError(input = {}) {
   const stage = input.stage;
   let code = Object.values(ERROR_CODES).includes(input.code) ? input.code : null;
 
+  if (!code && (result.timedOut === true || input.timedOut === true)) code = ERROR_CODES.ENGINE_DEADLINE_EXCEEDED;
   if (!code && input.operation === 'validate-request') code = ERROR_CODES.INVALID_REQUEST;
   if (!code && (input.operation === 'validate-target' || /^URL validation failed:/.test(message))) code = ERROR_CODES.INVALID_TARGET_URL;
   if (!code && input.operation === 'provision-workspace') code = ERROR_CODES.WORKSPACE_PROVISION_FAILED;
@@ -164,6 +169,8 @@ function classifyError(input = {}) {
   const operation = ERROR_OPERATIONS.includes(input.operation) ? input.operation : 'finalize-run';
   const exitCode = result.code ?? result.exitCode ?? input.processExitCode;
   const signaled = Boolean(result.signal || input.signaled === true);
+  const timeoutMs = result.timeoutMs ?? input.timeoutMs;
+  const termination = result.termination || input.termination || {};
   return Object.freeze({
     category: descriptor.category,
     code,
@@ -178,6 +185,11 @@ function classifyError(input = {}) {
       artifactId: typeof input.artifactId === 'string' ? input.artifactId : null,
       manifestStatus: MANIFEST_STATUSES.includes(input.manifestStatus) ? input.manifestStatus : null,
       reportStatus: REPORT_STATUSES.includes(input.reportStatus) ? input.reportStatus : null,
+      timeoutMs: Number.isSafeInteger(timeoutMs) && timeoutMs > 0 ? timeoutMs : null,
+      forcedTermination: termination.forced === true || input.forcedTermination === true,
+      terminationMethod: TERMINATION_METHODS.includes(termination.method || input.terminationMethod)
+        ? (termination.method || input.terminationMethod)
+        : null,
     }),
   });
 }
@@ -221,6 +233,13 @@ function validateNormalizedError(value) {
   if (ERROR_CODE_REGISTRY[value.code]?.retryability !== value.retryability) errors.push('Normalized error code/retryability pair is invalid.');
   validateUserMessage(value.userMessage, errors);
   validateDiagnostic(value.diagnostic, errors);
+  if (value.code === ERROR_CODES.ENGINE_DEADLINE_EXCEEDED) {
+    if (value.diagnostic?.timeoutMs === null) errors.push('Timeout error requires diagnostic.timeoutMs.');
+    if (value.diagnostic?.terminationMethod === null) errors.push('Timeout error requires diagnostic.terminationMethod.');
+  } else if (value.diagnostic && (value.diagnostic.timeoutMs !== null
+      || value.diagnostic.forcedTermination !== false || value.diagnostic.terminationMethod !== null)) {
+    errors.push('Non-timeout error cannot contain timeout diagnostics.');
+  }
   if (typeof value.occurredAt !== 'string' || Number.isNaN(Date.parse(value.occurredAt))) errors.push('occurredAt must be an ISO timestamp.');
   for (const key of Object.keys(value)) if (FORBIDDEN_FIELDS.has(key)) errors.push(`Forbidden field ${key}.`);
   return errors;
@@ -254,6 +273,10 @@ function validateDiagnostic(diagnostic, errors) {
   if (diagnostic.artifactId !== null && !/^[a-z0-9]+(?:[.-][a-z0-9]+)+$/.test(diagnostic.artifactId)) errors.push('diagnostic.artifactId is invalid.');
   if (diagnostic.manifestStatus !== null && !MANIFEST_STATUSES.includes(diagnostic.manifestStatus)) errors.push('diagnostic.manifestStatus is invalid.');
   if (diagnostic.reportStatus !== null && !REPORT_STATUSES.includes(diagnostic.reportStatus)) errors.push('diagnostic.reportStatus is invalid.');
+  if (diagnostic.timeoutMs !== null && (!Number.isSafeInteger(diagnostic.timeoutMs)
+      || diagnostic.timeoutMs <= 0 || diagnostic.timeoutMs > MAX_INVOCATION_TIMEOUT_MS)) errors.push('diagnostic.timeoutMs is invalid.');
+  if (typeof diagnostic.forcedTermination !== 'boolean') errors.push('diagnostic.forcedTermination must be boolean.');
+  if (diagnostic.terminationMethod !== null && !TERMINATION_METHODS.includes(diagnostic.terminationMethod)) errors.push('diagnostic.terminationMethod is invalid.');
   for (const key of Object.keys(diagnostic)) if (FORBIDDEN_FIELDS.has(key)) errors.push(`Forbidden diagnostic field ${key}.`);
 }
 

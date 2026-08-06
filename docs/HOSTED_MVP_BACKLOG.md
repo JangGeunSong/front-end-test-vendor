@@ -13,7 +13,7 @@ Priority meanings:
 
 ## Recommended First Work
 
-**HMV-001 through HMV-004 are complete.** Continue with **HMV-005** to attach a normalized error classification to the internal terminal result while preserving current Local recovery messages and private diagnostics.
+**HMV-001 through HMV-005 are complete.** Continue with **HMV-006** to define deadline ownership and implement an engine timeout adapter without changing the Local default behavior.
 
 ## P0 — Hosted Foundation Blockers
 
@@ -163,7 +163,7 @@ Current terminal-path normalization:
 | Full execution/report success | `succeeded`, assertion `passed`, result `available`. |
 | HTML report missing after JSON result | `partially-succeeded`, failed stage `report`, assertion outcome preserved. |
 | Manifest/result write secondary failure | Existing run status/outcome is not replaced; manifest state is invalid/unavailable when a result can still be built. |
-| Approval writer/validator failure | Current controller does not make this terminal; no terminal result is written. Lifecycle repair remains HMV-101/HMV-005 work. |
+| Approval writer/validator failure | Current controller does not make this terminal; no terminal result is written. HMV-005 preserves this behavior; lifecycle repair remains HMV-101 work. |
 
 Acceptance and HMV-005 handoff:
 
@@ -173,6 +173,7 @@ Acceptance and HMV-005 handoff:
 
 ### HMV-005 — Define normalized error classification
 
+- **Status:** Completed on 2026-08-06. Primary terminal failures now have a validated run-scoped normalized error; assertion failures and secondary diagnostic failures remain separate.
 - **Objective:** Replace pattern-only external behavior with an internal categorized error boundary.
 - **Rationale:** Hosted needs stable user-safe messages and private diagnostics.
 - **Source boundary:** `friendlyError`, route catch, child result objects.
@@ -183,6 +184,18 @@ Acceptance and HMV-005 handoff:
 - **Required tests:** current friendly-error cases and each category/fallback.
 - **Migration risk:** medium.
 - **Recommended commit size:** pure mapping module plus controller adapter.
+
+Completion snapshot and HMV-006 handoff:
+
+- `tools/mvp/normalized-error.js` owns schema `1.0`, the `user`/`target`/`engine-contract`/`infrastructure`/`internal` category registry, stable uppercase error codes, `never`/`conditional`/`unknown` retryability, deterministic safe messages and an allowlisted diagnostic object.
+- `<run-root>/normalized-error.json` is a workspace-root control artifact outside the HMV-003 manifest. It contains no raw cause, stdout/stderr, stack, command/args/environment, URL, or absolute path and is written atomically before terminal result projection.
+- Terminal result schema is explicitly `1.1`. Its bounded `errorReference` records `none`, `present`, or `unavailable` plus the relative path and stable classification summary; it does not duplicate the normalized error. `hasError`, reference status, lifecycle `failedStage`, code/category and assertion-only outcome consistency are validated.
+- Current Local friendly recovery strings remain the API/UI projection. `friendlyError` now consumes the same classifier but may retain Local-only install commands; the normalized `userMessage` is separate and safe for a future projector.
+- A Playwright non-zero exit with valid JSON remains process-complete `completed-with-test-failures` and creates no primary normalized error. Missing/malformed JSON can create `REPORT_MISSING`/`REPORT_INVALID`; missing HTML after valid JSON remains a secondary partial-result condition.
+- Manifest refresh, normalized-error write and terminal-result write failures do not overwrite the primary run status/result. If error persistence fails, terminal schema `1.1` records an `unavailable` reference with the in-memory stable classification; terminal-result write failure remains only a Local secondary diagnostic because it cannot self-report.
+- Approval validation failure remains non-terminal under the current lifecycle and creates no primary error artifact. Lifecycle repair/idempotency remains HMV-101; timeout and cancellation codes were not predeclared.
+- Focused coverage includes each category/fallback, browser/Python/executable/process signals, report failure, approval/reconciliation/plan mapping, validation/leakage, atomic overwrite, A/B isolation and controller primary/secondary/assertion paths. Local API response fields, status wording, queue/Map, engine schemas and dependencies remain unchanged.
+- HMV-006 should add actual deadline semantics and only then add timeout classification. Retryability in HMV-005 is metadata; no retry, timeout, cancellation or scheduling behavior exists yet.
 
 ### HMV-006 — Specify timeout ownership and implement engine deadline adapter
 

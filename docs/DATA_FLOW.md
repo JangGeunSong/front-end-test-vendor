@@ -120,32 +120,35 @@ run workspace
   -> filesystem artifact snapshot (present / missing / empty)
   -> validateArtifactManifest(manifest, workspace)
   -> workspace artifact-manifest.json
-  -> HMV-004 normalized terminal result
+  -> HMV-005 normalized error / HMV-004 normalized terminal result
 ```
 
 `artifact-manifest.json`은 schema `1.0`, run ID, repository-relative workspace root, 생성 시각과 deterministic artifact entry 목록을 가진다. 각 entry는 stable logical ID, workspace-relative `/` path, file/directory type, producer, explicit media type, required/conditional/optional metadata, size, sensitivity와 public eligibility를 기록한다. Absolute local path와 manifest self-entry는 기록하지 않는다. Controller는 workspace/status 생성 직후와 analysis/approval/execution success 또는 failure 뒤에 snapshot을 refresh하며 manifest write failure는 기존 run terminal behavior를 바꾸지 않는 secondary diagnostic이다.
 
 Public eligibility는 projection이 아니다. Raw scout/menu/status/approval/spec/Playwright report/attachment는 `never`, review JSON/Markdown는 `review-required`이며 현재 자동 `eligible` artifact는 없다. HMV-004는 manifest identity/presence를 terminal result input으로 사용하지만 missing artifact만으로 terminal state를 추론하지 않는다.
 
-HMV-004 terminal data flow:
+HMV-004/005 terminal data flow:
 
 ```text
 engine invocation outcome
   + controller terminal status/stages
   + bounded Playwright assertion summary
   + validated artifact manifest diagnostic
-  -> createTerminalResult
+  + primary raw failure when present
+  -> createNormalizedError -> validate/write normalized-error.json
+  -> createTerminalResult with bounded errorReference
   -> validateTerminalResult
   -> workspace terminal-result.json
-  -> future HMV-005 error attachment
   -> future Hosted API/report projection
 ```
 
-Controller는 `completed` 또는 `failed` transition을 persist한 뒤 manifest를 refresh하고 terminal result를 쓴다. `ready_for_execution`과 `approved`는 analysis-complete/user-decision waiting 상태이므로 terminal result를 만들지 않는다. Approval writer/validator failure도 현재 controller status를 terminal로 바꾸지 않으므로 HMV-004가 임의로 완료/실패 처리하지 않는다.
+Controller는 `completed` 또는 `failed` transition을 persist한 뒤 manifest를 refresh한다. Primary `run.error`가 있으면 schema `1.0` normalized error를 먼저 만들고 `<run-root>/normalized-error.json`에 저장한 뒤 schema `1.1` terminal result를 쓴다. `ready_for_execution`과 `approved`는 analysis-complete/user-decision waiting 상태이므로 error/result control artifact를 만들지 않는다. Approval writer/validator failure도 현재 controller status를 terminal로 바꾸지 않으므로 HMV-005가 임의로 완료/실패 처리하지 않는다.
+
+Normalized error category는 `user`, `target`, `engine-contract`, `infrastructure`, `internal`, retryability는 `never`, `conditional`, `unknown`이다. Error는 stable uppercase code, shared lifecycle stage, deterministic safe message와 allowlisted `{ source, operation, processExitCode, signaled, artifactId, manifestStatus, reportStatus }`만 기록한다. Raw cause/stdout/stderr/stack, command/args/environment, URL과 absolute path는 classifier input에서만 판단 근거로 사용할 수 있고 결과에는 복사하지 않는다. Local `friendlyError`는 같은 classifier의 code를 기존 recovery text로 projection하므로 HTTP/UI shape와 문구를 유지한다.
 
 Playwright process와 product assertion은 별개다. Valid JSON reporter output이 있으면 non-zero exit도 completed process로 normalize하고 assertion `failed`/`mixed`를 기록한다. Spawn/early process failure는 assertion `unavailable`이다. Assertion count는 nested suites/specs의 test를 stable category 하나로 분류해 `total = passed + failed + skipped + flaky`를 유지한다. Empty/all-skipped report는 known count를 가진 `unavailable`이며 성공으로 간주하지 않는다.
 
-`terminal-result.json`은 manifest 외부 control artifact다. Manifest relative path/version/status와 present/missing/empty count만 참조하며 전체 manifest, raw report, stdout/stderr, command/environment, stack 또는 absolute path를 복제하지 않는다. Result/manifest write failure는 기존 Local run status/result/API response를 덮지 않는 secondary diagnostic이다.
+`normalized-error.json`과 `terminal-result.json`은 manifest 외부 control artifact다. Terminal `errorReference`는 `none`/`present`/`unavailable`, relative path, schema/code/category/stage만 기록하고 error 전체를 복제하지 않는다. Manifest/error/result write failure와 valid JSON 뒤 HTML-only 누락은 기존 Local run status/result/API response를 덮지 않는 secondary diagnostic이다. Normalized-error write 실패 시 terminal reference는 in-memory stable classification을 유지한 `unavailable`이고, terminal-result write 실패 자체는 self-report할 수 없어 Local diagnostic으로만 남는다.
 
 Navigation-only 실행의 Overall은 Navigation/Page Identity 결과로 계산한다. Interaction/Restoration `SKIPPED`는 실패가 아니며 Navigation failure는 그대로 Overall `FAIL`이다. Interaction이 선택된 경우 기존 approval/reconciliation/Plan `3.0` contract를 변경하거나 우회하지 않는다.
 

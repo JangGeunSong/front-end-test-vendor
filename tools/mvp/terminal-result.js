@@ -9,46 +9,34 @@ const {
   isPathContained,
   validateRunId,
 } = require('./run-workspace');
+const {
+  LIFECYCLE_STAGES,
+  STAGE_PROJECTION,
+  projectLifecycleStage,
+} = require('./lifecycle-stage');
+const {
+  ERROR_CATEGORIES,
+  ERROR_CODES,
+  ERROR_CODE_REGISTRY,
+  NORMALIZED_ERROR_SCHEMA_VERSION,
+} = require('./normalized-error');
 
-const TERMINAL_RESULT_SCHEMA_VERSION = '1.0';
+const TERMINAL_RESULT_SCHEMA_VERSION = '1.1';
 const TERMINAL_OUTCOMES = Object.freeze([
   'succeeded',
   'completed-with-test-failures',
   'partially-succeeded',
   'failed',
 ]);
-const LIFECYCLE_STAGES = Object.freeze([
-  'created',
-  'analysis',
-  'review',
-  'approval',
-  'reconciliation',
-  'plan',
-  'execution',
-  'report',
-]);
 const PROCESS_OUTCOMES = Object.freeze(['not-run', 'succeeded', 'failed']);
 const ASSERTION_OUTCOMES = Object.freeze(['not-run', 'passed', 'failed', 'mixed', 'unavailable']);
 const MANIFEST_STATUSES = Object.freeze(['valid', 'invalid', 'unavailable']);
 const RESULT_AVAILABILITIES = Object.freeze(['available', 'partial', 'unavailable']);
-
-const STAGE_PROJECTION = Object.freeze([
-  ['Target validation', 'created'],
-  ['Website analysis', 'analysis'],
-  ['Page test plan generation', 'analysis'],
-  ['Interaction discovery', 'review'],
-  ['Interaction approval validation', 'approval'],
-  ['Interaction reconciliation', 'reconciliation'],
-  ['Interaction plan generation', 'plan'],
-  ['Interaction spec rendering', 'plan'],
-  ['Playwright execution', 'execution'],
-  ['Interaction execution', 'execution'],
-  ['Report preparation', 'report'],
-]);
+const ERROR_REFERENCE_STATUSES = Object.freeze(['none', 'present', 'unavailable']);
 
 const TOP_LEVEL_KEYS = Object.freeze([
   'schemaVersion', 'runId', 'outcome', 'lifecycle', 'process', 'execution',
-  'artifacts', 'hasError', 'completedAt',
+  'artifacts', 'errorReference', 'hasError', 'completedAt',
 ]);
 const LIFECYCLE_KEYS = Object.freeze(['lastCompletedStage', 'failedStage']);
 const PROCESS_KEYS = Object.freeze(['attempted', 'outcome', 'exitCode', 'signaled']);
@@ -58,6 +46,9 @@ const ARTIFACT_KEYS = Object.freeze([
   'manifestRelativePath', 'manifestSchemaVersion', 'manifestStatus', 'manifestValid',
   'availableArtifactCount', 'missingArtifactCount', 'emptyArtifactCount',
   'resultAvailability',
+]);
+const ERROR_REFERENCE_KEYS = Object.freeze([
+  'status', 'relativePath', 'schemaVersion', 'code', 'category', 'stage',
 ]);
 
 function relativePathIsSafe(value) {
@@ -198,6 +189,44 @@ function normalizeExecution(executionInput) {
   });
 }
 
+function normalizeErrorReference(run, workspace, lifecycle, input = {}) {
+  const relativePath = normalizeRelativePath(path.relative(workspace.root, workspace.paths.normalizedError));
+  if (!relativePathIsSafe(relativePath) || !isPathContained(workspace.root, workspace.paths.normalizedError)) {
+    throw new Error('Normalized error path must remain inside the run workspace.');
+  }
+  if (!run.error) {
+    return Object.freeze({
+      status: 'none',
+      relativePath,
+      schemaVersion: null,
+      code: null,
+      category: null,
+      stage: null,
+    });
+  }
+  const normalizedError = input.normalizedError;
+  if (!normalizedError) {
+    return Object.freeze({
+      status: 'unavailable',
+      relativePath,
+      schemaVersion: null,
+      code: null,
+      category: null,
+      stage: lifecycle.failedStage,
+    });
+  }
+  if (normalizedError.runId !== run.id) throw new Error('Normalized error runId does not match the terminal run.');
+  if (normalizedError.stage !== lifecycle.failedStage) throw new Error('Normalized error stage does not match the failed lifecycle stage.');
+  return Object.freeze({
+    status: input.normalizedErrorPersisted === false ? 'unavailable' : 'present',
+    relativePath,
+    schemaVersion: normalizedError.schemaVersion,
+    code: normalizedError.code,
+    category: normalizedError.category,
+    stage: normalizedError.stage,
+  });
+}
+
 function determineOutcome(run, lifecycle, process, execution, resultAvailability) {
   if (run.status === 'failed') {
     return resultAvailability === 'unavailable' ? 'failed' : 'partially-succeeded';
@@ -223,6 +252,7 @@ function createTerminalResult(input, options = {}) {
   const lifecycle = summarizeLifecycle(run);
   const process = normalizeProcess(input.process);
   const execution = normalizeExecution(input.execution);
+  const errorReference = normalizeErrorReference(run, workspace, lifecycle, input);
   const manifestState = inspectManifest(workspace, fsImpl);
   const resultAvailability = determineResultAvailability(run, manifestState);
   const outcome = determineOutcome(run, lifecycle, process, execution, resultAvailability);
@@ -247,6 +277,7 @@ function createTerminalResult(input, options = {}) {
       emptyArtifactCount: manifestState.counts?.empty ?? null,
       resultAvailability,
     }),
+    errorReference,
     hasError: Boolean(run.error),
     completedAt,
   });
@@ -270,6 +301,7 @@ function validateTerminalResult(result) {
   validateProcess(result.process, errors);
   validateExecution(result.execution, errors);
   validateArtifacts(result.artifacts, errors);
+  validateErrorReference(result.errorReference, errors);
   if (typeof result.hasError !== 'boolean') errors.push('hasError must be boolean.');
   if (typeof result.completedAt !== 'string' || Number.isNaN(Date.parse(result.completedAt))) errors.push('completedAt must be an ISO timestamp.');
   validateConsistency(result, errors);
@@ -326,8 +358,23 @@ function validateArtifacts(artifacts, errors) {
   if (!RESULT_AVAILABILITIES.includes(artifacts.resultAvailability)) errors.push('resultAvailability is invalid.');
 }
 
+function validateErrorReference(errorReference, errors) {
+  if (!validateExactKeys(errorReference, ERROR_REFERENCE_KEYS, 'errorReference', errors)) return;
+  if (!ERROR_REFERENCE_STATUSES.includes(errorReference.status)) errors.push('errorReference.status is invalid.');
+  if (!relativePathIsSafe(errorReference.relativePath)) errors.push('errorReference.relativePath must be safe and relative.');
+  for (const key of ['schemaVersion', 'code', 'category', 'stage']) {
+    if (errorReference[key] !== null && (typeof errorReference[key] !== 'string' || errorReference[key].length === 0)) errors.push(`errorReference.${key} is invalid.`);
+  }
+  if (errorReference.stage !== null && !LIFECYCLE_STAGES.includes(errorReference.stage)) errors.push('errorReference.stage is invalid.');
+  if (errorReference.schemaVersion !== null && errorReference.schemaVersion !== NORMALIZED_ERROR_SCHEMA_VERSION) errors.push('errorReference.schemaVersion is unsupported.');
+  if (errorReference.code !== null && !Object.values(ERROR_CODES).includes(errorReference.code)) errors.push('errorReference.code is invalid.');
+  if (errorReference.category !== null && !ERROR_CATEGORIES.includes(errorReference.category)) errors.push('errorReference.category is invalid.');
+  if (errorReference.code !== null && ERROR_CODE_REGISTRY[errorReference.code]?.category !== errorReference.category) errors.push('errorReference category/code pair is invalid.');
+}
+
 function validateConsistency(result, errors) {
   const { process, execution, artifacts, lifecycle } = result;
+  const errorReference = result.errorReference;
   if (process?.attempted === false && (process.outcome !== 'not-run' || process.exitCode !== null || process.signaled !== null)) errors.push('A non-attempted process must be not-run with null details.');
   if (process?.attempted === true && process.outcome === 'not-run') errors.push('An attempted process cannot be not-run.');
   if (process?.outcome === 'succeeded' && process.signaled !== false) errors.push('A succeeded process must not be signaled.');
@@ -347,6 +394,12 @@ function validateConsistency(result, errors) {
   if (result.outcome === 'succeeded' && (process?.outcome !== 'succeeded' || execution?.assertionOutcome !== 'passed' || lifecycle?.failedStage !== null)) errors.push('Succeeded outcome is inconsistent.');
   if (result.outcome === 'completed-with-test-failures' && (process?.outcome !== 'succeeded' || !['failed', 'mixed'].includes(execution?.assertionOutcome) || lifecycle?.failedStage !== 'execution')) errors.push('Completed-with-test-failures outcome is inconsistent.');
   if (result.outcome === 'failed' && (lifecycle?.failedStage === null || result.hasError !== true)) errors.push('Failed outcome requires a failed stage and error marker.');
+  if (result.hasError === false && errorReference?.status !== 'none') errors.push('A run without an error must not have a primary error reference.');
+  if (result.hasError === true && !['present', 'unavailable'].includes(errorReference?.status)) errors.push('A run with an error requires a present or unavailable primary error reference.');
+  if (errorReference?.status === 'none' && [errorReference.schemaVersion, errorReference.code, errorReference.category, errorReference.stage].some((value) => value !== null)) errors.push('An empty error reference cannot contain classification metadata.');
+  if (errorReference?.status === 'present' && [errorReference.schemaVersion, errorReference.code, errorReference.category, errorReference.stage].some((value) => value === null)) errors.push('A present error reference requires classification metadata.');
+  if (errorReference?.status !== 'none' && errorReference?.stage !== null && errorReference.stage !== lifecycle?.failedStage) errors.push('Error reference stage must match failedStage.');
+  if (['succeeded', 'completed-with-test-failures'].includes(result.outcome) && errorReference?.status !== 'none') errors.push('Successful or assertion-only outcomes cannot have a primary normalized error.');
   if (artifacts?.manifestStatus === 'valid') {
     if (artifacts.manifestValid !== true || artifacts.manifestSchemaVersion !== ARTIFACT_MANIFEST_SCHEMA_VERSION
         || [artifacts.availableArtifactCount, artifacts.missingArtifactCount, artifacts.emptyArtifactCount].some((value) => !Number.isSafeInteger(value))) errors.push('Valid manifest metadata is inconsistent.');
@@ -387,6 +440,7 @@ module.exports = {
   TERMINAL_OUTCOMES,
   TERMINAL_RESULT_SCHEMA_VERSION,
   createTerminalResult,
+  projectLifecycleStage,
   summarizePlaywrightAssertions,
   validateTerminalResult,
   writeTerminalResult,

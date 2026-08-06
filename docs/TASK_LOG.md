@@ -1,5 +1,42 @@
 # Task Log
 
+## 2026-08-06 - Normalized error classification (HMV-005)
+
+### 목표와 기준점
+
+- Clean `main`/`cd2cd7e`에서 HMV-001 invocation, HMV-002 workspace, HMV-003 manifest와 HMV-004 terminal result 위에 framework-free primary error boundary를 추가했다. 시작 HEAD와 `origin/main`은 동일했고 사전 Local MVP 회귀는 66 Node + 2 Python PASS였다.
+- Local HTTP/API/UI fields, status wording, process-local Map/queue, engine/approval/plan schema, Playwright assertion semantics, dependency/lockfile와 raw report endpoint는 변경하지 않았다.
+
+### 구현과 계약
+
+- `tools/mvp/normalized-error.js`는 schema `1.0`, category/code/retryability/source/operation registry, `classifyError`, `createNormalizedError`, `validateNormalizedError`, `writeNormalizedError`를 제공한다.
+- Categories는 `user`, `target`, `engine-contract`, `infrastructure`, `internal`; retryability는 `never`, `conditional`, `unknown`이다. Retryability는 정책 metadata이고 retry를 실행하지 않는다. Timeout/cancellation code도 실제 기능 전에 미리 추가하지 않았다.
+- Stable codes는 request/target/workspace, dependency, target network, spawn/signal/non-zero, analysis/artifact, approval/reconciliation/plan/render, execution/report/filesystem과 unknown internal 경로를 포함한다. Unknown은 `INTERNAL_UNEXPECTED`로 닫힌다.
+- `userMessage`는 registry의 deterministic safe default만 사용한다. Diagnostic은 `source`, `operation`, `processExitCode`, `signaled`, `artifactId`, `manifestStatus`, `reportStatus` allowlist만 허용하며 raw cause/stdout/stderr/stack, command/args/cwd/environment, URL/request body, absolute path와 secret-like content는 결과에서 금지한다.
+- HMV-004 lifecycle name/projection을 `tools/mvp/lifecycle-stage.js`로 작게 공유했다. Error stage와 terminal `failedStage`는 같은 registry를 사용한다.
+- `<run-root>/normalized-error.json`을 workspace root internal control path로 추가했다. Manifest에는 넣지 않으며 same-directory temp/rename, UTF-8, stable indentation과 trailing newline으로 atomic overwrite한다.
+- Terminal result는 bounded `errorReference`를 추가하므로 schema를 `1.0`에서 `1.1`로 명시적으로 변경했다. Reference는 `none`/`present`/`unavailable`, relative path, normalized schema/code/category/stage만 기록하고 error 본문은 복제하지 않는다.
+
+### Lifecycle 및 compatibility 결정
+
+- Finalization 순서는 terminal Local state/status persist -> manifest refresh -> primary normalized error create/write -> terminal result create/write다. Error/manifest/result persistence failure는 기존 terminal status/result를 덮지 않는다.
+- Analysis, execution process, JSON report missing/malformed와 unexpected terminal failure만 canonical primary error를 만든다. Non-zero/signal 뒤 JSON도 없으면 first failed `execution` stage와 recorded process outcome을 우선하고, zero exit 뒤 JSON missing/malformed은 `report` stage로 분류한다. Current approval validation failure는 non-terminal이므로 error/result artifact를 만들지 않는다.
+- Valid Playwright JSON이 있는 non-zero exit는 process-complete assertion failure다. `completed-with-test-failures`, `hasError=false`, `errorReference=none`을 유지하며 infrastructure error를 만들지 않는다.
+- Valid JSON 뒤 HTML-only 누락, manifest refresh, normalized-error write와 terminal-result write 실패는 secondary diagnostic이다. Error write가 실패하면 terminal reference는 `unavailable`이지만 in-memory stable code/category/stage를 보존한다. Terminal result write failure는 self-report할 수 없다.
+- `friendlyError`는 같은 classifier code를 기존 Local recovery message로 mapping한다. Chromium local install 안내 등 Local 문구는 유지하지만 normalized safe message와 public projection은 별개다.
+
+### 테스트와 non-goals
+
+- Invalid input/workspace, category 전체와 internal fallback, Python/Chromium/executable, spawn/non-zero/signal, target network, report missing/malformed, approval/reconciliation/plan/render, validation inconsistency, private-data leakage, atomic overwrite/A-B isolation/no-global-mutation을 focused test로 고정했다.
+- Controller analysis/process/report primary error, assertion-only no-error, manifest/error/result secondary failure, approval non-terminal behavior와 unchanged public/status projection을 검증했다.
+- Final validation은 changed JavaScript syntax, tracked JSON 25개 parse, repository-owned Markdown relative link 60개, Python file 19개 compile, focused tests, `npm.cmd run test:python` 5개와 `npm.cmd run product:mvp:test` 87 Node + 2 Python test를 모두 통과했다.
+- Public error response/report, retry execution, timeout/cancellation, queue/durable lifecycle, worker/dispatcher, retention, SSRF/egress, observability, dependency/schema upgrade와 engine behavior 개선은 수행하지 않았다.
+- local commit message: `feat: add normalized error classification`. Remote push는 수행하지 않는다.
+
+### HMV-006 handoff
+
+- 다음 작업은 `HMV-006 — Specify timeout ownership and implement engine deadline adapter`다. 전체 deadline, descendant termination과 partial artifact finalization을 먼저 정의하고 실제 timeout signal이 생긴 뒤 stable timeout code를 HMV-005 registry에 추가한다.
+
 ## 2026-08-05 - Normalized terminal result boundary (HMV-004)
 
 ### 목표와 기준점

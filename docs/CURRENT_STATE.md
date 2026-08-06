@@ -119,7 +119,7 @@ analysis_review_report.json
 
 ## Current Development Frontier
 
-Plan schema `3.0`/deterministic renderer의 previous-selection browser runtime, approval writer/local MVP product integration과 Navigation-only optional interaction execution이 구현됐다. Local controller부터 engine/report까지의 Hosted migration 경계 분석과 `HMV-001`~`HMV-004` invocation/workspace/manifest/terminal-result boundary도 완료됐다. 다음 중심 frontier는 [Hosted MVP Migration Backlog](HOSTED_MVP_BACKLOG.md)의 `HMV-005` normalized error classification이다.
+Plan schema `3.0`/deterministic renderer의 previous-selection browser runtime, approval writer/local MVP product integration과 Navigation-only optional interaction execution이 구현됐다. Local controller부터 engine/report까지의 Hosted migration 경계 분석과 `HMV-001`~`HMV-005` invocation/workspace/manifest/terminal-result/error boundary도 완료됐다. 다음 중심 frontier는 [Hosted MVP Migration Backlog](HOSTED_MVP_BACKLOG.md)의 `HMV-006` timeout ownership과 engine deadline adapter다.
 
 HMV-001은 `tools/mvp/engine-invocation.js`의 explicit `{command,args,cwd,env}` request와 raw process result 경계로 controller의 direct Python/Playwright spawn 책임을 옮겼다. 당시 compatibility wrapper는 path를 포함한 기존 동작을 보존했고, HMV-002가 같은 seam의 args/env만 workspace path로 바꿨다. Adapter는 full environment를 result에 반환하지 않으며 spawn failure, non-zero exit와 signal termination을 구분한다.
 
@@ -127,7 +127,9 @@ HMV-002는 `tools/mvp/run-workspace.js`의 `createRunWorkspace`/`ensureRunWorksp
 
 HMV-003은 `tools/mvp/artifact-manifest.js`의 manifest schema `1.0`, stable artifact ID, workspace-relative path, producer/media type, requirement/condition, `present`/`missing`/`empty`, size, sensitivity와 public eligibility 계약을 추가했다. Controller는 workspace 생성 후와 analysis/approval/execution terminal 지점에서 manifest를 refresh한다. Manifest는 Local API/UI에 노출되지 않으며 raw artifact 공개, redaction, normalized result/error, retention 또는 durable state를 구현하지 않는다.
 
-HMV-004는 `tools/mvp/terminal-result.js`의 terminal schema `1.0`과 `<run-root>/terminal-result.json` control artifact를 추가했다. Current terminal `completed`/`failed`만 normalize하며 `ready_for_execution`/`approved`에는 결과를 만들지 않는다. Process completion과 Playwright assertion PASS/FAIL/mixed/unavailable, lifecycle completed/failed stage, manifest validity와 internal result availability를 분리하고 Local API/UI/status wording은 유지한다. Detailed error taxonomy와 public projection은 아직 구현되지 않았다.
+HMV-004는 `tools/mvp/terminal-result.js`와 `<run-root>/terminal-result.json` control artifact를 추가했다. HMV-005가 bounded error reference를 추가하면서 terminal schema는 `1.0`에서 `1.1`로 명시적으로 변경됐다. Current terminal `completed`/`failed`만 normalize하며 `ready_for_execution`/`approved`에는 결과를 만들지 않는다. Process completion과 Playwright assertion PASS/FAIL/mixed/unavailable, lifecycle completed/failed stage, manifest validity와 internal result availability를 분리하고 Local API/UI/status wording은 유지한다.
+
+HMV-005는 `tools/mvp/normalized-error.js`의 normalized error schema `1.0`과 `<run-root>/normalized-error.json` control artifact를 추가했다. Primary terminal failure는 stable category/code/stage/retryability, deterministic user-safe message와 allowlisted diagnostic으로 저장되고 terminal result `errorReference`가 relative path와 bounded summary만 연결한다. Raw stdout/stderr, stack, command/args/environment, target URL과 absolute path는 기록하지 않는다. Assertion failure는 infrastructure error가 아니며, manifest/error/result write와 HTML-only 누락은 primary result를 덮지 않는 secondary diagnostic이다. Local friendly message/API/UI는 변경하지 않았다.
 
 완료된 부분:
 
@@ -189,14 +191,14 @@ Version transition은 완료됐다. `interaction_plan_contract.py`는 Reconcilia
 
 ## Latest Completed Work
 
-가장 최근 완료 작업은 Hosted 전환 backlog의 `HMV-004` normalized terminal result boundary다.
+가장 최근 완료 작업은 Hosted 전환 backlog의 `HMV-005` normalized error classification이다.
 
-- HMV-001 invocation outcome, HMV-002 workspace와 HMV-003 validated manifest를 terminal projection input으로 연결
-- `succeeded`, `completed-with-test-failures`, `partially-succeeded`, `failed` outcome과 stable lifecycle stage 정의
-- Playwright non-zero + parseable report를 process completion과 assertion failure로 분리하고 total/passed/failed/skipped/flaky count 기록
-- manifest path/version/validity/presence counts와 `available`/`partial`/`unavailable` internal result availability 연결
-- absolute path, command/env/stdout/stderr/stack 없이 root `terminal-result.json`을 atomic write; manifest에는 등록하지 않아 cycle 방지
-- terminal result write failure와 manifest secondary failure가 기존 Local run status/result/API projection을 덮지 않도록 유지
+- HMV-004 lifecycle stage registry를 공용으로 재사용하는 normalized error schema `1.0`, stable code/category/retryability registry와 validator 추가
+- primary failure를 root `normalized-error.json`에 atomic write하고 terminal schema `1.1`의 relative `errorReference`로 연결
+- user-safe deterministic message와 Local-only recovery message를 분리하고 diagnostic은 source/operation/exit/signaled/artifact/manifest/report allowlist로 제한
+- Playwright assertion-only failure는 normalized infrastructure error를 만들지 않고 기존 `completed-with-test-failures`를 유지
+- report missing/malformed, process launch/non-zero/signal, dependency, target, approval/reconciliation/plan과 unknown fallback을 deterministic하게 분류
+- normalized error/manifest/terminal result persistence failure가 기존 Local run status/result/API projection을 덮지 않도록 유지
 
 이전 완료 작업은 Python/uv 개발환경과 호환성 범위를 표준화한 maintenance 작업이다.
 
@@ -337,11 +339,13 @@ HMV-001 framework-free engine invocation adapter (completed)
   -> HMV-002 job-scoped workspace path contract (completed)
   -> HMV-003 artifact manifest (completed)
   -> HMV-004 normalized terminal result boundary (completed)
-  -> HMV-005 normalized error classification (active frontier)
+  -> HMV-005 normalized error classification (completed)
+  -> HMV-006 timeout ownership and engine deadline adapter (active frontier)
+  -> HMV-007 cancellation contract
   -> HMV-008 concurrent-run isolation characterization
 ```
 
-Task 2/3 분석과 HMV-001~004 구현 후 경계는 [Hosted MVP Engine Boundary](HOSTED_MVP_ENGINE_BOUNDARY.md)에, 구현 가능한 크기의 P0~P3 후속 작업은 [Hosted MVP Migration Backlog](HOSTED_MVP_BACKLOG.md)에 기록했다. Existing deterministic builders/validators/renderers, observedUrl provenance와 Approval/Reconciliation/Plan contracts는 유지한다. Local invocation/workspace/manifest/terminal-result seam은 완료됐지만 process-local state/queue, normalized error 부재, raw report exposure와 parser-only URL gate는 Hosted adapter/control boundary에서 추출 또는 교체해야 한다.
+Task 2/3 분석과 HMV-001~005 구현 후 경계는 [Hosted MVP Engine Boundary](HOSTED_MVP_ENGINE_BOUNDARY.md)에, 구현 가능한 크기의 P0~P3 후속 작업은 [Hosted MVP Migration Backlog](HOSTED_MVP_BACKLOG.md)에 기록했다. Existing deterministic builders/validators/renderers, observedUrl provenance와 Approval/Reconciliation/Plan contracts는 유지한다. Local invocation/workspace/manifest/terminal-result/error seam은 완료됐지만 process-local state/queue, deadline/cancellation 부재, raw report exposure와 parser-only URL gate는 Hosted adapter/control boundary에서 추출 또는 교체해야 한다.
 
 `expandedToggle` runtime과 cross-site interaction regression은 P2 interaction trial에서 계속 필요한 별도 작업이며 삭제되거나 지원 완료로 간주하지 않는다. Public execution result projection과 persistent history도 Hosted backlog에서 단계적으로 다룬다.
 

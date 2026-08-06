@@ -11,9 +11,16 @@ const {
 } = require('./run-workspace');
 const { writeArtifactManifest } = require('./artifact-manifest');
 const {
+  projectLifecycleStage,
   summarizePlaywrightAssertions,
   writeTerminalResult,
 } = require('./terminal-result');
+const {
+  ERROR_CODES,
+  classifyError,
+  createNormalizedError,
+  writeNormalizedError,
+} = require('./normalized-error');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const PYTHON = process.env.MVP_PYTHON || path.join(ROOT, '.venv', 'Scripts', 'python.exe');
@@ -127,8 +134,72 @@ function recordProcessOutcome(run, outcome) {
   };
 }
 
+function errorContextForStage(stageName, error) {
+  const context = ({
+    'Target validation': { source: 'request', operation: 'validate-target' },
+    'Website analysis': { source: 'analysis-orchestrator', operation: 'run-analysis' },
+    'Page test plan generation': { source: 'analysis-orchestrator', operation: 'run-analysis' },
+    'Interaction discovery': { source: 'analysis-orchestrator', operation: 'build-review' },
+    'Interaction approval validation': { source: 'approval', operation: 'validate-approval' },
+    'Interaction reconciliation': { source: 'approval', operation: 'reconcile-approval' },
+    'Interaction plan generation': { source: 'plan', operation: 'build-plan' },
+    'Interaction spec rendering': { source: 'plan', operation: 'render-spec' },
+    'Playwright execution': { source: 'playwright', operation: 'execute-tests' },
+    'Interaction execution': { source: 'playwright', operation: 'execute-tests' },
+    'Report preparation': { source: 'report', operation: 'read-report' },
+  })[stageName] || { source: 'controller', operation: 'finalize-run' };
+  const reportStatus = stageName === 'Report preparation'
+    ? (error?.code === 'ENOENT' ? 'missing' : (error instanceof SyntaxError ? 'malformed' : 'unavailable'))
+    : null;
+  return {
+    stage: projectLifecycleStage(stageName) || 'created',
+    source: context.source,
+    operation: context.operation,
+    cause: error,
+    invocationResult: error?.result,
+    ...(reportStatus ? { reportStatus } : {}),
+  };
+}
+
+function recordPrimaryError(run, stageName, error, options = {}) {
+  run._terminalContext ||= {};
+  const context = errorContextForStage(stageName, error);
+  if (options.preferRecordedProcess && run._terminalContext.process?.outcome === 'failed') {
+    context.cause = undefined;
+    context.invocationResult = {
+      code: run._terminalContext.process.exitCode,
+      signal: run._terminalContext.process.signaled ? 'terminated' : null,
+    };
+    context.signaled = run._terminalContext.process.signaled === true;
+  }
+  run._terminalContext.primaryErrorInput = context;
+}
+
 function finalizeTerminalRun(run, dependencies = {}) {
   refreshArtifactManifest(run, dependencies);
+  let normalizedError = null;
+  let normalizedErrorPersisted = false;
+  if (run.error) {
+    try {
+      normalizedError = (dependencies.createNormalizedErrorImpl || createNormalizedError)({
+        runId: run.id,
+        ...(run._terminalContext?.primaryErrorInput || {
+          stage: Object.entries(run.stages)
+            .map(([name, value]) => value.status === 'failed' ? projectLifecycleStage(name) : null)
+            .find(Boolean) || 'created',
+          source: 'controller',
+          operation: 'finalize-run',
+        }),
+      }, { clock: dependencies.normalizedErrorClock });
+      (dependencies.writeNormalizedErrorImpl || writeNormalizedError)({
+        workspace: run.workspace,
+        normalizedError,
+      }, { fsImpl: dependencies.normalizedErrorFs });
+      normalizedErrorPersisted = true;
+    } catch {
+      appendLog(run, 'normalized error', 'Normalized error write failed.');
+    }
+  }
   try {
     (dependencies.writeTerminalResultImpl || writeTerminalResult)({
       run,
@@ -138,6 +209,8 @@ function finalizeTerminalRun(run, dependencies = {}) {
         attempted: run._terminalContext?.executionAttempted === true,
         assertions: run._terminalContext?.assertions,
       },
+      normalizedError,
+      normalizedErrorPersisted,
     }, {
       clock: dependencies.terminalResultClock,
       fsImpl: dependencies.terminalResultFs,
@@ -289,6 +362,7 @@ async function analyzeRun(run, dependencies = {}) {
     if (active) stage(run, active[0], 'failed', friendlyError(active[0], error));
     run.status = 'failed';
     run.error = friendlyError(active?.[0], error);
+    recordPrimaryError(run, active?.[0], error);
     persist(run);
   } finally {
     if (run.status === 'failed') finalizeTerminalRun(run, dependencies);
@@ -297,22 +371,21 @@ async function analyzeRun(run, dependencies = {}) {
 }
 
 function friendlyError(stageName, error) {
-  const output = `${error?.result?.stderr || ''}\n${error?.result?.stdout || ''}`;
-  const message = error?.message || '';
-  if (error?.code === 'ENOENT' || /\bENOENT\b/.test(message)) {
+  const classification = classifyError(errorContextForStage(stageName, error));
+  if (classification.code === ERROR_CODES.DEPENDENCY_EXECUTABLE_UNAVAILABLE) {
     return `Required executable unavailable: ${error?.path || 'unknown executable'}. Create the project venv and install dependencies as described in docs/DEVELOPMENT_ENVIRONMENT.md.`;
   }
-  if (/ModuleNotFoundError|No module named/.test(output)) {
+  if (classification.code === ERROR_CODES.DEPENDENCY_PYTHON_UNAVAILABLE) {
     return 'Python dependency missing. Run: npm run env:sync';
   }
-  if (/Executable doesn't exist|browserType\.launch.*executable/i.test(output)) {
+  if (classification.code === ERROR_CODES.DEPENDENCY_BROWSER_UNAVAILABLE) {
     return 'Playwright Chromium is unavailable. Run: npx playwright install chromium';
   }
-  if (/ERR_(?:NAME_NOT_RESOLVED|CONNECTION_REFUSED|CONNECTION_TIMED_OUT|NETWORK_ACCESS_DENIED)|net::ERR_|getaddrinfo|ENETUNREACH/i.test(output)) {
+  if (classification.code === ERROR_CODES.TARGET_UNAVAILABLE) {
     return 'Target website is unavailable from this network. Check the URL, proxy/firewall policy, and outbound network access.';
   }
-  if (output.includes('evidenceChanged')) return 'Evidence changed. Re-analyze and approve the current candidate again.';
-  if (output.includes('missingCandidate')) return 'Approved candidate missing. Re-analyze and approve again.';
+  if (classification.code === ERROR_CODES.APPROVAL_EVIDENCE_CHANGED) return 'Evidence changed. Re-analyze and approve the current candidate again.';
+  if (classification.code === ERROR_CODES.APPROVAL_CANDIDATE_MISSING) return 'Approved candidate missing. Re-analyze and approve again.';
   const labels = {
     'Website analysis': 'Website analysis failed.',
     'Page test plan generation': 'Page plan generation failed.',
@@ -422,8 +495,8 @@ async function executeRun(run, dependencies = {}) {
       await runCommandImpl(run, 'interaction spec render', PYTHON, [
         'tools/ai-generator/render_interaction_plan.py', '--input', interactionPlan, '--output', run.interactionSpec,
       ]);
-      stage(run, 'Interaction spec rendering', 'success');
       interaction = JSON.parse(fs.readFileSync(interactionPlan, 'utf8'));
+      stage(run, 'Interaction spec rendering', 'success');
     } else {
       markInteractionSkipped(run, targets.interactionSkipReason);
     }
@@ -497,6 +570,11 @@ async function executeRun(run, dependencies = {}) {
     if (active) stage(run, active[0], 'failed', friendlyError(active[0], error));
     run.status = 'failed';
     run.error = friendlyError(active?.[0], error);
+    const firstFailed = Object.entries(run.stages).find(([, value]) => value.status === 'failed');
+    const primaryStageName = firstFailed?.[0] || active?.[0];
+    recordPrimaryError(run, primaryStageName, error, {
+      preferRecordedProcess: Boolean(firstFailed && active && firstFailed[0] !== active[0]),
+    });
     persist(run);
   } finally {
     if (['completed', 'failed'].includes(run.status)) finalizeTerminalRun(run, dependencies);

@@ -11,7 +11,7 @@
 - **Proposed**: Hosted 이전을 위한 제안이다.
 - **Unresolved**: 추가 실험 또는 제품·운영 결정이 필요하다.
 
-이 문서의 최초 분석 이후 HMV-001 engine invocation adapter, HMV-002 run-scoped workspace, HMV-003 artifact manifest와 HMV-004 normalized terminal result contract가 구현됐다. Local HTTP/API/schema/queue 동작과 engine 판단 contract는 유지하며 Hosted framework, database, queue, cloud, container 제품을 선택하지 않는다.
+이 문서의 최초 분석 이후 HMV-001 engine invocation adapter, HMV-002 run-scoped workspace, HMV-003 artifact manifest, HMV-004 normalized terminal result와 HMV-005 normalized error contract가 구현됐다. Local HTTP/API/schema/queue 동작과 engine 판단 contract는 유지하며 Hosted framework, database, queue, cloud, container 제품을 선택하지 않는다.
 
 ## 분석 범위와 제외 범위
 
@@ -201,17 +201,22 @@ The controller writes an initial snapshot after `status.json`, then refreshes af
 
 Artifact policy is conservative. Raw scout/menu/status/approval/spec/Playwright result, HTML and attachment artifacts are `never` public-eligible. Review JSON/Markdown is `review-required`; no artifact is currently marked `eligible`. This is classification metadata only: it neither redacts content nor authorizes Local/Hosted delivery. HMV-004 now consumes it through the internal terminal result, while raw report serving stays Local-only and HMV-009 remains the separate public-projection boundary.
 
-Observed after HMV-004: `tools/mvp/terminal-result.js` consumes terminal controller state, the last high-level subprocess outcome, a bounded Playwright assertion summary and the validated HMV-003 manifest. It writes schema `1.0` to `<run-root>/terminal-result.json` after the final manifest refresh. This file is a control artifact outside the manifest, avoiding a manifest → terminal result → manifest cycle.
+Observed after HMV-004/005: `tools/mvp/terminal-result.js` consumes terminal controller state, the last high-level subprocess outcome, a bounded Playwright assertion summary and the validated HMV-003 manifest. HMV-005 explicitly advances its schema from `1.0` to `1.1` to add a bounded normalized-error reference. It writes `<run-root>/terminal-result.json` after the final manifest refresh and primary-error persistence. This file remains a control artifact outside the manifest, avoiding a manifest/error/result cycle.
 
 ```text
 Engine Invocation Adapter
   -> Run Workspace
   -> validated Artifact Manifest
+  -> normalized Error (primary failures only)
   -> normalized Terminal Result
-  -> future normalized error / Hosted projection
+  -> future Hosted projection
 ```
 
-The process boundary and test boundary are distinct. A Playwright non-zero exit with valid JSON is normalized as process `succeeded` plus assertion `failed`/`mixed` and outcome `completed-with-test-failures`. Spawn/early process failure has process `failed` and assertion `unavailable`. Missing/malformed JSON or missing HTML can produce `partially-succeeded` while preserving any review/result already available. No command, environment, stdout/stderr, stack trace, selector or absolute path is copied into the result.
+The process boundary and test boundary are distinct. A Playwright non-zero exit with valid JSON is normalized as process `succeeded` plus assertion `failed`/`mixed` and outcome `completed-with-test-failures`; it has no primary normalized error. Spawn/early process failure has process `failed`, assertion `unavailable` and an infrastructure classification. Missing/malformed JSON becomes `REPORT_MISSING`/`REPORT_INVALID`; missing HTML after valid JSON remains a secondary partial-result condition. No command, environment, stdout/stderr, stack trace, selector, raw URL or absolute path is copied into either control artifact.
+
+Observed after HMV-005: `tools/mvp/normalized-error.js` writes schema `1.0` to `<run-root>/normalized-error.json`. The top level is `{ schemaVersion, runId, category, code, stage, retryability, userMessage, diagnostic, occurredAt }`. Categories are `user`, `target`, `engine-contract`, `infrastructure`, `internal`; retryability is conservative metadata (`never`, `conditional`, `unknown`) and does not execute a retry. The diagnostic allowlist is `{ source, operation, processExitCode, signaled, artifactId, manifestStatus, reportStatus }`. The artifact is internal, manifest-external and not a public response.
+
+Primary terminal failure and secondary diagnostic are separate. Analysis, downstream execution/process, reporter and unexpected terminal failures receive one canonical primary error. Manifest refresh, normalized-error write and terminal-result write failures do not overwrite the Local status/result; HTML-only absence after valid JSON is also secondary. Error write failure yields terminal `errorReference.status=unavailable` with the stable in-memory code/category/stage. Terminal-result write cannot self-report. Approval writer/validator failure remains non-terminal in the current lifecycle and therefore produces no primary control artifact.
 
 Normalized lifecycle stages are `created`, `analysis`, `review`, `approval`, `reconciliation`, `plan`, `execution`, `report`. Controller stage state is authoritative for `lastCompletedStage` and `failedStage`; manifest presence only supports result availability. Current `ready_for_execution` and `approved` are non-terminal, so analysis-only/no-candidate/user-decision waiting does not produce a terminal result. Approval failure also remains non-terminal under the current controller rather than silently changing status semantics in HMV-004.
 
@@ -246,6 +251,7 @@ HMV-003 registry inventory:
 | workspace `execution/specs/generated_from_plan.spec.js` | nav renderer | Playwright | direct run output; output-relative helper imports | none | yes | embeds target URL/selectors; executable internal artifact | HMV-002 complete for Local |
 | `.../mvp-runs/<id>/status.json` | controller | diagnostic snapshot only; current server does not reload it | unique run; overwritten repeatedly | none | yes | URL, analysis, result, debug logs and process path fields can be sensitive | mandatory; define safe persisted shape |
 | workspace `terminal-result.json` | terminal result writer | future error/application/public projectors | run-isolated atomic overwrite; outside manifest to avoid cycle | none | parent ignored | allowlisted internal outcome/stage/count/manifest diagnostics; no raw process data | HMV-004 control artifact; not public API |
+| workspace `normalized-error.json` | normalized error writer | terminal result reference; future application/public projector | primary terminal failure only; run-isolated atomic overwrite; outside manifest | none | parent ignored | stable safe classification and allowlisted diagnostics; no raw cause/process output | HMV-005 control artifact; not public API |
 | run `analysis_review_report.json/.md` | report builder/renderer | controller/human/approval | run-isolated overwrite | none | parent ignored | target evidence; not automatically public | mandatory |
 | run `interaction_approvals.json` | writer | validator/reconciler | run-isolated atomic replace | none | parent ignored | reviewer/note/evidence; access-controlled internal | mandatory |
 | manual `review/interaction_approvals.json` | human/CLI | manual validator/reconciler | fixed local state | manual | yes | review metadata/target evidence | local-only; Hosted uses submitted job artifact |
@@ -305,30 +311,33 @@ No new state schema is fixed by this document.
 
 ## Error Propagation
 
-| Failure | Current path | Current external result | Category |
+| Failure | Current path / external behavior | HMV-005 classification | Primary persisted error? |
 | --- | --- | --- | --- |
-| URL parse/protocol/credential | `validateTargetUrl` throws in route | HTTP 400 `{error}`; UI text | expected user error |
-| Request JSON/size | `readBody` rejects | HTTP 400 | expected user error |
-| Target resolves to unsafe network location or redirects there | no Hosted-grade check | execution may proceed | security boundary gap |
-| Child spawn failure | `runCommand` `error`; analyze/execute catches | run `failed`; friendly executable message for ENOENT | infrastructure/runtime |
-| Python import failure | child nonzero; `friendlyError` pattern | run `failed` with env sync guidance | infrastructure/runtime |
-| Scout navigation/browser failure | Node stderr/exit -> Python `None`/RuntimeError -> child nonzero | run `failed`; network/browser patterns may normalize | target or infrastructure |
-| Scout invalid stdout JSON | parser returns `None` | generic `scout failed` | engine contract |
-| Profile scout failure/invalid JSON | returns empty list | pipeline may continue with reduced Page Identity evidence | target/engine degradation |
-| Plan JSON/schema/coverage failure | validator exit 1 | analysis `failed`, broadly labelled Website analysis because orchestrator is one child boundary | engine contract |
-| Review/report invalid JSON | report child or controller parse throws | analysis `failed` | engine contract |
-| Approval invalid/unsupported | request gate or child failure | HTTP 400; stage consistency gap | expected user or contract error |
-| `missingCandidate` / `evidenceChanged` | reconciliation stdout/stderr pattern | run `failed` with re-analysis message | expected stale-review error |
-| Interaction plan validation/render failure | child exit 1 | run `failed` with stage label | engine contract |
-| Playwright assertion failure | allowed nonzero; JSON read/summarize | run `completed`, overall `FAIL`, HTML evidence if present | target/test outcome |
-| Browser crash | Playwright nonzero then JSON expected | `FAIL` if valid JSON exists; otherwise run `failed` | infrastructure/runtime |
-| Missing/invalid reporter JSON | filesystem/JSON exception | run `failed` | infrastructure or engine integration |
-| Missing HTML report | stage `Report preparation=failed` | run still `completed`; endpoint may fail | infrastructure/runtime |
-| Timeout | only scout navigation/test timeout | stage-specific failure; no job timeout state | target or infrastructure |
-| User cancellation | not implemented | no API/UI/process termination | unsupported |
-| Programming error in route | route catch | generally HTTP 400, except message containing “not found” -> 404 | internal error is not normalized |
+| URL parse/protocol/credential | `validateTargetUrl` throws; HTTP 400 body unchanged | `user / INVALID_TARGET_URL / never` at request boundary | no workspace exists, so no |
+| Request JSON/size | `readBody` rejects; HTTP 400 unchanged | `user / INVALID_REQUEST / never` mapping exists; route adapter/persistence remains future work | no |
+| Target resolves to unsafe network location or redirects there | no Hosted-grade check; execution may proceed | not classified because the security control is absent | no; security boundary gap |
+| Child executable missing | `runCommand` spawn error; existing Local recovery text | `infrastructure / DEPENDENCY_EXECUTABLE_UNAVAILABLE / conditional` | yes for terminal run |
+| Other spawn/signaled process failure | adapter raw outcome -> controller catch | `PROCESS_SPAWN_FAILED` or `PROCESS_TERMINATED` | yes |
+| Python import failure | child output is inspected only for classification; Local env-sync text unchanged | `infrastructure / DEPENDENCY_PYTHON_UNAVAILABLE / conditional` | yes |
+| Browser runtime unavailable | trusted Playwright launch signal; Local install text unchanged | `infrastructure / DEPENDENCY_BROWSER_UNAVAILABLE / conditional` | yes |
+| Target network unavailable | known browser/network signal; Local network text unchanged | `target / TARGET_UNAVAILABLE / conditional` | yes |
+| Analysis/orchestrator/plan validation child failure | current stage + non-zero result | `engine-contract / ANALYSIS_FAILED / unknown` at the outer analysis boundary | yes |
+| Review artifact read/parse failure | controller/report child catch | engine-contract or internal fallback depending on the observed outer stage | yes when terminal; finer artifact attribution remains limited |
+| Approval invalid/unsupported | request gate or child failure; current lifecycle remains non-terminal | `APPROVAL_INVALID` mapping exists for a future lifecycle adapter | no under current controller |
+| `missingCandidate` / `evidenceChanged` | bounded child signal; existing re-analysis text | `APPROVAL_CANDIDATE_MISSING` / `APPROVAL_EVIDENCE_CHANGED` | yes if reached through terminal reconciliation |
+| Reconciliation/interaction plan/render failure | current logical stage + child failure | `RECONCILIATION_FAILED`, `PLAN_BUILD_FAILED`, `SPEC_RENDER_FAILED` | yes |
+| Playwright assertion failure | non-zero plus valid JSON; run `completed`, overall `FAIL` | product/test result, not normalized infrastructure error | no |
+| Playwright launch/early process failure | no valid assertion report | `infrastructure / EXECUTION_PROCESS_FAILED / conditional` | yes |
+| Missing/malformed reporter JSON after zero exit | `readFileSync`/`JSON.parse` in report stage | `REPORT_MISSING` / `REPORT_INVALID` | yes |
+| Missing reporter after non-zero/signal | execution failed before assertion evidence was available; report read also fails | first failed stage remains `execution`; `EXECUTION_PROCESS_FAILED` / `PROCESS_TERMINATED` | yes |
+| Missing HTML after valid JSON | report stage failed but valid product result remains | secondary partial-result diagnostic | no |
+| Manifest/error/result write failure | bounded Local debug entry; status/result unchanged | secondary diagnostic; error write produces unavailable reference | no replacement of primary |
+| Timeout | only inner scout/navigation/test timeouts; no job deadline | no timeout code until HMV-006 implements the signal | unresolved |
+| User cancellation | no API/UI/process termination | no cancellation code until HMV-007 | unsupported |
+| Unexpected terminal controller failure | terminal catch/finalization fallback | `internal / INTERNAL_UNEXPECTED / unknown` | yes when a terminal run/workspace exists |
+| Programming error in route | route catch remains current 400/404 behavior | route-local; final public error schema remains unresolved | no |
 
-Proposed: Hosted needs a normalized error/result contract that preserves category, stage, retryability, safe user message, internal diagnostic reference, and test outcome separately. Exact schema design is deferred.
+Observed after HMV-005: Hosted-facing adapters no longer need to infer the primary failure from `run.error`, stderr patterns or controller implementation. Known failures map to stable code/category/stage/retryability and unknown exceptions map to `INTERNAL_UNEXPECTED`. `friendlyError` consumes the same classification and preserves existing Local recovery strings, while normalized `userMessage` remains deterministic and path/secret-safe. This is still an internal contract: public error fields, localization, retry execution, timeout/cancellation codes and public redaction/projection are deferred.
 
 ## Security-Relevant Observations
 
@@ -396,6 +405,7 @@ KEEP does not mean raw CLI/file paths are the final Hosted API. It means behavio
 | Job workspace allocation | HMV-002 extracted to `tools/mvp/run-workspace.js`; controller binds its map | repository root + safe run ID -> contained logical paths; creates only exact run directories | P0 complete | traversal/reserved/reparse containment, uniqueness, idempotency, physical isolation and controller path-binding tests |
 | Artifact manifest | HMV-003 implemented in `tools/mvp/artifact-manifest.js` | workspace definitions -> typed relative snapshot + validated atomic JSON write | P0 complete | initial/partial/present/A-B/path/policy/controller lifecycle tests |
 | Normalized terminal result | HMV-004 implemented in `tools/mvp/terminal-result.js` | terminal run + bounded process/assertion summary + manifest -> validated internal result | P0 complete | success/assertion/process/partial/manifest/path/controller finalization tests |
+| Normalized error | HMV-005 implemented in `tools/mvp/normalized-error.js` | structured failure context -> validated safe primary error + bounded terminal reference | P0 complete | category/fallback/process/report/assertion/validation/leakage/persistence/controller tests |
 | Target validation use case | server calls basic parser directly | request URL -> canonical request or categorized rejection; no network side effect | P0 | retain current cases, add policy adapter seam; security policy remains separate |
 | Execution options | hardcoded args/env in controller | bounded mode/workers/retries/cache/report options -> command args/env | P0 | default equality tests; no user-controlled arbitrary args |
 | Timeout/cancellation interface | absent around `runCommand` | deadline/signal -> process-tree termination result | P0 | fake long child tests; implementation follows contract task |
@@ -404,7 +414,7 @@ KEEP does not mean raw CLI/file paths are the final Hosted API. It means behavio
 | Report/public result projection | `normalizeAnalysis`, `summarizePlaywrightResult`, raw report endpoint | internal manifest/result -> allowlisted public view | P0/P1 | secret/path/raw evidence exclusion tests |
 | Retention/cleanup policy port | no current boundary | manifest + terminal time + policy -> deletion decisions | P1 | dry-run policy tests first |
 
-Observed extraction sequence: HMV-001 introduced the process seam; HMV-002 added workspace isolation; HMV-003 added artifact identity/snapshots; HMV-004 now adds terminal normalization without changing the Local response. HMV-005 is the next additive error boundary.
+Observed extraction sequence: HMV-001 introduced the process seam; HMV-002 added workspace isolation; HMV-003 added artifact identity/snapshots; HMV-004 added terminal normalization; HMV-005 added the safe primary-error boundary without changing the Local response. HMV-006 deadline ownership is next.
 
 ## REPLACE
 
@@ -460,7 +470,7 @@ Local Reference UI
 Answers to migration questions:
 
 - **Most stable reusable engine entrypoint:** Observed, `agent_orchestrator.py --generation-mode plan --generated-dir <analysis> --navigation-spec-output <spec>` is now the smallest path-parameterized analysis entrypoint. It still owns nested subprocess sequencing and is not a complete application-service entrypoint for review/approval/execution.
-- **Smallest first adapter:** Completed through HMV-004: invocation, workspace, artifact manifest and normalized terminal result are framework-free seams. The next additive boundary is HMV-005 normalized error classification.
+- **Smallest first adapter:** Completed through HMV-005: invocation, workspace, artifact manifest, normalized error and normalized terminal result are framework-free seams. The next additive boundary is HMV-006 deadline ownership/adapter.
 - **First business/application logic to separate:** target request validation, run command construction, execution target selection and normalized terminal projection currently inside `controller.js`.
 - **Artifacts requiring isolation:** scout result, profile-tree temp file, menu map, navigation plan, navigation spec, approval, reconciliation, interaction plan/spec, Playwright JSON/HTML, `test-results` attachments/logs; cache needs an explicit separate policy.
 - **Progress:** add typed stage hooks at adapter/application boundaries. Do not parse current stdout for semantic progress; retain it only as private diagnostics.
@@ -470,7 +480,7 @@ Answers to migration questions:
 - **Raw vs sanitized:** artifact manifest labels raw target-derived inputs/evidence, executable internal files and publishable projections separately. Only an explicit sanitizer/projector crosses the public boundary.
 - **Hosted approval reuse:** Report `2.1` candidateKey/evidence, Approval/Reconciliation `3.0`, observedUrl and Plan `3.0` can be kept. Hosted UI submits decisions through an adapter; it must not manufacture execution instructions.
 - **Shared application service:** yes, proposed. Local controller and Hosted API should be adapters; process dispatch/persistence implementations can differ.
-- **Blockers before Hosted skeleton:** normalized error and durable lifecycle contracts plus target URL security specification remain; invocation, Local workspace, artifact manifest and terminal result seams are implemented. Before any public execution, implement target security, isolated worker, timeout/cancellation and retention/abuse controls.
+- **Blockers before Hosted skeleton:** durable lifecycle and timeout/cancellation contracts plus target URL security specification remain; invocation, Local workspace, artifact manifest, normalized error and terminal result seams are implemented. Before any public execution, implement target security, isolated worker, timeout/cancellation and retention/abuse controls.
 
 ## 최초 Extraction 결과와 다음 후보
 
@@ -492,7 +502,9 @@ Completed third implementation: **HMV-003 — artifact manifest**. It consumes l
 
 Completed fourth implementation: **HMV-004 — normalized terminal result boundary**. It preserves Local projection while separating service/process completion, Playwright assertion outcome, lifecycle failure and artifact availability.
 
-The next candidate is **HMV-005 — normalized error classification**. It should attach stable category/retryability/user-safe/private-diagnostic boundaries without placing raw process output in the terminal result or changing existing friendly Local messages.
+Completed fifth implementation: **HMV-005 — normalized error classification**. It attaches stable category/code/retryability/user-safe/private-diagnostic boundaries through an adjacent control artifact and terminal schema `1.1`, without placing raw process output in the result or changing existing friendly Local messages.
+
+The next candidate is **HMV-006 — timeout ownership and engine deadline adapter**. It must define actual deadline/descendant termination semantics before adding timeout codes; HMV-005 retryability remains metadata only.
 
 ## Unresolved Questions
 
@@ -518,6 +530,8 @@ The next candidate is **HMV-005 — normalized error classification**. It should
 - `tools/mvp/controller.js` — `createRun`, `persist`, `stage`: run directory and in-memory/file snapshot state.
 - `tools/mvp/run-workspace.js` — `validateRunId`, `createRunWorkspace`, `ensureRunWorkspace`: HMV-002 run ID validation, logical path calculation, lexical/real-path containment and idempotent directory provisioning.
 - `tools/mvp/run-workspace.js` — `RUN_WORKSPACE_PATH_OWNERSHIP`: HMV-003 input classification for review, executable, raw execution and public-candidate paths.
+- `tools/mvp/lifecycle-stage.js` — `LIFECYCLE_STAGES`, `STAGE_PROJECTION`, `projectLifecycleStage`: shared controller-to-normalized lifecycle registry used by terminal result and normalized error.
+- `tools/mvp/normalized-error.js` — error registries, `classifyError`, `createNormalizedError`, `validateNormalizedError`, `writeNormalizedError`: HMV-005 safe primary failure classification and atomic persistence.
 - `tools/mvp/run-workspace.test.js` — deterministic path, A/B isolation, invalid ID, containment, idempotency, no-global-mutation and failure-isolation characterization.
 - `tools/mvp/artifact-manifest.js` — `ARTIFACT_IDS`, `createArtifactDefinitions`, `createArtifactManifest`, `validateArtifactManifest`, `writeArtifactManifest`: HMV-003 logical identity, relative snapshot, policy validation and atomic persistence.
 - `tools/mvp/artifact-manifest.test.js` — initial/partial/present snapshot, A/B isolation, path leakage/traversal, enum/type/order, write/read, controller lifecycle and public-policy characterization.

@@ -140,7 +140,7 @@ target URL
 
 Hosted 전환을 위한 current engine 분석과 `KEEP`/`EXTRACT`/`REPLACE` 경계는 [HOSTED_MVP_ENGINE_BOUNDARY.md](HOSTED_MVP_ENGINE_BOUNDARY.md), 세분화된 구현 순서는 [HOSTED_MVP_BACKLOG.md](HOSTED_MVP_BACKLOG.md)에 유지한다. 현재 active frontier와 latest completed work는 [CURRENT_STATE.md](CURRENT_STATE.md)를 따른다.
 
-HMV-001 engine invocation adapter, HMV-002 run-scoped workspace, HMV-003 internal artifact manifest, HMV-004 normalized terminal result, HMV-005 normalized error classification과 HMV-006 whole-invocation deadline/termination boundary가 완료됐다. 다음 권장 milestone은 같은 termination seam 위에 timeout과 구분되는 owner-requested cancellation을 정의하는 HMV-007이다. Hosted API, Web UI, persistence, dispatcher, isolated worker와 public execution은 아직 포함하지 않는다.
+HMV-001 engine invocation adapter부터 HMV-007 owner-requested cancellation까지 완료됐다. 다음 권장 milestone은 현재 serial queue를 유지한 채 run workspace/state contamination과 process assumptions을 barrier 기반으로 검증하는 HMV-008 concurrent-run isolation characterization이다. Hosted API, Web UI, persistence, dispatcher, isolated worker와 public execution은 아직 포함하지 않는다.
 
 ## Validation Strategy
 

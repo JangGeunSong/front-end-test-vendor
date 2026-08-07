@@ -138,7 +138,9 @@ test('normalizes a full successful run with a valid manifest and available resul
   assert.equal(result.schemaVersion, TERMINAL_RESULT_SCHEMA_VERSION);
   assert.equal(result.outcome, 'succeeded');
   assert.deepEqual(result.lifecycle, { lastCompletedStage: 'report', failedStage: null });
-  assert.deepEqual(result.process, { attempted: true, outcome: 'succeeded', exitCode: 0, signaled: false, timedOut: false });
+  assert.deepEqual(result.process, {
+    attempted: true, outcome: 'succeeded', exitCode: 0, signaled: false, timedOut: false, cancelled: false,
+  });
   assert.deepEqual(result.execution, {
     attempted: true,
     assertionOutcome: 'passed',
@@ -310,8 +312,50 @@ test('uses partial completion when review exists but downstream execution did no
 test('does not create a terminal result for analysis-complete decision or execution waiting states', (t) => {
   const workspace = workspaceFor(t, 'non-terminal');
   const run = runFor(workspace, { status: 'ready_for_execution', analysis: { summary: { navigationCount: 0 } } });
-  assert.throws(() => createTerminalResult({ run, workspace }), /completed or failed/);
+  assert.throws(() => createTerminalResult({ run, workspace }), /completed, failed, or cancelled/);
   assert.equal(fs.existsSync(workspace.paths.terminalResult), false);
+});
+
+test('normalizes queued and running cancellation without a failed stage or primary error', (t) => {
+  for (const attempted of [false, true]) {
+    const workspace = workspaceFor(t, attempted ? 'cancelled-running' : 'cancelled-queued');
+    const run = mark(runFor(workspace, {
+      status: 'cancelled',
+      cancellation: {
+        state: 'completed', requested: true,
+        requestedAt: FIXED_TIME.toISOString(), completedAt: FIXED_TIME.toISOString(),
+      },
+    }), {
+      'Target validation': attempted ? 'success' : 'pending',
+      'Website analysis': attempted ? 'cancelled' : 'pending',
+    });
+    fs.writeFileSync(workspace.paths.status, '{}\n', 'utf8');
+    writeArtifactManifest(workspace, { clock: () => FIXED_TIME });
+    const result = createTerminalResult({
+      run,
+      workspace,
+      process: {
+        attempted,
+        outcome: 'cancelled',
+        exitCode: null,
+        signaled: attempted ? true : null,
+        timedOut: false,
+        cancelled: true,
+      },
+      execution: { attempted: false },
+    }, { clock: () => FIXED_TIME });
+    assert.equal(result.outcome, 'cancelled');
+    assert.equal(result.lifecycle.failedStage, null);
+    assert.equal(result.process.attempted, attempted);
+    assert.equal(result.process.cancelled, true);
+    assert.equal(result.hasError, false);
+    assert.equal(result.errorReference.status, 'none');
+    assert.deepEqual(validateTerminalResult(result), []);
+
+    const invalidRace = mutable(result);
+    invalidRace.process.timedOut = true;
+    assert.match(validateTerminalResult(invalidRace).join(' '), /cannot be timed out and cancelled|Cancelled outcome/);
+  }
 });
 
 test('preserves run outcome while distinguishing unavailable and invalid manifests', (t) => {

@@ -69,7 +69,9 @@ test('collects successful stdout and stderr with a zero exit', async () => {
   assert.equal(result.stdout, 'analysis complete');
   assert.equal(result.stderr, 'diagnostic');
   assert.equal(result.spawnError, null);
+  assert.equal(result.spawned, true);
   assert.equal(result.timedOut, false);
+  assert.equal(result.cancelled, false);
   assert.equal(result.timeoutMs, null);
   assert.deepEqual(result.termination, { requested: false, forced: false, method: null });
 });
@@ -204,6 +206,157 @@ test('normal close wins before deadline and clears the timer', async () => {
   assert.equal(result.timedOut, false);
   assert.equal(timers.pending.length, 0);
   assert.equal(child.listenerCount('close'), 0);
+});
+
+test('already-aborted signal cancels without spawning a process', async () => {
+  const controller = new AbortController();
+  controller.abort(new Error('private reason'));
+  let spawnCount = 0;
+  const result = await invokeEngineProcess(request({
+    signal: controller.signal,
+    terminationGraceMs: 5,
+  }), {
+    spawnImpl: () => { spawnCount += 1; return createChild(); },
+  });
+  assert.equal(spawnCount, 0);
+  assert.equal(result.spawned, false);
+  assert.equal(result.cancelled, true);
+  assert.equal(result.timedOut, false);
+  assert.equal(result.spawnError, null);
+  assert.deepEqual(result.termination, { requested: false, forced: false, method: null });
+  assert.equal(JSON.stringify(result).includes('private reason'), false);
+});
+
+test('cancellation requests graceful termination and removes timers and listeners on close', async () => {
+  const controller = new AbortController();
+  const child = createChild();
+  const timers = createManualTimers();
+  const calls = [];
+  const resultPromise = invokeEngineProcess(request({
+    timeoutMs: 20,
+    terminationGraceMs: 5,
+    signal: controller.signal,
+  }), {
+    spawnImpl: () => child,
+    terminateProcessImpl: (_child, options) => {
+      calls.push(options.force);
+      return { requested: true, method: 'windows-child-kill' };
+    },
+    platform: 'win32',
+    ...timers,
+  });
+  controller.abort();
+  assert.deepEqual(calls, [false]);
+  assert.equal(timers.pending.length, 1);
+  child.emit('close', null, 'SIGTERM');
+  const result = await resultPromise;
+  assert.equal(result.cancelled, true);
+  assert.equal(result.timedOut, false);
+  assert.equal(result.termination.forced, false);
+  assert.equal(child.listenerCount('close'), 0);
+  assert.equal(timers.pending.length, 0);
+});
+
+test('abort during synchronous spawn handoff terminates the returned child once', async () => {
+  const controller = new AbortController();
+  const child = createChild();
+  const calls = [];
+  const resultPromise = invokeEngineProcess(request({ signal: controller.signal, terminationGraceMs: 5 }), {
+    spawnImpl: () => {
+      controller.abort();
+      return child;
+    },
+    terminateProcessImpl: (_child, options) => {
+      calls.push(options.force);
+      return { requested: true, method: 'posix-process-group' };
+    },
+    platform: 'linux',
+  });
+  child.emit('close', null, 'SIGTERM');
+  const result = await resultPromise;
+  assert.deepEqual(calls, [false]);
+  assert.equal(result.cancelled, true);
+  assert.equal(result.spawned, true);
+});
+
+test('unresponsive cancellation forces termination once after grace', async () => {
+  const controller = new AbortController();
+  const child = createChild();
+  const timers = createManualTimers();
+  const calls = [];
+  const resultPromise = invokeEngineProcess(request({ signal: controller.signal, terminationGraceMs: 5 }), {
+    spawnImpl: () => child,
+    terminateProcessImpl: (_child, options) => {
+      calls.push(options.force);
+      return { requested: true, method: 'posix-process-group' };
+    },
+    platform: 'linux',
+    ...timers,
+  });
+  controller.abort();
+  timers.fireNext();
+  const result = await resultPromise;
+  assert.deepEqual(calls, [false, true]);
+  assert.equal(result.cancelled, true);
+  assert.equal(result.termination.forced, true);
+  child.emit('close', null, 'SIGKILL');
+  assert.equal(calls.length, 2);
+});
+
+test('first accepted cause wins timeout and cancellation races', async () => {
+  const cancelFirst = new AbortController();
+  const cancelChild = createChild();
+  const cancelTimers = createManualTimers();
+  const cancelPromise = invokeEngineProcess(request({
+    timeoutMs: 20, terminationGraceMs: 5, signal: cancelFirst.signal,
+  }), {
+    spawnImpl: () => cancelChild,
+    terminateProcessImpl: () => ({ requested: true, method: 'posix-process-group' }),
+    platform: 'linux',
+    ...cancelTimers,
+  });
+  cancelFirst.abort();
+  cancelChild.emit('close', null, 'SIGTERM');
+  const cancelled = await cancelPromise;
+  assert.equal(cancelled.cancelled, true);
+  assert.equal(cancelled.timedOut, false);
+
+  const timeoutFirst = new AbortController();
+  const timeoutChild = createChild();
+  const timeoutTimers = createManualTimers();
+  const timeoutPromise = invokeEngineProcess(request({
+    timeoutMs: 20, terminationGraceMs: 5, signal: timeoutFirst.signal,
+  }), {
+    spawnImpl: () => timeoutChild,
+    terminateProcessImpl: () => ({ requested: true, method: 'posix-process-group' }),
+    platform: 'linux',
+    ...timeoutTimers,
+  });
+  timeoutTimers.fireNext();
+  timeoutFirst.abort();
+  timeoutChild.emit('close', null, 'SIGTERM');
+  const timedOut = await timeoutPromise;
+  assert.equal(timedOut.timedOut, true);
+  assert.equal(timedOut.cancelled, false);
+});
+
+test('termination helper failure and late events preserve cancellation settlement', async () => {
+  const controller = new AbortController();
+  const child = createChild();
+  const timers = createManualTimers();
+  const resultPromise = invokeEngineProcess(request({ signal: controller.signal, terminationGraceMs: 5 }), {
+    spawnImpl: () => child,
+    terminateProcessImpl: () => { throw new Error('termination unavailable'); },
+    ...timers,
+  });
+  controller.abort();
+  child.emit('close', 0, null);
+  const result = await resultPromise;
+  child.stdout.emit('data', 'late private output');
+  child.emit('close', 9, null);
+  assert.equal(result.cancelled, true);
+  assert.equal(result.stdout, '');
+  assert.equal(result.spawnError, null);
 });
 
 test('deadline requests graceful termination and settles on close without forcing', async () => {
@@ -369,6 +522,47 @@ test('deadline process-tree characterization does not leave a neutral descendant
     }));
     descendantPid = Number.parseInt(result.stdout.trim(), 10);
     assert.equal(result.timedOut, true);
+    assert.equal(Number.isSafeInteger(descendantPid), true);
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline && processExists(descendantPid)) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.equal(processExists(descendantPid), false);
+  } finally {
+    if (Number.isSafeInteger(descendantPid) && processExists(descendantPid)) {
+      if (process.platform === 'win32') {
+        spawnSync('taskkill', ['/PID', String(descendantPid), '/T', '/F'], { windowsHide: true, shell: false, stdio: 'ignore' });
+      } else {
+        try { process.kill(descendantPid, 'SIGKILL'); } catch { /* already exited */ }
+      }
+    }
+  }
+});
+
+test('cancellation process-tree characterization does not leave a neutral descendant', { timeout: 5000 }, async () => {
+  const childProgram = 'setInterval(() => {}, 1000)';
+  const parentProgram = [
+    "const { spawn } = require('node:child_process');",
+    `const child = spawn(process.execPath, ['-e', ${JSON.stringify(childProgram)}], { stdio: 'ignore' });`,
+    "process.stdout.write(String(child.pid) + '\\n');",
+    'setInterval(() => {}, 1000);',
+  ].join(' ');
+  const controller = new AbortController();
+  let descendantPid = null;
+  try {
+    const resultPromise = invokeEngineProcess(createEngineInvocationRequest({
+      command: process.execPath,
+      args: ['-e', parentProgram],
+      cwd: process.cwd(),
+      env: {},
+      terminationGraceMs: 100,
+      signal: controller.signal,
+    }));
+    setTimeout(() => controller.abort(), 150);
+    const result = await resultPromise;
+    descendantPid = Number.parseInt(result.stdout.trim(), 10);
+    assert.equal(result.cancelled, true);
+    assert.equal(result.timedOut, false);
     assert.equal(Number.isSafeInteger(descendantPid), true);
     const deadline = Date.now() + 2000;
     while (Date.now() < deadline && processExists(descendantPid)) {

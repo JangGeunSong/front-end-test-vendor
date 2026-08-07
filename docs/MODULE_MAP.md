@@ -53,8 +53,10 @@ LLM은 structured plan 판단을 담당하고 executable Playwright code shape�
 
 ## Local MVP Modules
 
-- `tools/mvp/controller.js`: 기존 Python/Playwright command를 run 단위로 serialize하고 stage state, normalized analysis/result와 artifact lifecycle을 조합한다. Navigation은 기본 실행 대상으로 선택하고 approved eligible interaction이 있을 때만 approval 이후 downstream을 추가하며, 없으면 interaction stage를 explicit `skipped`로 기록한다.
-- `tools/mvp/server.js`: analyze/status/analysis/approve/execute/result/report 책임이 분리된 localhost HTTP API와 static UI를 제공한다.
+- `tools/mvp/controller.js`: 기존 Python/Playwright command를 run 단위로 serialize하고 stage state, normalized analysis/result, artifact lifecycle과 run-level cancellation ownership을 조합한다. Run당 `AbortController`를 소유하고 queued skip/running notification/terminal idempotency를 결정하지만 child process handle은 소유하지 않는다.
+- `tools/mvp/engine-invocation.js`: explicit command request, raw process result, whole-invocation deadline, first-accepted timeout/cancellation cause와 OS별 graceful/forced process-tree termination을 소유한다. HTTP/lifecycle/artifact를 알지 못한다.
+- `tools/mvp/terminal-result.js`: completed/failed/cancelled run을 process/assertion/lifecycle/manifest/error-reference가 분리된 internal schema `1.3` control artifact로 validate/write한다.
+- `tools/mvp/server.js`: analyze/status/analysis/approve/execute/cancel/result/report 책임이 분리된 localhost HTTP API와 static UI를 제공한다. Cancel endpoint는 controller seam만 호출하며 auth/UI policy를 구현하지 않는다.
 - `tools/mvp/public/`: URL 입력, 접힌 Navigation/identity 요약, interaction filter/선택/explicit approval, sticky 실행 요약, skipped-aware result와 HTML report link를 제공하는 dependency-free UI다.
 - `tools/mvp/playwright.config.js`: product run에서 기존 timeout을 늘리지 않고 headless, workers 1, retries 0, trace on 조건을 고정한다.
 - `tools/mvp/smoke.js`: target URL과 interaction/navigation-only mode를 받아 Local MVP의 fresh browser flow와 HTML report endpoint를 검증하는 generic smoke harness다.

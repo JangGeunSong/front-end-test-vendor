@@ -4,6 +4,7 @@ const path = require('path');
 const {
   analyzeRun,
   approveRun,
+  cancelRun,
   createRun,
   enqueue,
   executeRun,
@@ -100,6 +101,11 @@ async function route(request, response) {
       json(response, 202, { status: 'executing' });
       return;
     }
+    if (request.method === 'POST' && action === 'cancel') {
+      const cancellation = cancelRun(run.id);
+      json(response, cancellation.accepted ? 202 : 200, cancellation);
+      return;
+    }
     if (request.method === 'GET' && action === 'result') {
       if (!run.result) throw new Error('Execution result is not ready.');
       json(response, 200, run.result);
@@ -125,21 +131,28 @@ async function route(request, response) {
   json(response, 404, { error: 'Not found.' });
 }
 
-const server = http.createServer((request, response) => {
-  route(request, response).catch((error) => {
-    json(response, /not found/i.test(error.message) ? 404 : 400, { error: error.message });
+function createServer() {
+  return http.createServer((request, response) => {
+    route(request, response).catch((error) => {
+      json(response, /not found/i.test(error.message) ? 404 : 400, { error: error.message });
+    });
   });
-});
+}
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`Local Test MVP: http://127.0.0.1:${PORT}`);
-});
+if (require.main === module) {
+  const server = createServer();
+  server.listen(PORT, '127.0.0.1', () => {
+    console.log(`Local Test MVP: http://127.0.0.1:${PORT}`);
+  });
 
-server.on('error', (error) => {
-  process.exitCode = 1;
-  if (error.code === 'EADDRINUSE') {
-    console.error(`Local Test MVP could not start: port ${PORT} is already in use. Set MVP_PORT to another port and retry.`);
-    return;
-  }
-  console.error(`Local Test MVP could not start: ${error.message}`);
-});
+  server.on('error', (error) => {
+    process.exitCode = 1;
+    if (error.code === 'EADDRINUSE') {
+      console.error(`Local Test MVP could not start: port ${PORT} is already in use. Set MVP_PORT to another port and retry.`);
+      return;
+    }
+    console.error(`Local Test MVP could not start: ${error.message}`);
+  });
+}
+
+module.exports = { createServer, route };

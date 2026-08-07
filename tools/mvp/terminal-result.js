@@ -21,14 +21,15 @@ const {
   NORMALIZED_ERROR_SCHEMA_VERSION,
 } = require('./normalized-error');
 
-const TERMINAL_RESULT_SCHEMA_VERSION = '1.2';
+const TERMINAL_RESULT_SCHEMA_VERSION = '1.3';
 const TERMINAL_OUTCOMES = Object.freeze([
   'succeeded',
   'completed-with-test-failures',
   'partially-succeeded',
   'failed',
+  'cancelled',
 ]);
-const PROCESS_OUTCOMES = Object.freeze(['not-run', 'succeeded', 'failed']);
+const PROCESS_OUTCOMES = Object.freeze(['not-run', 'succeeded', 'failed', 'cancelled']);
 const ASSERTION_OUTCOMES = Object.freeze(['not-run', 'passed', 'failed', 'mixed', 'unavailable']);
 const MANIFEST_STATUSES = Object.freeze(['valid', 'invalid', 'unavailable']);
 const RESULT_AVAILABILITIES = Object.freeze(['available', 'partial', 'unavailable']);
@@ -39,7 +40,7 @@ const TOP_LEVEL_KEYS = Object.freeze([
   'artifacts', 'errorReference', 'hasError', 'completedAt',
 ]);
 const LIFECYCLE_KEYS = Object.freeze(['lastCompletedStage', 'failedStage']);
-const PROCESS_KEYS = Object.freeze(['attempted', 'outcome', 'exitCode', 'signaled', 'timedOut']);
+const PROCESS_KEYS = Object.freeze(['attempted', 'outcome', 'exitCode', 'signaled', 'timedOut', 'cancelled']);
 const EXECUTION_KEYS = Object.freeze(['attempted', 'assertionOutcome', 'counts']);
 const COUNT_KEYS = Object.freeze(['total', 'passed', 'failed', 'skipped', 'flaky']);
 const ARTIFACT_KEYS = Object.freeze([
@@ -170,13 +171,14 @@ function determineResultAvailability(run, manifestState) {
 }
 
 function normalizeProcess(processInput) {
-  if (!processInput) return Object.freeze({ attempted: false, outcome: 'not-run', exitCode: null, signaled: null, timedOut: false });
+  if (!processInput) return Object.freeze({ attempted: false, outcome: 'not-run', exitCode: null, signaled: null, timedOut: false, cancelled: false });
   return Object.freeze({
     attempted: processInput.attempted === true,
     outcome: processInput.outcome,
     exitCode: Number.isInteger(processInput.exitCode) ? processInput.exitCode : null,
     signaled: typeof processInput.signaled === 'boolean' ? processInput.signaled : null,
     timedOut: processInput.timedOut === true,
+    cancelled: processInput.cancelled === true,
   });
 }
 
@@ -229,6 +231,7 @@ function normalizeErrorReference(run, workspace, lifecycle, input = {}) {
 }
 
 function determineOutcome(run, lifecycle, process, execution, resultAvailability) {
+  if (run.status === 'cancelled') return 'cancelled';
   if (run.status === 'failed') {
     return resultAvailability === 'unavailable' ? 'failed' : 'partially-succeeded';
   }
@@ -246,7 +249,7 @@ function createTerminalResult(input, options = {}) {
   const workspace = input?.workspace || run?.workspace;
   if (!run || !workspace) throw new TypeError('Run and workspace contracts are required.');
   validateRunId(run.id);
-  if (!['completed', 'failed'].includes(run.status)) throw new Error('Terminal result requires a completed or failed run.');
+  if (!['completed', 'failed', 'cancelled'].includes(run.status)) throw new Error('Terminal result requires a completed, failed, or cancelled run.');
   if (workspace.runId !== run.id) throw new Error('Run ID does not match the workspace.');
   const fsImpl = options.fsImpl || fs;
   const clock = options.clock || (() => new Date());
@@ -331,6 +334,7 @@ function validateProcess(process, errors) {
   if (process.exitCode !== null && (!Number.isInteger(process.exitCode) || process.exitCode < 0)) errors.push('process.exitCode is invalid.');
   if (process.signaled !== null && typeof process.signaled !== 'boolean') errors.push('process.signaled is invalid.');
   if (typeof process.timedOut !== 'boolean') errors.push('process.timedOut must be boolean.');
+  if (typeof process.cancelled !== 'boolean') errors.push('process.cancelled must be boolean.');
 }
 
 function validateExecution(execution, errors) {
@@ -377,10 +381,15 @@ function validateErrorReference(errorReference, errors) {
 function validateConsistency(result, errors) {
   const { process, execution, artifacts, lifecycle } = result;
   const errorReference = result.errorReference;
-  if (process?.attempted === false && (process.outcome !== 'not-run' || process.exitCode !== null || process.signaled !== null || process.timedOut !== false)) errors.push('A non-attempted process must be not-run with null details and no timeout.');
+  if (process?.attempted === false && (!['not-run', 'cancelled'].includes(process.outcome)
+      || process.exitCode !== null || process.signaled !== null || process.timedOut !== false
+      || process.cancelled !== (process.outcome === 'cancelled'))) errors.push('A non-attempted process must be not-run or cancelled with null details and no timeout.');
   if (process?.attempted === true && process.outcome === 'not-run') errors.push('An attempted process cannot be not-run.');
   if (process?.outcome === 'succeeded' && process.signaled !== false) errors.push('A succeeded process must not be signaled.');
   if (process?.outcome === 'succeeded' && process.timedOut) errors.push('A succeeded process cannot time out.');
+  if (process?.outcome === 'succeeded' && process.cancelled) errors.push('A succeeded process cannot be cancelled.');
+  if (process?.timedOut && process.cancelled) errors.push('A process cannot be timed out and cancelled.');
+  if (process?.cancelled !== (process?.outcome === 'cancelled')) errors.push('process.cancelled must match the cancelled process outcome.');
   if (process?.timedOut && (process.attempted !== true || process.outcome !== 'failed' || lifecycle?.failedStage === null)) errors.push('A timed-out process must be attempted, failed, and have a failed stage.');
   if (execution?.attempted === false && (execution.assertionOutcome !== 'not-run' || execution.counts !== null)) errors.push('Non-attempted execution must have not-run assertions and null counts.');
   if (execution?.attempted === true && ['not-run'].includes(execution.assertionOutcome)) errors.push('Attempted execution cannot have not-run assertions.');
@@ -398,6 +407,9 @@ function validateConsistency(result, errors) {
   if (result.outcome === 'succeeded' && (process?.outcome !== 'succeeded' || execution?.assertionOutcome !== 'passed' || lifecycle?.failedStage !== null)) errors.push('Succeeded outcome is inconsistent.');
   if (result.outcome === 'completed-with-test-failures' && (process?.outcome !== 'succeeded' || !['failed', 'mixed'].includes(execution?.assertionOutcome) || lifecycle?.failedStage !== 'execution')) errors.push('Completed-with-test-failures outcome is inconsistent.');
   if (result.outcome === 'failed' && (lifecycle?.failedStage === null || result.hasError !== true)) errors.push('Failed outcome requires a failed stage and error marker.');
+  if (result.outcome === 'cancelled' && (process?.outcome !== 'cancelled' || process?.timedOut
+      || lifecycle?.failedStage !== null || result.hasError !== false || errorReference?.status !== 'none')) errors.push('Cancelled outcome requires cancellation without timeout, failed stage, or primary error.');
+  if (result.outcome !== 'cancelled' && process?.cancelled) errors.push('Only a cancelled terminal outcome can contain a cancelled process.');
   if (result.hasError === false && errorReference?.status !== 'none') errors.push('A run without an error must not have a primary error reference.');
   if (result.hasError === true && !['present', 'unavailable'].includes(errorReference?.status)) errors.push('A run with an error requires a present or unavailable primary error reference.');
   if (errorReference?.status === 'none' && [errorReference.schemaVersion, errorReference.code, errorReference.category, errorReference.stage].some((value) => value !== null)) errors.push('An empty error reference cannot contain classification metadata.');

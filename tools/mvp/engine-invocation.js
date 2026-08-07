@@ -16,28 +16,39 @@ function validatePositiveSafeInteger(value, label, maximum) {
   }
 }
 
-function normalizeDeadline(input) {
-  if (input.timeoutMs === undefined) {
+function normalizeInvocationPolicy(input) {
+  const hasDeadline = input.timeoutMs !== undefined;
+  const hasSignal = input.signal !== undefined;
+  if (hasDeadline) validatePositiveSafeInteger(input.timeoutMs, 'timeoutMs', MAX_INVOCATION_TIMEOUT_MS);
+  if (hasSignal && (!input.signal || typeof input.signal.aborted !== 'boolean'
+      || typeof input.signal.addEventListener !== 'function'
+      || typeof input.signal.removeEventListener !== 'function')) {
+    throw new TypeError('signal must be an AbortSignal.');
+  }
+  if (!hasDeadline && !hasSignal) {
     if (input.terminationGraceMs !== undefined) {
-      throw new TypeError('terminationGraceMs requires timeoutMs.');
+      throw new TypeError('terminationGraceMs requires timeoutMs or signal.');
     }
     return null;
   }
-  validatePositiveSafeInteger(input.timeoutMs, 'timeoutMs', MAX_INVOCATION_TIMEOUT_MS);
   const terminationGraceMs = input.terminationGraceMs === undefined
     ? DEFAULT_TERMINATION_GRACE_MS
     : input.terminationGraceMs;
   validatePositiveSafeInteger(terminationGraceMs, 'terminationGraceMs', MAX_TERMINATION_GRACE_MS);
-  return Object.freeze({ timeoutMs: input.timeoutMs, terminationGraceMs });
+  return Object.freeze({
+    ...(hasDeadline ? { timeoutMs: input.timeoutMs } : {}),
+    ...(hasSignal ? { signal: input.signal } : {}),
+    terminationGraceMs,
+  });
 }
 
 /**
  * Build an immutable-by-convention process request without mutating either the
  * parent environment or the caller-provided overrides.
  *
- * @param {{ command: string, args: string[], cwd: string, env?: object, timeoutMs?: number, terminationGraceMs?: number }} input
+ * @param {{ command: string, args: string[], cwd: string, env?: object, timeoutMs?: number, terminationGraceMs?: number, signal?: AbortSignal }} input
  * @param {{ parentEnv?: object }} dependencies
- * @returns {{ command: string, args: string[], cwd: string, env: object, timeoutMs?: number, terminationGraceMs?: number }}
+ * @returns {{ command: string, args: string[], cwd: string, env: object, timeoutMs?: number, terminationGraceMs?: number, signal?: AbortSignal }}
  */
 function createEngineInvocationRequest(input, dependencies = {}) {
   if (!input || typeof input.command !== 'string' || input.command.length === 0) {
@@ -49,14 +60,14 @@ function createEngineInvocationRequest(input, dependencies = {}) {
   if (typeof input.cwd !== 'string' || input.cwd.length === 0) {
     throw new TypeError('Engine invocation cwd must be a non-empty string.');
   }
-  const deadline = normalizeDeadline(input);
+  const policy = normalizeInvocationPolicy(input);
   const parentEnv = dependencies.parentEnv === undefined ? process.env : dependencies.parentEnv;
   return Object.freeze({
     command: input.command,
     args: Object.freeze([...input.args]),
     cwd: input.cwd,
     env: Object.freeze({ ...parentEnv, ...(input.env || {}) }),
-    ...(deadline || {}),
+    ...(policy || {}),
   });
 }
 
@@ -128,13 +139,16 @@ function invokeEngineProcess(request, dependencies = {}) {
   const setTimeoutImpl = dependencies.setTimeoutImpl || setTimeout;
   const clearTimeoutImpl = dependencies.clearTimeoutImpl || clearTimeout;
   const platform = dependencies.platform || process.platform;
-  const deadline = normalizeDeadline(request);
+  const policy = normalizeInvocationPolicy(request);
+  const deadline = policy?.timeoutMs === undefined ? null : policy;
+  const cancellationSignal = policy?.signal || null;
   return new Promise((resolve) => {
     let child;
     let stdout = '';
     let stderr = '';
     let settled = false;
-    let timedOut = false;
+    let terminalCause = null;
+    let spawned = false;
     let deadlineTimer = null;
     let graceTimer = null;
     const termination = { requested: false, forced: false, method: null };
@@ -147,6 +161,7 @@ function invokeEngineProcess(request, dependencies = {}) {
       clearTimer(graceTimer);
       deadlineTimer = null;
       graceTimer = null;
+      cancellationSignal?.removeEventListener('abort', onAbort);
       if (child) {
         child.removeListener('error', onError);
         child.removeListener('close', onClose);
@@ -167,15 +182,28 @@ function invokeEngineProcess(request, dependencies = {}) {
         stdout,
         stderr,
         spawnError,
-        timedOut,
+        spawned,
+        timedOut: terminalCause === 'timeout',
+        cancelled: terminalCause === 'cancellation',
         timeoutMs: deadline?.timeoutMs || null,
         termination: Object.freeze({ ...termination }),
       }));
     };
     const onStdout = (chunk) => { if (!settled) stdout += chunk.toString(); };
     const onStderr = (chunk) => { if (!settled) stderr += chunk.toString(); };
-    const onError = (error) => finish(null, null, error);
-    const onClose = (code, signal) => finish(code, signal || null, null);
+    const acceptCause = (cause) => {
+      if (terminalCause !== null) return false;
+      terminalCause = cause;
+      return true;
+    };
+    const onError = (error) => {
+      if (acceptCause('spawn-error')) finish(null, null, error);
+      else if (terminalCause === 'cancellation' || terminalCause === 'timeout') finish(null, null, null);
+    };
+    const onClose = (code, signal) => {
+      acceptCause('normal');
+      finish(code, signal || null, null);
+    };
     const schedule = (callback, delay) => {
       const timer = setTimeoutImpl(callback, delay);
       timer?.unref?.();
@@ -197,34 +225,47 @@ function invokeEngineProcess(request, dependencies = {}) {
         // Timeout remains the primary outcome; termination is best effort.
       }
     };
+    const beginTermination = (cause) => {
+      if (!acceptCause(cause)) return;
+      clearTimer(deadlineTimer);
+      deadlineTimer = null;
+      terminate(false);
+      if (settled) return;
+      graceTimer = schedule(() => {
+        if (settled) return;
+        terminate(true);
+        finish(null, null, null);
+      }, policy.terminationGraceMs);
+    };
+    const onAbort = () => beginTermination('cancellation');
 
+    if (cancellationSignal?.aborted) {
+      acceptCause('cancellation');
+      finish(null, null, null);
+      return;
+    }
     try {
       child = spawnImpl(request.command, request.args, {
         cwd: request.cwd,
         windowsHide: true,
         env: request.env,
         shell: false,
-        ...(deadline && platform !== 'win32' ? { detached: true } : {}),
+        ...(policy && platform !== 'win32' ? { detached: true } : {}),
       });
+      spawned = true;
       child.stdout?.on('data', onStdout);
       child.stderr?.on('data', onStderr);
       child.on('error', onError);
       child.on('close', onClose);
-      if (deadline) {
+      cancellationSignal?.addEventListener('abort', onAbort, { once: true });
+      if (cancellationSignal?.aborted) onAbort();
+      if (deadline && terminalCause === null) {
         deadlineTimer = schedule(() => {
-          if (settled) return;
-          timedOut = true;
-          terminate(false);
-          if (settled) return;
-          graceTimer = schedule(() => {
-            if (settled) return;
-            terminate(true);
-            finish(null, null, null);
-          }, deadline.terminationGraceMs);
+          if (!settled) beginTermination('timeout');
         }, deadline.timeoutMs);
       }
     } catch (error) {
-      finish(null, null, error);
+      onError(error);
     }
   });
 }

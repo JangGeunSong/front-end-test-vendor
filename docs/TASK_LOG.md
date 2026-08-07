@@ -1,5 +1,36 @@
 # Task Log
 
+# 2026-08-07 - Run cancellation contract (HMV-007)
+
+## 범위와 기준점
+
+- Clean `main`/`b542772`에서 HMV-001~006 invocation/workspace/manifest/terminal-result/error/deadline seam 위에 owner-requested cancellation을 추가했다. 시작 HEAD와 `origin/main`은 동일했고 사전 Local MVP 회귀는 101 Node + 2 Python PASS였다.
+- Current owner는 인증 user가 아니라 run lifecycle을 소유한 controller/caller다. `runId`만 cancellation operation에 전달하며 user/account/token/auth schema를 추가하지 않았다.
+- Existing process-global Promise queue와 `runs` Map을 유지했다. Queue item object/scheduler를 만들지 않고 cancellation marker와 run-level signal로 queued skip/running termination을 구현했다.
+
+## Cancellation과 process 계약
+
+- Run은 `cancellation: { state, requested, requestedAt, completedAt }`를 가지며 `none`, `requested`, `completed`만 사용한다. Timestamp는 injected clock으로 테스트할 수 있고 `status.json`에 persist된다. Internal `AbortController`, active-invocation marker와 finalization guard는 persistence/public projection에서 제외한다.
+- `cancelRun(runId)`과 developer-level `POST /api/runs/:id/cancel`을 추가했다. Queued/idle run은 즉시 `cancelled`로 finalize되고 나중 queue turn에서도 engine을 시작하지 않는다. Running run은 abort notification만 한 번 보내고 active adapter settlement 뒤 finalize한다. Terminal run과 repeated request는 no-op이며 기존 terminal result를 다시 쓰지 않는다.
+- Invocation request는 optional `signal`을 받는다. Adapter는 already-aborted signal이면 spawn하지 않고, running signal이면 HMV-006 `terminateInvocationProcess`를 그대로 호출해 graceful tree termination 후 grace-expiry forced fallback을 수행한다. Controller는 child handle/PID를 소유하지 않는다.
+- Raw invocation result는 `spawned`, `timedOut`, `cancelled`와 existing bounded termination metadata를 가진다. Internal first-accepted-cause latch는 normal/spawn-error/timeout/cancellation 중 하나만 accept하며 cancel-first는 cancellation, timeout-first는 timeout으로 고정한다. `timedOut`과 `cancelled`는 동시에 true가 될 수 없다. Deadline/grace timer, abort listener, child listeners와 late output/close는 exactly-once cleanup된다.
+- 여러 direct invocation은 한 run-level signal을 공유한다. Cancellation 뒤 후속 invocation은 already-aborted path에서 spawn 없이 끝난다. Partial artifacts는 삭제하지 않고 terminal status persist -> manifest refresh -> terminal result write 순서를 사용한 뒤 queue를 release한다.
+
+## Terminal/error/schema 결정
+
+- Owner cancellation은 infrastructure failure가 아니다. Run outcome과 process outcome에 `cancelled`를 추가하고 `process.cancelled`를 명시했다. Queued cancellation은 `attempted=false`, running cancellation은 `attempted=true`; lifecycle `failedStage=null`, `hasError=false`, `errorReference.status=none`이다.
+- Terminal result schema는 `1.2`에서 `1.3`으로 변경했다. Existing success/assertion-failure/partial/failure/timeout consistency는 유지하고 cancelled+timedOut, cancelled+failedStage, cancelled+primary error 같은 조합을 reject한다.
+- Normalized-error schema `1.1`, code registry와 artifact-manifest schema `1.0`은 변경하지 않았다. `RUN_CANCELLED`를 추가하지 않았고 cancellation 때문에 `normalized-error.json`을 만들지 않는다. Termination helper failure는 canonical cancellation을 바꾸지 않는 secondary internal condition이다.
+- Existing result availability policy를 재사용한다. Review artifact가 있으면 cancelled result도 `partial`, status/scout 수준뿐이면 `unavailable`이며 cancellation이라고 artifact availability를 강제로 낮추지 않는다.
+
+## 검증과 non-goals
+
+- Focused tests는 queued spawn 0, running analysis/Playwright, idle review partial result, repeated/terminal cancellation, next queue operation, already-aborted no-spawn, graceful/forced termination, actual descendant residue 0, termination helper failure, late events, timer/listener cleanup과 cancel/timeout first-cause race를 검증한다.
+- Existing HMV-006 timeout, HMV-005 error, HMV-004 terminal result, HMV-003 manifest, HMV-002 workspace, HMV-001 invocation, controller, Python과 full Local MVP regression을 실행한다. External target/LLM은 호출하지 않는다.
+- HMV-008 concurrency/queue removal, HMV-009 public projection, HMV-010 network security, durable/distributed cancellation, restart recovery, auth, scheduler/retry/retention/quota/worker isolation, UI polish와 dependency upgrade는 수행하지 않았다.
+- 다음 frontier는 HMV-008 concurrent-run isolation characterization이다. Hosted Foundation 종료선은 HMV-010으로 유지하며 이후 Hosted Web end-to-end MVP 연결 phase로 전환한다.
+- local commit message: `feat: add run cancellation contract`. Remote push는 수행하지 않는다.
+
 ## 2026-08-06 - Engine invocation deadline (HMV-006)
 
 ### 목표와 기준점

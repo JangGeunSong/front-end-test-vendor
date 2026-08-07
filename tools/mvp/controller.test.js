@@ -6,6 +6,7 @@ const {
   DEFAULT_ENGINE_TIMEOUT_MS,
   DEFAULT_EXECUTION_TIMEOUT_MS,
   analyzeRun,
+  cancelRun,
   createRun,
   enqueue,
   executeRun,
@@ -23,6 +24,7 @@ const {
 const { createRunWorkspace, ensureRunWorkspace } = require('./run-workspace');
 const { ARTIFACT_IDS } = require('./artifact-manifest');
 const { ERROR_CODES } = require('./normalized-error');
+const { route } = require('./server');
 
 const REPOSITORY_ROOT = path.resolve(__dirname, '..', '..');
 const CONTROLLER_TEST_WORKSPACE_ROOT = path.join(
@@ -117,7 +119,230 @@ test('run creation uses a validated workspace contract and preserves the generat
   assert.equal(run.dir, run.workspace.root);
   assert.equal(run.specDir, run.workspace.specDir);
   assert.equal(fs.existsSync(run.workspace.paths.status), true);
+  assert.deepEqual(run.cancellation, {
+    state: 'none', requested: false, requestedAt: null, completedAt: null,
+  });
   assert.match(generateRunId(), /^\d{13}-[0-9a-f]{8}$/);
+});
+
+test('queued cancellation never invokes the engine, finalizes artifacts, and releases the queue', async (t) => {
+  const fixed = new Date('2026-08-07T01:02:03.000Z');
+  const run = createRun('https://example.test/', {
+    runId: testRunId('queued-cancel'),
+    workspaceRoot: CONTROLLER_TEST_WORKSPACE_ROOT,
+  });
+  t.after(() => fs.rmSync(run.workspace.root, { recursive: true, force: true }));
+  let spawnCount = 0;
+  const first = cancelRun(run.id, { cancellationClock: () => fixed });
+  const repeated = cancelRun(run.id, { cancellationClock: () => fixed });
+  let nextStarted = false;
+  await enqueue(() => analyzeRun(run, {
+    runCommandImpl: async () => { spawnCount += 1; },
+  }));
+  await enqueue(() => { nextStarted = true; });
+
+  assert.deepEqual(first, { accepted: true, alreadyRequested: false, status: 'cancelled' });
+  assert.deepEqual(repeated, { accepted: false, alreadyRequested: true, status: 'cancelled' });
+  assert.equal(spawnCount, 0);
+  assert.equal(nextStarted, true);
+  assert.equal(run.status, 'cancelled');
+  assert.deepEqual(run.cancellation, {
+    state: 'completed', requested: true,
+    requestedAt: fixed.toISOString(), completedAt: fixed.toISOString(),
+  });
+  const terminal = JSON.parse(fs.readFileSync(run.workspace.paths.terminalResult, 'utf8'));
+  assert.equal(terminal.outcome, 'cancelled');
+  assert.deepEqual(terminal.process, {
+    attempted: false, outcome: 'cancelled', exitCode: null, signaled: null, timedOut: false, cancelled: true,
+  });
+  assert.equal(terminal.hasError, false);
+  assert.equal(terminal.errorReference.status, 'none');
+  assert.equal(fs.existsSync(run.workspace.paths.normalizedError), false);
+});
+
+test('running analysis cancellation aborts one invocation and preserves partial artifacts', async (t) => {
+  const run = createRun('https://example.test/', {
+    runId: testRunId('analysis-cancel'),
+    workspaceRoot: CONTROLLER_TEST_WORKSPACE_ROOT,
+  });
+  t.after(() => fs.rmSync(run.workspace.root, { recursive: true, force: true }));
+  let start;
+  const started = new Promise((resolve) => { start = resolve; });
+  let invocationCount = 0;
+  const analysis = analyzeRun(run, {
+    invokeEngineProcessImpl: (request) => new Promise((resolve) => {
+      invocationCount += 1;
+      fs.writeFileSync(run.workspace.paths.scoutResult, '{"partial":true}\n', 'utf8');
+      start();
+      request.signal.addEventListener('abort', () => resolve({
+        exitCode: null, signal: 'SIGTERM', stdout: '', stderr: '', spawnError: null,
+        spawned: true, timedOut: false, cancelled: true, timeoutMs: request.timeoutMs,
+        termination: { requested: true, forced: false, method: 'windows-taskkill' },
+      }), { once: true });
+    }),
+  });
+  await started;
+  const accepted = cancelRun(run.id, { cancellationClock: () => new Date('2026-08-07T02:00:00.000Z') });
+  await analysis;
+
+  assert.equal(accepted.accepted, true);
+  assert.equal(invocationCount, 1);
+  assert.equal(run.status, 'cancelled');
+  assert.equal(run.stages['Website analysis'].status, 'cancelled');
+  const terminal = JSON.parse(fs.readFileSync(run.workspace.paths.terminalResult, 'utf8'));
+  assert.equal(terminal.process.attempted, true);
+  assert.equal(terminal.process.outcome, 'cancelled');
+  assert.equal(terminal.artifacts.resultAvailability, 'unavailable');
+  const manifest = JSON.parse(fs.readFileSync(run.workspace.paths.artifactManifest, 'utf8'));
+  assert.equal(manifest.artifacts.find((item) => item.artifactId === ARTIFACT_IDS.SCOUT_RESULT).presence, 'present');
+  assert.equal(fs.existsSync(run.workspace.paths.normalizedError), false);
+});
+
+test('idle analysis-complete cancellation preserves review availability as partial', (t) => {
+  const run = createRun('https://example.test/', {
+    runId: testRunId('review-cancel'),
+    workspaceRoot: CONTROLLER_TEST_WORKSPACE_ROOT,
+  });
+  t.after(() => fs.rmSync(run.workspace.root, { recursive: true, force: true }));
+  run.status = 'ready_for_execution';
+  run.analysis = { summary: { navigationCount: 1 } };
+  fs.writeFileSync(run.workspace.paths.analysisReviewJson, '{"version":"2.1"}\n', 'utf8');
+  const response = cancelRun(run.id);
+  const terminal = JSON.parse(fs.readFileSync(run.workspace.paths.terminalResult, 'utf8'));
+  assert.equal(response.accepted, true);
+  assert.equal(terminal.outcome, 'cancelled');
+  assert.equal(terminal.artifacts.resultAvailability, 'partial');
+  assert.equal(fs.existsSync(run.workspace.paths.analysisReviewJson), true);
+});
+
+test('running Playwright cancellation prevents result parsing and remains idempotent', async (t) => {
+  const run = createRun('https://example.test/', {
+    runId: testRunId('execution-cancel'),
+    workspaceRoot: CONTROLLER_TEST_WORKSPACE_ROOT,
+  });
+  t.after(() => fs.rmSync(run.workspace.root, { recursive: true, force: true }));
+  fs.writeFileSync(run.workspace.paths.navigationPlan, JSON.stringify({ tests: [{ id: 'nav-1' }] }), 'utf8');
+  fs.writeFileSync(run.workspace.paths.navigationSpec, '// navigation\n', 'utf8');
+  run.navigationSpec = run.workspace.paths.navigationSpec;
+  run.analysis = { summary: { navigationCount: 1 } };
+  run.status = 'ready_for_execution';
+  let start;
+  const started = new Promise((resolve) => { start = resolve; });
+  let terminationCount = 0;
+  const execution = executeRun(run, {
+    invokeEngineProcessImpl: (request) => new Promise((resolve) => {
+      start();
+      request.signal.addEventListener('abort', () => {
+        terminationCount += 1;
+        resolve({
+          exitCode: null, signal: 'SIGTERM', stdout: '', stderr: '', spawnError: null,
+          spawned: true, timedOut: false, cancelled: true, timeoutMs: request.timeoutMs,
+          termination: { requested: true, forced: false, method: 'windows-taskkill' },
+        });
+      }, { once: true });
+    }),
+  });
+  await started;
+  const first = cancelRun(run.id);
+  const second = cancelRun(run.id);
+  await execution;
+
+  assert.equal(first.accepted, true);
+  assert.equal(second.alreadyRequested, true);
+  assert.equal(terminationCount, 1);
+  assert.equal(run.status, 'cancelled');
+  assert.equal(run.result, undefined);
+  const terminal = JSON.parse(fs.readFileSync(run.workspace.paths.terminalResult, 'utf8'));
+  assert.equal(terminal.execution.attempted, true);
+  assert.equal(terminal.execution.assertionOutcome, 'unavailable');
+  assert.equal(terminal.process.cancelled, true);
+});
+
+test('terminal run cancellation is a no-op for completed, failed, and cancelled states', (t) => {
+  for (const status of ['completed', 'failed', 'cancelled']) {
+    const run = createRun('https://example.test/', {
+      runId: testRunId(`terminal-${status}`),
+      workspaceRoot: CONTROLLER_TEST_WORKSPACE_ROOT,
+    });
+    t.after(() => fs.rmSync(run.workspace.root, { recursive: true, force: true }));
+    run.status = status;
+    if (status === 'cancelled') run.cancellation = {
+      state: 'completed', requested: true,
+      requestedAt: '2026-08-07T00:00:00.000Z', completedAt: '2026-08-07T00:00:01.000Z',
+    };
+    const before = JSON.stringify(run.cancellation);
+    const response = cancelRun(run.id);
+    assert.equal(response.accepted, false);
+    assert.equal(run.status, status);
+    assert.equal(JSON.stringify(run.cancellation), before);
+  }
+});
+
+test('Local cancellation endpoint returns accepted and idempotent bounded responses', async (t) => {
+  const run = createRun('https://example.test/', {
+    runId: testRunId('cancel-endpoint'),
+    workspaceRoot: CONTROLLER_TEST_WORKSPACE_ROOT,
+  });
+  t.after(() => fs.rmSync(run.workspace.root, { recursive: true, force: true }));
+  const invoke = async () => {
+    let statusCode;
+    let body;
+    await route({
+      method: 'POST',
+      url: `/api/runs/${run.id}/cancel`,
+      headers: { host: 'localhost' },
+    }, {
+      writeHead(code) { statusCode = code; },
+      end(value) { body = JSON.parse(value); },
+    });
+    return { statusCode, body };
+  };
+  assert.deepEqual(await invoke(), {
+    statusCode: 202,
+    body: { accepted: true, alreadyRequested: false, status: 'cancelled' },
+  });
+  assert.deepEqual(await invoke(), {
+    statusCode: 200,
+    body: { accepted: false, alreadyRequested: true, status: 'cancelled' },
+  });
+  await assert.rejects(route({
+    method: 'POST',
+    url: '/api/runs/not-a-known-run/cancel',
+    headers: { host: 'localhost' },
+  }, {}), /Run not found/);
+});
+
+test('timeout accepted before a late cancellation remains the canonical terminal cause', async (t) => {
+  const run = createRun('https://example.test/', {
+    runId: testRunId('timeout-cancel-race'),
+    workspaceRoot: CONTROLLER_TEST_WORKSPACE_ROOT,
+  });
+  t.after(() => fs.rmSync(run.workspace.root, { recursive: true, force: true }));
+  let start;
+  const started = new Promise((resolve) => { start = resolve; });
+  let settle;
+  const analysis = analyzeRun(run, {
+    invokeEngineProcessImpl: () => new Promise((resolve) => {
+      settle = resolve;
+      start();
+    }),
+  });
+  await started;
+  const cancellation = cancelRun(run.id);
+  settle({
+    exitCode: null, signal: null, stdout: '', stderr: '', spawnError: null,
+    spawned: true, timedOut: true, cancelled: false, timeoutMs: DEFAULT_ENGINE_TIMEOUT_MS,
+    termination: { requested: true, forced: true, method: 'windows-taskkill' },
+  });
+  await analysis;
+
+  assert.equal(cancellation.accepted, true);
+  assert.equal(run.status, 'failed');
+  const terminal = JSON.parse(fs.readFileSync(run.workspace.paths.terminalResult, 'utf8'));
+  assert.equal(terminal.outcome, 'failed');
+  assert.equal(terminal.process.timedOut, true);
+  assert.equal(terminal.process.cancelled, false);
+  assert.equal(terminal.errorReference.code, ERROR_CODES.ENGINE_DEADLINE_EXCEEDED);
 });
 
 test('workspace provisioning failure is propagated without registering or contaminating another run', (t) => {

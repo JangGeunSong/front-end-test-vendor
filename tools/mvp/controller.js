@@ -45,6 +45,15 @@ const STAGES = [
 const NO_APPROVED_INTERACTIONS = 'no-approved-supported-interactions';
 const DEFAULT_ENGINE_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_EXECUTION_TIMEOUT_MS = 30 * 60 * 1000;
+const TERMINAL_RUN_STATUSES = Object.freeze(['completed', 'failed', 'cancelled']);
+
+class RunCancellationError extends Error {
+  constructor(result) {
+    super('Run cancelled.');
+    this.name = 'RunCancellationError';
+    this.result = result;
+  }
+}
 
 const runs = new Map();
 let operationQueue = Promise.resolve();
@@ -80,6 +89,11 @@ function createRun(url, options = {}) {
     workspaceRoot: options.workspaceRoot,
   });
   (options.ensureWorkspace || ensureRunWorkspace)(workspace);
+  const clock = options.clock || (() => new Date());
+  const createdAtValue = clock();
+  const createdAt = createdAtValue instanceof Date
+    ? createdAtValue.toISOString()
+    : new Date(createdAtValue).toISOString();
   const run = {
     id,
     url,
@@ -87,8 +101,15 @@ function createRun(url, options = {}) {
     dir: workspace.root,
     specDir: workspace.specDir,
     status: 'created',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt,
+    updatedAt: createdAt,
+    cancellation: {
+      state: 'none',
+      requested: false,
+      requestedAt: null,
+      completedAt: null,
+    },
+    _abortController: new AbortController(),
     stages: Object.fromEntries(STAGES.map((name) => [name, { status: 'pending' }])),
     debugLog: [],
   };
@@ -105,6 +126,9 @@ function persist(run) {
   delete serializable.dir;
   delete serializable.specDir;
   delete serializable._terminalContext;
+  delete serializable._abortController;
+  delete serializable._cancellationFinalized;
+  delete serializable._activeInvocation;
   fs.writeFileSync(run.workspace.paths.status, `${JSON.stringify(serializable, null, 2)}\n`, 'utf8');
 }
 
@@ -172,12 +196,71 @@ function recordProcessOutcome(run, outcome) {
     exitCode: Number.isInteger(outcome.exitCode) ? outcome.exitCode : null,
     signaled: typeof outcome.signaled === 'boolean' ? outcome.signaled : null,
     timedOut: outcome.timedOut === true,
+    cancelled: outcome.cancelled === true,
     timeoutMs: Number.isSafeInteger(outcome.timeoutMs) && outcome.timeoutMs > 0 ? outcome.timeoutMs : null,
     termination: {
       forced: outcome.termination?.forced === true,
       method: typeof outcome.termination?.method === 'string' ? outcome.termination.method : null,
     },
   };
+}
+
+function timestamp(clock) {
+  const value = (clock || (() => new Date()))();
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+function isTerminalRun(run) {
+  return TERMINAL_RUN_STATUSES.includes(run.status);
+}
+
+function completeCancellation(run, dependencies = {}) {
+  if (run.status === 'cancelled' && run._cancellationFinalized) return false;
+  if (run.status !== 'cancelled') {
+    const active = Object.entries(run.stages).find(([, value]) => value.status === 'running');
+    if (active) stage(run, active[0], 'cancelled', 'Run cancelled.');
+    if (!run._terminalContext?.process) {
+      recordProcessOutcome(run, {
+        attempted: false,
+        outcome: 'cancelled',
+        exitCode: null,
+        signaled: null,
+        timedOut: false,
+        cancelled: true,
+      });
+    }
+    run.status = 'cancelled';
+    run.cancellation.state = 'completed';
+    run.cancellation.completedAt = timestamp(dependencies.cancellationClock);
+    persist(run);
+  }
+  run._cancellationFinalized = true;
+  finalizeTerminalRun(run, dependencies);
+  return true;
+}
+
+function cancelRun(runId, dependencies = {}) {
+  const run = getRun(runId);
+  if (isTerminalRun(run)) {
+    return Object.freeze({
+      accepted: false,
+      alreadyRequested: run.cancellation?.requested === true,
+      status: run.status,
+    });
+  }
+  if (run.cancellation.requested) {
+    return Object.freeze({ accepted: false, alreadyRequested: true, status: run.status });
+  }
+  run.cancellation = {
+    state: 'requested',
+    requested: true,
+    requestedAt: timestamp(dependencies.cancellationClock),
+    completedAt: null,
+  };
+  persist(run);
+  run._abortController.abort();
+  if (!run._activeInvocation && !['analyzing', 'executing'].includes(run.status)) completeCancellation(run, dependencies);
+  return Object.freeze({ accepted: true, alreadyRequested: false, status: run.status });
 }
 
 function errorContextForStage(stageName, error) {
@@ -291,11 +374,31 @@ async function runCommand(run, label, executable, args, options = {}, dependenci
     },
     timeoutMs,
     terminationGraceMs,
+    ...(run._abortController ? { signal: run._abortController.signal } : {}),
   }, dependencies);
-  const invocation = await (dependencies.invokeEngineProcessImpl || invokeEngineProcess)(
-    request,
-    dependencies.invocationDependencies,
-  );
+  let invocation;
+  run._activeInvocation = true;
+  try {
+    invocation = await (dependencies.invokeEngineProcessImpl || invokeEngineProcess)(
+      request,
+      dependencies.invocationDependencies,
+    );
+  } finally {
+    run._activeInvocation = false;
+  }
+  if (invocation.cancelled) {
+    recordProcessOutcome(run, {
+      attempted: invocation.spawned === true,
+      outcome: 'cancelled',
+      exitCode: invocation.exitCode,
+      signaled: invocation.signal === null ? (invocation.spawned ? false : null) : true,
+      timedOut: false,
+      cancelled: true,
+      termination: invocation.termination,
+    });
+    persist(run);
+    throw new RunCancellationError(invocation);
+  }
   if (invocation.spawnError) {
     recordProcessOutcome(run, { attempted: true, outcome: 'failed', exitCode: null, signaled: false, timedOut: false });
     throw invocation.spawnError;
@@ -306,6 +409,7 @@ async function runCommand(run, label, executable, args, options = {}, dependenci
     exitCode: invocation.exitCode,
     signaled: Boolean(invocation.signal),
     timedOut: invocation.timedOut === true,
+    cancelled: false,
     timeoutMs: invocation.timeoutMs,
     termination: invocation.termination,
   });
@@ -386,6 +490,10 @@ function normalizeAnalysis(report, plan) {
 }
 
 async function analyzeRun(run, dependencies = {}) {
+  if (run.cancellation.requested || run.status === 'cancelled') {
+    completeCancellation(run, dependencies);
+    return;
+  }
   const runCommandImpl = dependencies.runCommandImpl
     || ((currentRun, label, executable, args, options = {}) => runCommand(
       currentRun, label, executable, args, options, dependencies,
@@ -423,6 +531,10 @@ async function analyzeRun(run, dependencies = {}) {
     run.status = 'ready_for_execution';
     persist(run);
   } catch (error) {
+    if (error instanceof RunCancellationError) {
+      completeCancellation(run, dependencies);
+      return;
+    }
     if (!run._terminalContext?.process?.attempted) {
       recordProcessOutcome(run, {
         attempted: true,
@@ -442,7 +554,7 @@ async function analyzeRun(run, dependencies = {}) {
     persist(run);
   } finally {
     if (run.status === 'failed') finalizeTerminalRun(run, dependencies);
-    else refreshArtifactManifest(run, dependencies);
+    else if (run.status !== 'cancelled') refreshArtifactManifest(run, dependencies);
   }
 }
 
@@ -506,8 +618,14 @@ async function approveRun(run, candidateKeys, reviewer, note, dependencies = {})
     run.approvedCandidateKeys = selected;
     run.status = 'approved';
     persist(run);
+  } catch (error) {
+    if (error instanceof RunCancellationError) {
+      completeCancellation(run, dependencies);
+      return;
+    }
+    throw error;
   } finally {
-    refreshArtifactManifest(run, dependencies);
+    if (run.status !== 'cancelled') refreshArtifactManifest(run, dependencies);
   }
 }
 
@@ -546,6 +664,10 @@ async function executeRun(run, dependencies = {}) {
       currentRun, label, executable, args, options, dependencies,
     ));
   const { paths } = run.workspace;
+  if (run.cancellation.requested || run.status === 'cancelled') {
+    completeCancellation(run, dependencies);
+    return;
+  }
   if (!['ready_for_execution', 'approved'].includes(run.status)) {
     throw new Error('Run is not ready for execution.');
   }
@@ -643,6 +765,10 @@ async function executeRun(run, dependencies = {}) {
     run.status = 'completed';
     persist(run);
   } catch (error) {
+    if (error instanceof RunCancellationError) {
+      completeCancellation(run, dependencies);
+      return;
+    }
     if (!run._terminalContext?.process?.attempted) {
       recordProcessOutcome(run, {
         attempted: true,
@@ -666,7 +792,7 @@ async function executeRun(run, dependencies = {}) {
     persist(run);
   } finally {
     if (['completed', 'failed'].includes(run.status)) finalizeTerminalRun(run, dependencies);
-    else refreshArtifactManifest(run, dependencies);
+    else if (run.status !== 'cancelled') refreshArtifactManifest(run, dependencies);
   }
 }
 
@@ -749,6 +875,7 @@ module.exports = {
   STAGES,
   analyzeRun,
   approveRun,
+  cancelRun,
   createRun,
   enqueue,
   executeRun,
@@ -758,6 +885,7 @@ module.exports = {
   publicRun,
   runCommand,
   resolveTimeoutPolicy,
+  TERMINAL_RUN_STATUSES,
   selectExecutionTargets,
   summarizePlaywrightResult,
   validateExecuteRequest,

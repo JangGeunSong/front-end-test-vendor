@@ -13,7 +13,7 @@ Priority meanings:
 
 ## Recommended First Work
 
-**HMV-001 through HMV-006 are complete.** Continue with **HMV-007** to add owner-requested cancellation through the termination seam introduced by HMV-006.
+**HMV-001 through HMV-007 are complete.** Continue with **HMV-008** to characterize concurrent-run isolation without removing the current Local serial queue prematurely.
 
 ## P0 — Hosted Foundation Blockers
 
@@ -225,6 +225,8 @@ Completion snapshot and HMV-007 handoff:
 
 ### HMV-007 — Define cancellation contract
 
+- **Status:** Completed on 2026-08-07. The Local controller/caller owns run cancellation; queued, running, and terminal semantics are implemented through one run-level `AbortController` and the HMV-006 termination seam.
+
 - **Objective:** Make cancellation idempotent across queued, running and terminal runs.
 - **Rationale:** current UI/API cannot cancel work.
 - **Source boundary:** process-local queue and child spawn lifecycle.
@@ -235,6 +237,17 @@ Completion snapshot and HMV-007 handoff:
 - **Required tests:** each lifecycle point and timeout/cancel race.
 - **Migration risk:** high.
 - **Recommended commit size:** lifecycle contract/tests then execution integration.
+
+Completion snapshot and HMV-008 handoff:
+
+- `cancelRun(runId)` and `POST /api/runs/:id/cancel` are the bounded Local seams. No user/account/auth fields were added; a future authenticated layer must validate ownership before calling this operation.
+- `status.json` persists `{ state, requested, requestedAt, completedAt }`. `none`, `requested`, and `completed` distinguish an accepted request from completed termination. Repeated requests do not re-abort, re-terminate, or rewrite a terminal run.
+- A queued/idle cancellation becomes terminal immediately and its later Promise-chain turn skips the engine. A running cancellation aborts the run-level signal, the adapter owns the child, and `terminateInvocationProcess` performs the existing graceful/forced process-tree sequence. An already-aborted signal returns before spawn, and every later invocation receives the same signal.
+- Raw invocation results add `spawned`, `cancelled`, and mutually exclusive `timedOut` state. The adapter uses a first-accepted-cause latch: cancellation before deadline remains cancellation; deadline before cancellation remains timeout; normal close/spawn error cannot overwrite an accepted terminal cause. Timers, signal listeners, child listeners, and late events are cleaned up exactly once.
+- Terminal result schema advances from `1.2` to `1.3`. Run/process outcome `cancelled` and `process.cancelled` are independent from failure; queued cancellation has `attempted=false`, running cancellation has `attempted=true`, `failedStage=null`, `hasError=false`, and no normalized-error artifact/reference. Normalized-error `1.1` and artifact-manifest `1.0` are unchanged.
+- Cancellation preserves existing artifacts, refreshes the manifest, derives existing `partial`/`unavailable` result availability, writes the cancelled terminal result, and releases the serial queue. Timeout, assertion failure, Local report behavior, and existing status response fields remain unchanged apart from the intentional new `cancelled` status and cancel endpoint.
+- Focused tests cover queued/running/idle/terminal/idempotent cancellation, analysis and Playwright cancellation, graceful/forced and real descendant termination, already-aborted/no-spawn, listener/timer/late-event cleanup, termination-helper failure, timeout/cancel ordering, partial review artifacts, queue continuation, and unchanged timeout/assertion regressions.
+- HMV-008 remains responsible only for concurrent-run isolation characterization. HMV-007 does not remove the process-global Promise queue, add parallel workers, durable/distributed cancellation, restart recovery, auth, public projection, or worker isolation.
 
 ### HMV-008 — Characterize and enforce concurrent-run isolation
 

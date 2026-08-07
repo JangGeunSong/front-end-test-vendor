@@ -144,7 +144,7 @@ controller timeout policy
   -> future Hosted API/report projection
 ```
 
-Controller는 `completed` 또는 `failed` transition을 persist한 뒤 manifest를 refresh한다. Primary `run.error`가 있으면 schema `1.1` normalized error를 먼저 만들고 `<run-root>/normalized-error.json`에 저장한 뒤 schema `1.2` terminal result를 쓴다. `ready_for_execution`과 `approved`는 analysis-complete/user-decision waiting 상태이므로 error/result control artifact를 만들지 않는다. Approval writer/validator failure도 현재 controller status를 terminal로 바꾸지 않으므로 임의로 완료/실패 처리하지 않는다.
+Controller는 `completed`, `failed` 또는 `cancelled` transition을 persist한 뒤 manifest를 refresh한다. Primary `run.error`가 있으면 schema `1.1` normalized error를 먼저 만들고 `<run-root>/normalized-error.json`에 저장한 뒤 schema `1.3` terminal result를 쓴다. Cancellation은 primary error가 아니므로 normalized error를 만들지 않는다. `ready_for_execution`과 `approved`는 평소에는 analysis-complete/user-decision waiting 상태이며, owner cancellation이 들어오면 idle cancellation으로 terminalize된다. Approval writer/validator failure 자체는 기존처럼 임의로 완료/실패 처리하지 않는다.
 
 Normalized error category는 `user`, `target`, `engine-contract`, `infrastructure`, `internal`, retryability는 `never`, `conditional`, `unknown`이다. Error는 stable uppercase code, shared lifecycle stage, deterministic safe message와 allowlisted `{ source, operation, processExitCode, signaled, artifactId, manifestStatus, reportStatus, timeoutMs, forcedTermination, terminationMethod }`만 기록한다. Timeout은 `ENGINE_DEADLINE_EXCEEDED`/`infrastructure`/`conditional`이고 retryability는 metadata일 뿐 retry를 실행하지 않는다. Raw cause/stdout/stderr/stack, command/args/environment, PID, URL과 absolute path는 classifier input에서만 판단 근거로 사용할 수 있고 결과에는 복사하지 않는다. Local `friendlyError`는 같은 classifier의 code를 기존 recovery text로 projection하므로 HTTP/UI shape와 문구를 유지한다.
 
@@ -164,7 +164,27 @@ deadline exceeded
   -> process-global queue release
 ```
 
-Windows는 `taskkill`에 numeric PID, `/T`와 forced `/F`를 argument array로 전달하며 shell을 사용하지 않는다. POSIX는 deadline invocation을 별도 process group으로 spawn하고 `SIGTERM`/`SIGKILL`을 group에 전달한다. 이는 best-effort descendant termination이며 isolated worker 보장이 아니다. Whole-invocation deadline은 Playwright test/assertion/navigation/action timeout과 별개이고, cancellation/retry/concurrent execution은 추가하지 않았다.
+Windows는 `taskkill`에 numeric PID, `/T`와 forced `/F`를 argument array로 전달하며 shell을 사용하지 않는다. POSIX는 termination-aware invocation을 별도 process group으로 spawn하고 `SIGTERM`/`SIGKILL`을 group에 전달한다. 이는 best-effort descendant termination이며 isolated worker 보장이 아니다. Whole-invocation deadline은 Playwright test/assertion/navigation/action timeout과 별개다.
+
+HMV-007 cancellation flow:
+
+```text
+Run owner / controller caller
+  -> cancelRun(runId)
+  -> persist cancellation requested metadata
+  -> queued/idle: mark cancelled and skip later Promise-chain invocation
+  -> running: run-level AbortSignal reaches active invocation
+     -> HMV-006 graceful process-tree termination
+     -> grace period and forced fallback if needed
+  -> preserve partial workspace artifacts
+  -> persist cancelled Local status and completed cancellation metadata
+  -> artifact manifest refresh
+  -> terminal result 1.3 with outcome/process.outcome=cancelled
+  -> no normalized primary error
+  -> process-global queue release
+```
+
+The adapter accepts the first terminal cause only. Cancellation accepted before the deadline clears/neutralizes the deadline; a deadline accepted first remains timeout even if cancellation is requested later. `timedOut` and `cancelled` cannot both be true. An already-aborted signal returns cancellation without spawn, repeated owner requests do not trigger duplicate termination, and later direct invocations in the same run receive the same aborted signal. The process-global Promise queue and Map remain; durable/cross-process cancellation and concurrent execution are not implemented.
 
 `normalized-error.json`과 `terminal-result.json`은 manifest 외부 control artifact다. Terminal `errorReference`는 `none`/`present`/`unavailable`, relative path, schema/code/category/stage만 기록하고 error 전체를 복제하지 않는다. Manifest/error/result write failure와 valid JSON 뒤 HTML-only 누락은 기존 Local run status/result/API response를 덮지 않는 secondary diagnostic이다. Normalized-error write 실패 시 terminal reference는 in-memory stable classification을 유지한 `unavailable`이고, terminal-result write 실패 자체는 self-report할 수 없어 Local diagnostic으로만 남는다.
 
